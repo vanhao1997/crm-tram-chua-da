@@ -86,6 +86,22 @@ function parseGvizDate(cell) {
     // Handle regular date values
     if (cell.v instanceof Date) return cell.v;
     if (typeof cell.v === 'string') {
+        // Handle explicit string format DD/MM/YYYY or DD/MM/YYYY HH:mm
+        const parts = cell.v.split(/[\s/:-]/);
+        if (cell.v.includes('/') && parts.length >= 3) {
+            // Check if it's likely DD/MM/YYYY
+            const p1 = parseInt(parts[0], 10);
+            const p2 = parseInt(parts[1], 10);
+            const p3 = parseInt(parts[2], 10);
+
+            // Typical DD/MM/YYYY format
+            if (p3 > 1900 && p2 <= 12 && p1 <= 31) {
+                const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+                const min = parts[4] ? parseInt(parts[4], 10) : 0;
+                return new Date(p3, p2 - 1, p1, hour, min);
+            }
+        }
+
         const d = new Date(cell.v);
         return isNaN(d.getTime()) ? null : d;
     }
