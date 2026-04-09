@@ -43,6 +43,28 @@
   --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ─── Light Mode Variables ─── */
+body.light-theme {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --border-subtle: #e2e8f0;
+  --border-glow: #38bdf8;
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(56, 189, 248, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(16, 185, 129, 0.12) 0%, transparent 50%);
+}
+
 /* ─── Reset & Base ─── */
 *,
 *::before,
@@ -70,10 +92,23 @@ body {
 }
 
 /* ─── Scrollbar ─── */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}
 
 /* ─── Glass Card ─── */
 .glass-card {
@@ -111,19 +146,13 @@ body {
   gap: 12px;
 }
 
-.header__logo {
+.brand-logo {
   width: 42px;
   height: 42px;
-  background: linear-gradient(135deg, var(--accent-emerald), var(--accent-blue));
   border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 14px;
-  letter-spacing: -0.5px;
-  color: white;
+  object-fit: cover;
   flex-shrink: 0;
+  border: 1px solid var(--border-subtle);
 }
 
 .header__title h1 {
@@ -239,8 +268,13 @@ body {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* ─── Header Status ─── */
@@ -315,12 +349,12 @@ body {
   transition: all var(--transition);
 }
 
-.toggle input:checked + .toggle__slider {
+.toggle input:checked+.toggle__slider {
   background: rgba(16, 185, 129, 0.2);
   border-color: var(--accent-emerald);
 }
 
-.toggle input:checked + .toggle__slider::before {
+.toggle input:checked+.toggle__slider::before {
   transform: translateX(16px);
   background: var(--accent-emerald);
 }
@@ -1018,6 +1052,7 @@ body {
     opacity: 0;
     transform: translateY(10px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -1029,6 +1064,7 @@ body {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+
   to {
     opacity: 0;
     transform: translateY(-10px) scale(0.95);
@@ -1040,6 +1076,7 @@ body {
   .main-content {
     grid-template-columns: 1fr 260px;
   }
+
   .charts-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -1049,13 +1086,70 @@ body {
   .kpi-row {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .main-content {
     grid-template-columns: 1fr;
   }
+
   .charts-row {
     grid-template-columns: 1fr;
   }
+
   .sheet-input input {
     width: 200px;
   }
+}
+
+/* ─── AI Analytics Section ─── */
+.ai-section {
+  padding: 0;
+}
+
+.ai-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.input-key {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 13px;
+  width: 260px;
+  outline: none;
+}
+
+.input-key:focus {
+  border-color: #a855f7;
+}
+
+.ai-report {
+  padding: 20px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.ai-report__header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #a855f7;
+  margin-bottom: 12px;
+}
+
+.ai-report__content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  background: rgba(168, 85, 247, 0.05);
+  border: 1px dashed rgba(168, 85, 247, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  white-space: pre-wrap;
+}
+
+.ai-report__content strong {
+  color: var(--text-primary);
 }

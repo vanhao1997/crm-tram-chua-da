@@ -36,6 +36,31 @@ function isThisWeek(date) {
 }
 
 /**
+ * Check if a date is within this month
+ */
+function isThisMonth(date) {
+    if (!date) return false;
+    const today = new Date();
+    return date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear();
+}
+
+/**
+ * Check if a date is within last month
+ */
+function isLastMonth(date) {
+    if (!date) return false;
+    const today = new Date();
+    let lastMonth = today.getMonth() - 1;
+    let year = today.getFullYear();
+    if (lastMonth < 0) {
+        lastMonth = 11;
+        year--;
+    }
+    return date.getMonth() === lastMonth && date.getFullYear() === year;
+}
+
+/**
  * Get status badge HTML
  */
 function getStatusBadge(status) {
@@ -83,6 +108,8 @@ export function renderAppointmentTable(data, filter = 'today') {
         switch (filter) {
             case 'today': return isToday(item.aptDate);
             case 'week': return isThisWeek(item.aptDate);
+            case 'month': return isThisMonth(item.aptDate);
+            case 'lastmonth': return isLastMonth(item.aptDate);
             case 'all': return true;
             default: return true;
         }
@@ -200,19 +227,6 @@ export function renderOverdueList(overdueData) {
     }).join('');
 }
 
-/**
- * Setup filter tab click handlers
- */
-export function setupFilterTabs(bookedData) {
-    const tabs = document.querySelectorAll('.filter-tab');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            tabs.forEach(t => t.classList.remove('filter-tab--active'));
-            tab.classList.add('filter-tab--active');
-            renderAppointmentTable(bookedData, tab.dataset.filter);
-        });
-    });
-}
 
 /* ─── Helpers ─── */
 

@@ -112,6 +112,33 @@ function parseRows(table, includeRevenue = false) {
         const infoVal = parseCellValue(cells[COL.INFO]);
         if (infoVal && typeof infoVal === 'string' && /^THÁNG\s+\d+/i.test(infoVal) && !name) continue;
 
+        // Combine notes from column M (12) onwards
+        let combinedNotes = '';
+        for (let i = 12; i < Math.min(cells.length, 30); i++) {
+            const val = parseCellValue(cells[i]);
+            if (val) combinedNotes += String(val).trim() + ' | ';
+        }
+        combinedNotes = combinedNotes.replace(/ \| $/, '');
+
+        let rawStatus = parseCellValue(cells[COL.STATUS]) || '';
+        let normalized = normalizeStatus(rawStatus);
+
+        // Smart Status: If status is empty or unknown, infer from notes
+        if (normalized === 'unknown' || normalized === 'other') {
+            const lowerNote = combinedNotes.toLowerCase();
+            if (lowerNote.includes('hủy') || lowerNote.includes('không đi') || lowerNote.includes('huỷ')) {
+                rawStatus = 'Hủy Lịch';
+            } else if (lowerNote.includes('dời') || lowerNote.includes('đổi ý')) {
+                rawStatus = 'Dời Lịch';
+            } else if (lowerNote.includes('thuê bao') || lowerNote.includes('tắt máy')) {
+                rawStatus = 'Thuê Bao';
+            } else if (lowerNote.includes('không nghe máy') || lowerNote.includes('knm') || lowerNote.includes('ko nghe')) {
+                rawStatus = 'Không Nghe Máy';
+            } else if (lowerNote.includes('không hoàn thành') || lowerNote.includes('fail')) {
+                rawStatus = 'Không Hoàn Thành';
+            }
+        }
+
         const record = {
             stt: parseCellValue(cells[COL.STT]),
             date: parseGvizDate(cells[COL.DATE]),
@@ -121,11 +148,11 @@ function parseRows(table, includeRevenue = false) {
             source: parseCellValue(cells[COL.SOURCE]) || '',
             link: parseCellValue(cells[COL.LINK]) || '',
             info: parseCellValue(cells[COL.INFO]) || '',
-            status: parseCellValue(cells[COL.STATUS]) || '',
+            status: String(rawStatus).trim(),
             time: parseCellValue(cells[COL.TIME]) || '',
             aptDate: parseGvizDate(cells[COL.APT_DATE]),
             staff: parseCellValue(cells[COL.STAFF]) || '',
-            note: parseCellValue(cells[COL.NOTE]) || ''
+            note: combinedNotes
         };
 
         if (includeRevenue && cells[COL.REVENUE]) {
