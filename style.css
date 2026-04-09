@@ -1100,6 +1100,19 @@ body {
     grid-template-columns: 1fr;
   }
 
+  /* Prevent panels from overflowing viewport */
+  .appointments-panel,
+  .overdue-panel {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .table-wrapper {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .charts-row {
     grid-template-columns: 1fr 1fr;
   }
@@ -1251,13 +1264,24 @@ body {
     flex-shrink: 0;
   }
 
-  /* Table: horizontal scroll with sticky name */
+  /* Contain overflow within glass cards */
+  .appointments-panel,
+  .overdue-panel {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* Table: horizontal scroll within contained panel */
   .table-wrapper {
     max-height: 350px;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .data-table {
     font-size: 12px;
+    min-width: 600px;
   }
 
   .data-table th,
@@ -1265,16 +1289,26 @@ body {
     padding: 8px 10px;
   }
 
-  .data-table th:first-child,
-  .data-table td:first-child {
+  .data-table th:nth-child(2),
+  .data-table td:nth-child(2) {
     position: sticky;
     left: 0;
     z-index: 5;
     background: var(--bg-secondary);
   }
 
-  .data-table td:first-child {
+  .data-table td:nth-child(2) {
     background: var(--glass-bg);
+  }
+
+  /* Overdue items: constrain text */
+  .overdue-item {
+    word-break: break-word;
+  }
+
+  .overdue-item__meta {
+    flex-wrap: wrap;
+    gap: 4px;
   }
 
   /* Overdue panel */
