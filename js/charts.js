@@ -9,36 +9,36 @@ import { normalizeStatus, formatCurrency } from './sheets-api.js';
  * Render KPI cards with data
  */
 export function renderKPICards(leads, booked, arrived) {
-    const totalLead = leads.length;
-    const totalBooked = booked.length;
-    const totalArrived = arrived.length;
-    const totalRevenue = arrived.reduce((sum, item) => sum + (Number(item.revenue) || 0), 0);
+  const totalLead = leads.length;
+  const totalBooked = booked.length;
+  const totalArrived = arrived.length;
+  const totalRevenue = arrived.reduce((sum, item) => sum + (Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0), 0);
 
-    animateValue('kpiTotalLeadValue', totalLead);
-    animateValue('kpiBookedValue', totalBooked);
-    animateValue('kpiArrivedValue', totalArrived);
+  animateValue('kpiTotalLeadValue', totalLead);
+  animateValue('kpiBookedValue', totalBooked);
+  animateValue('kpiArrivedValue', totalArrived);
 
-    const revenueEl = document.getElementById('kpiRevenueValue');
-    if (revenueEl) {
-        revenueEl.textContent = formatCurrency(totalRevenue);
-    }
+  const revenueEl = document.getElementById('kpiRevenueValue');
+  if (revenueEl) {
+    revenueEl.textContent = formatCurrency(totalRevenue);
+  }
 }
 
 /**
  * Render funnel chart
  */
 export function renderFunnelChart(leads, booked, arrived) {
-    const container = document.getElementById('funnelChart');
-    if (!container) return;
+  const container = document.getElementById('funnelChart');
+  if (!container) return;
 
-    const totalLead = leads.length || 1;
-    const totalBooked = booked.length;
-    const totalArrived = arrived.length;
+  const totalLead = leads.length || 1;
+  const totalBooked = booked.length;
+  const totalArrived = arrived.length;
 
-    const bookedPct = ((totalBooked / totalLead) * 100).toFixed(1);
-    const arrivedPct = ((totalArrived / totalLead) * 100).toFixed(1);
+  const bookedPct = ((totalBooked / totalLead) * 100).toFixed(1);
+  const arrivedPct = ((totalArrived / totalLead) * 100).toFixed(1);
 
-    container.innerHTML = `
+  container.innerHTML = `
     <div class="funnel-bar">
       <div class="funnel-bar__header">
         <span class="funnel-bar__label">📥 Tổng Lead</span>
@@ -81,45 +81,45 @@ export function renderFunnelChart(leads, booked, arrived) {
     </div>
   `;
 
-    // Animate bars
-    requestAnimationFrame(() => {
-        container.querySelectorAll('.funnel-bar__fill').forEach(bar => {
-            const w = bar.style.width;
-            bar.style.width = '0%';
-            requestAnimationFrame(() => { bar.style.width = w; });
-        });
+  // Animate bars
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.funnel-bar__fill').forEach(bar => {
+      const w = bar.style.width;
+      bar.style.width = '0%';
+      requestAnimationFrame(() => { bar.style.width = w; });
     });
+  });
 }
 
 /**
  * Render revenue by service chart
  */
 export function renderRevenueChart(arrived) {
-    const container = document.getElementById('revenueChart');
-    if (!container) return;
+  const container = document.getElementById('revenueChart');
+  if (!container) return;
 
-    // Group revenue by service
-    const serviceRevenue = {};
-    let totalRevenue = 0;
+  // Group revenue by service
+  const serviceRevenue = {};
+  let totalRevenue = 0;
 
-    for (const item of arrived) {
-        const revenue = Number(item.revenue) || 0;
-        if (revenue <= 0) continue;
+  for (const item of arrived) {
+    const revenue = Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0;
+    if (revenue <= 0) continue;
 
-        const service = item.service || 'Khác';
-        serviceRevenue[service] = (serviceRevenue[service] || 0) + revenue;
-        totalRevenue += revenue;
-    }
+    const service = item.service || 'Khác';
+    serviceRevenue[service] = (serviceRevenue[service] || 0) + revenue;
+    totalRevenue += revenue;
+  }
 
-    // Sort by revenue descending
-    const sorted = Object.entries(serviceRevenue)
-        .sort(([, a], [, b]) => b - a);
+  // Sort by revenue descending
+  const sorted = Object.entries(serviceRevenue)
+    .sort(([, a], [, b]) => b - a);
 
-    const maxRevenue = sorted.length > 0 ? sorted[0][1] : 1;
+  const maxRevenue = sorted.length > 0 ? sorted[0][1] : 1;
 
-    const barsHtml = sorted.map(([service, revenue]) => {
-        const pct = ((revenue / maxRevenue) * 100).toFixed(0);
-        return `
+  const barsHtml = sorted.map(([service, revenue]) => {
+    const pct = ((revenue / maxRevenue) * 100).toFixed(0);
+    return `
       <div class="revenue-item">
         <div class="revenue-item__header">
           <span class="revenue-item__label">${escapeHtml(service)}</span>
@@ -130,9 +130,9 @@ export function renderRevenueChart(arrived) {
         </div>
       </div>
     `;
-    }).join('');
+  }).join('');
 
-    container.innerHTML = `
+  container.innerHTML = `
     ${barsHtml}
     <div class="revenue-total">
       <div class="revenue-total__label">Tổng doanh số</div>
@@ -140,51 +140,51 @@ export function renderRevenueChart(arrived) {
     </div>
   `;
 
-    // Animate
-    requestAnimationFrame(() => {
-        container.querySelectorAll('.revenue-item__fill').forEach(bar => {
-            const w = bar.style.width;
-            bar.style.width = '0%';
-            requestAnimationFrame(() => { bar.style.width = w; });
-        });
+  // Animate
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.revenue-item__fill').forEach(bar => {
+      const w = bar.style.width;
+      bar.style.width = '0%';
+      requestAnimationFrame(() => { bar.style.width = w; });
     });
+  });
 }
 
 /**
  * Render lead status distribution chart
  */
 export function renderStatusChart(leads) {
-    const container = document.getElementById('statusChart');
-    if (!container) return;
+  const container = document.getElementById('statusChart');
+  if (!container) return;
 
-    // Count statuses
-    const statusCounts = {};
-    for (const item of leads) {
-        const status = normalizeStatus(item.status);
-        statusCounts[status] = (statusCounts[status] || 0) + 1;
-    }
+  // Count statuses
+  const statusCounts = {};
+  for (const item of leads) {
+    const status = normalizeStatus(item.status);
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  }
 
-    const statusConfig = {
-        booked: { label: 'Đặt Hẹn', color: 'var(--status-booked)' },
-        arrived: { label: 'Đã Đến', color: 'var(--status-arrived)' },
-        rescheduled: { label: 'Dời Lịch', color: 'var(--status-rescheduled)' },
-        cancelled: { label: 'Hủy Lịch', color: 'var(--status-cancelled)' },
-        no_answer: { label: 'Không Nghe Máy', color: 'var(--accent-purple)' },
-        disconnected: { label: 'Thuê Bao', color: 'var(--text-muted)' },
-        failed: { label: 'Không Hoàn Thành', color: 'var(--accent-pink)' },
-        other: { label: 'Khác', color: 'var(--text-muted)' }
-    };
+  const statusConfig = {
+    booked: { label: 'Đặt Hẹn', color: 'var(--status-booked)' },
+    arrived: { label: 'Đã Đến', color: 'var(--status-arrived)' },
+    rescheduled: { label: 'Dời Lịch', color: 'var(--status-rescheduled)' },
+    cancelled: { label: 'Hủy Lịch', color: 'var(--status-cancelled)' },
+    no_answer: { label: 'Không Nghe Máy', color: 'var(--accent-purple)' },
+    disconnected: { label: 'Thuê Bao', color: 'var(--text-muted)' },
+    failed: { label: 'Không Hoàn Thành', color: 'var(--accent-pink)' },
+    other: { label: 'Khác', color: 'var(--text-muted)' }
+  };
 
-    const total = leads.length || 1;
+  const total = leads.length || 1;
 
-    // Sort by count descending
-    const sorted = Object.entries(statusCounts)
-        .sort(([, a], [, b]) => b - a);
+  // Sort by count descending
+  const sorted = Object.entries(statusCounts)
+    .sort(([, a], [, b]) => b - a);
 
-    container.innerHTML = sorted.map(([status, count]) => {
-        const config = statusConfig[status] || statusConfig.other;
-        const pct = ((count / total) * 100).toFixed(0);
-        return `
+  container.innerHTML = sorted.map(([status, count]) => {
+    const config = statusConfig[status] || statusConfig.other;
+    const pct = ((count / total) * 100).toFixed(0);
+    return `
       <div class="status-item">
         <div class="status-item__dot" style="background: ${config.color}"></div>
         <span class="status-item__label">${config.label}</span>
@@ -194,51 +194,51 @@ export function renderStatusChart(leads) {
         <span class="status-item__count">${count}</span>
       </div>
     `;
-    }).join('');
+  }).join('');
 
-    // Animate
-    requestAnimationFrame(() => {
-        container.querySelectorAll('.status-item__bar').forEach(bar => {
-            const w = bar.style.width;
-            bar.style.width = '0%';
-            requestAnimationFrame(() => { bar.style.width = w; });
-        });
+  // Animate
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.status-item__bar').forEach(bar => {
+      const w = bar.style.width;
+      bar.style.width = '0%';
+      requestAnimationFrame(() => { bar.style.width = w; });
     });
+  });
 }
 
 /* ─── Helpers ─── */
 
 function animateValue(elementId, endValue) {
-    const el = document.getElementById(elementId);
-    if (!el) return;
+  const el = document.getElementById(elementId);
+  if (!el) return;
 
-    const duration = 800;
-    const startTime = performance.now();
-    const startValue = 0;
+  const duration = 800;
+  const startTime = performance.now();
+  const startValue = 0;
 
-    function update(currentTime) {
-        const elapsed = currentTime - startTime;
-        const progress = Math.min(elapsed / duration, 1);
+  function update(currentTime) {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
 
-        // Ease out cubic
-        const eased = 1 - Math.pow(1 - progress, 3);
-        const current = Math.floor(startValue + (endValue - startValue) * eased);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = Math.floor(startValue + (endValue - startValue) * eased);
 
-        el.textContent = current.toLocaleString('vi-VN');
+    el.textContent = current.toLocaleString('vi-VN');
 
-        if (progress < 1) {
-            requestAnimationFrame(update);
-        }
+    if (progress < 1) {
+      requestAnimationFrame(update);
     }
+  }
 
-    requestAnimationFrame(update);
+  requestAnimationFrame(update);
 }
 
 function escapeHtml(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }

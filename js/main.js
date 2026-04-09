@@ -172,8 +172,8 @@ function renderDashboard() {
     const filter = state.currentFilter;
     const leads = filterDataByDate(state.data.leads, 'date', filter);
     const booked = filterDataByDate(state.data.booked, 'aptDate', filter);
-    // For arrived, we use aptDate if available, otherwise date
-    const arrived = filterDataByDate(state.data.arrived, 'date', filter);
+    // For arrived, user measures revenue based on aptDate (Ngày hẹn) instead of creation date
+    const arrived = filterDataByDate(state.data.arrived, 'aptDate', filter);
 
     // KPI Cards
     renderKPICards(leads, booked, arrived);
