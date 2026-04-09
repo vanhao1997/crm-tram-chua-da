@@ -1071,7 +1071,11 @@ body {
   }
 }
 
-/* ─── Responsive (minimal, desktop-first) ─── */
+/* ═══════════════════════════════════════════════
+   RESPONSIVE — Mobile-First Breakpoints
+   ═══════════════════════════════════════════════ */
+
+/* ─── Tablet Landscape (≤1200px) ─── */
 @media (max-width: 1200px) {
   .main-content {
     grid-template-columns: 1fr 260px;
@@ -1080,8 +1084,13 @@ body {
   .charts-row {
     grid-template-columns: 1fr 1fr;
   }
+
+  .sheet-input input {
+    width: 240px;
+  }
 }
 
+/* ─── Tablet Portrait (≤900px) ─── */
 @media (max-width: 900px) {
   .kpi-row {
     grid-template-columns: repeat(2, 1fr);
@@ -1092,11 +1101,318 @@ body {
   }
 
   .charts-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .header {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 16px;
+  }
+
+  .header__controls {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sheet-input {
+    flex: 1;
+    min-width: 0;
   }
 
   .sheet-input input {
-    width: 200px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dashboard {
+    padding: 16px;
+  }
+
+  .filter-tabs {
+    flex-wrap: wrap;
+  }
+
+  .filter-tab {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .ai-controls {
+    flex-wrap: wrap;
+  }
+
+  .input-key {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+/* ─── Large Phone (≤640px) ─── */
+@media (max-width: 640px) {
+  html {
+    font-size: 13px;
+  }
+
+  .header {
+    padding: 8px 12px;
+    gap: 8px;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .header__title h1 {
+    font-size: 14px;
+  }
+
+  .header__subtitle {
+    font-size: 9px;
+  }
+
+  .header__controls {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .header__status {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .sheet-input {
+    order: 2;
+    width: 100%;
+  }
+
+  .header__status {
+    order: 1;
+  }
+
+  .kpi-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .kpi-card {
+    padding: 12px 14px;
+    gap: 10px;
+  }
+
+  .kpi-card__icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .kpi-card__icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .kpi-card__value {
+    font-size: 22px;
+  }
+
+  .kpi-card__label {
+    font-size: 10px;
+  }
+
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard {
+    padding: 12px;
+    gap: 14px;
+  }
+
+  .panel-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  .filter-tabs {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .filter-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filter-tab {
+    flex-shrink: 0;
+  }
+
+  /* Table: horizontal scroll with sticky name */
+  .table-wrapper {
+    max-height: 350px;
+  }
+
+  .data-table {
+    font-size: 12px;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+  }
+
+  .data-table th:first-child,
+  .data-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: var(--bg-secondary);
+  }
+
+  .data-table td:first-child {
+    background: var(--glass-bg);
+  }
+
+  /* Overdue panel */
+  .overdue-list {
+    max-height: 300px;
+  }
+
+  /* AI section */
+  .ai-controls {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ai-controls .btn {
+    width: 100%;
+  }
+
+  /* Toast */
+  .toast-container {
+    bottom: 12px;
+    right: 12px;
+    left: 12px;
+  }
+
+  .toast {
+    max-width: 100%;
+  }
+
+  /* Welcome */
+  .welcome {
+    padding: 16px;
+  }
+
+  .welcome__icon {
+    width: 60px;
+    height: 60px;
+  }
+
+  .welcome h2 {
+    font-size: 18px;
+  }
+}
+
+/* ─── Small Phone (≤480px) ─── */
+@media (max-width: 480px) {
+  html {
+    font-size: 12px;
+  }
+
+  .header__brand {
+    gap: 8px;
+  }
+
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .header__title h1 {
+    font-size: 13px;
+  }
+
+  .btn--primary {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .kpi-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .kpi-card {
+    padding: 10px 12px;
+    gap: 8px;
+    border-radius: var(--radius-md);
+  }
+
+  .kpi-card__icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .kpi-card__icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .kpi-card__value {
+    font-size: 18px;
+  }
+
+  .panel-title {
+    font-size: 13px;
+  }
+
+  .panel-title svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .funnel-bar__value {
+    font-size: 16px;
+  }
+
+  .funnel-rate__value,
+  .revenue-total__value {
+    font-size: 18px;
+  }
+
+  .refresh-info__label {
+    font-size: 9px;
+  }
+
+  .refresh-info__time {
+    font-size: 12px;
+  }
+
+  .auto-refresh__label {
+    display: none;
+  }
+
+  .btn--icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .btn--icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .data-table .td-note {
+    max-width: 120px;
+  }
+
+  .glass-card {
+    border-radius: var(--radius-md);
   }
 }
 
