@@ -92,6 +92,12 @@ async function loadData() {
 
     try {
         // Switch to appropriate view depending on the page
+        // Setup filter defaults based on page
+        const initialActive = document.querySelector('.filter-tabs .filter-tab--active');
+        if (initialActive) {
+            state.currentFilter = initialActive.dataset.filter || 'today';
+        }
+
         els.welcomeScreen.style.display = 'none';
         if (els.dashboard) els.dashboard.style.display = 'flex';
         if (els.marketing) els.marketing.style.display = 'flex';
