@@ -6,6 +6,7 @@
 import { parseSheetUrl, fetchAllData } from './sheets-api.js';
 import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } from './appointments.js';
 import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './charts.js';
+import { initLeadManager } from './lead-manager.js';
 
 // ─── State ───
 let state = {
@@ -351,6 +352,12 @@ ${hints}`;
 function init() {
     initDom();
     setupEvents();
+
+    // Init Lead Manager (Phase 4)
+    initLeadManager({
+        getData: () => state.data,
+        onRefresh: () => { if (state.sheetId) loadData(); }
+    });
 
     // Restore saved URL
     const savedUrl = localStorage.getItem('bsn_sheet_url');
