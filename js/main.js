@@ -224,6 +224,7 @@ function renderMarketingDashboard() {
     let totalRev = 0;
     let dataNangCo = 0, henNangCo = 0, toiNangCo = 0;
     let dataMuiChi = 0, henMuiChi = 0, toiMuiChi = 0;
+    let toiKhac = 0;
 
     let tableHtml = '';
 
@@ -238,6 +239,8 @@ function renderMarketingDashboard() {
         dataMuiChi += item.data_muichi;
         henMuiChi += item.hen_muichi;
         toiMuiChi += item.toi_muichi;
+
+        toiKhac += item.toi_khac || 0;
 
         // Buid table row
         const costStr = formatCurrency(item.cost);
