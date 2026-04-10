@@ -307,3 +307,60 @@ export function renderMarketingFunnelChart(containerId, dataCount, bookedCount, 
   });
 }
 
+/**
+ * Render pure CSS Pie/Doughnut charts for Marketing
+ */
+export function renderMarketingPieCharts(totalCost, totalRev, toiNangCo, toiMuiChi, toiKhac) {
+  // Chart 1: Ngân sách / Doanh Thu
+  const mktBudgetContainer = document.getElementById('mktPieBudget');
+  if (mktBudgetContainer) {
+    const costRatio = totalRev > 0 ? (totalCost / totalRev) * 100 : (totalCost > 0 ? 100 : 0);
+    const profitRatio = Math.max(0, 100 - costRatio);
+
+    if (totalCost === 0 && totalRev === 0) {
+      mktBudgetContainer.innerHTML = `<div class="pie-chart-empty">Chưa có dữ liệu</div>`;
+    } else {
+      mktBudgetContainer.innerHTML = `
+        <div class="pie-chart-wrapper">
+          <div class="pie-chart donut" style="background: conic-gradient(var(--accent-red) 0% ${costRatio}%, var(--accent-emerald) ${costRatio}% 100%);">
+            <span class="donut-inner">${profitRatio.toFixed(1)}%<br/><small style="font-size:10px;color:var(--text-secondary)">Lợi nhuận</small></span>
+          </div>
+          <div class="pie-legend">
+            <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-red)"></span>Ngân sách (${costRatio.toFixed(1)}%)</div>
+            <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-emerald)"></span>Lợi nhuận (${profitRatio.toFixed(1)}%)</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // Chart 2: Cơ cấu Khách Tới theo Dịch vụ
+  const mktServiceContainer = document.getElementById('mktPieServices');
+  if (mktServiceContainer) {
+    const totalCus = toiNangCo + toiMuiChi + toiKhac;
+
+    if (totalCus === 0) {
+      mktServiceContainer.innerHTML = `<div class="pie-chart-empty">Chưa có dữ liệu</div>`;
+    } else {
+      const ncRatio = (toiNangCo / totalCus) * 100;
+      const mcRatio = (toiMuiChi / totalCus) * 100;
+      const khRatio = (toiKhac / totalCus) * 100;
+
+      const p1 = ncRatio;
+      const p2 = p1 + mcRatio;
+
+      mktServiceContainer.innerHTML = `
+        <div class="pie-chart-wrapper">
+          <div class="pie-chart donut" style="background: conic-gradient(var(--accent-blue) 0% ${p1}%, var(--accent-purple) ${p1}% ${p2}%, var(--text-tertiary) ${p2}% 100%);">
+            <span class="donut-inner">${totalCus}<br/><small style="font-size:10px;color:var(--text-secondary)">Tổng KH đến</small></span>
+          </div>
+          <div class="pie-legend">
+            <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-blue)"></span>Nâng Cơ (${ncRatio.toFixed(1)}%)</div>
+            <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-purple)"></span>Mũi Chỉ (${mcRatio.toFixed(1)}%)</div>
+            <div class="pie-legend-item"><span class="color-box" style="background:var(--text-tertiary)"></span>Khác (${khRatio.toFixed(1)}%)</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+}

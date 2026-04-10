@@ -8,7 +8,7 @@ import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } fro
 import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './charts.js';
 import { initLeadManager } from './lead-manager.js';
 import { fetchMarketingData, formatCurrency, formatDateFull } from './sheets-api.js';
-import { renderMarketingFunnelChart } from './charts.js';
+import { renderMarketingFunnelChart, renderMarketingPieCharts } from './charts.js';
 
 // ─── State ───
 let state = {
@@ -278,6 +278,7 @@ function renderMarketingDashboard() {
     // Update charts
     renderMarketingFunnelChart('mktFunnelNangCo', dataNangCo, henNangCo, toiNangCo);
     renderMarketingFunnelChart('mktFunnelMuiChi', dataMuiChi, henMuiChi, toiMuiChi);
+    renderMarketingPieCharts(totalCost, totalRev, toiNangCo, toiMuiChi, toiKhac);
 
     // Table
     document.getElementById('mktTableBody').innerHTML = tableHtml;
