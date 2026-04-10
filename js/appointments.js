@@ -91,6 +91,8 @@ function copyPhone(phone) {
 // Make copyPhone global for inline onclick
 window.copyPhone = copyPhone;
 
+export let sortAscending = false;
+
 /**
  * Render appointment table
  */
@@ -98,8 +100,21 @@ export function renderAppointmentTable(data, filter = 'today') {
     const tbody = document.getElementById('appointmentBody');
     const emptyState = document.getElementById('appointmentEmpty');
     const tableWrapper = document.getElementById('appointmentTableWrapper');
+    const sortBtn = document.getElementById('sortDateBtn');
 
     if (!tbody) return;
+
+    if (sortBtn && !sortBtn.hasAttribute('data-bound')) {
+        sortBtn.addEventListener('click', () => {
+            sortAscending = !sortAscending;
+            sortBtn.innerHTML = `Ngày hẹn ${sortAscending ? '↑' : '↓'}`;
+            // Find active filter
+            const activeTab = document.querySelector('.filter-tab--active');
+            renderAppointmentTable(data, activeTab ? activeTab.dataset.filter : 'today');
+        });
+        sortBtn.setAttribute('data-bound', 'true');
+        sortBtn.innerHTML = `Ngày hẹn ${sortAscending ? '↑' : '↓'}`;
+    }
 
     // Filter data based on selected tab
     let filtered = data.filter(item => {
@@ -119,8 +134,8 @@ export function renderAppointmentTable(data, filter = 'today') {
     filtered.sort((a, b) => {
         const dateA = a.aptDate?.getTime() || 0;
         const dateB = b.aptDate?.getTime() || 0;
-        if (dateA !== dateB) return dateA - dateB;
-        return (a.time || '').localeCompare(b.time || '');
+        if (dateA !== dateB) return sortAscending ? dateA - dateB : dateB - dateA;
+        return sortAscending ? (a.time || '').localeCompare(b.time || '') : (b.time || '').localeCompare(a.time || '');
     });
 
     if (filtered.length === 0) {

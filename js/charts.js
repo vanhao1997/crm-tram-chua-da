@@ -242,3 +242,68 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+/**
+ * Render Marketing Funnel Chart
+ */
+export function renderMarketingFunnelChart(containerId, dataCount, bookedCount, arrivedCount) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  const totalLead = dataCount || 1;
+  const bookedPct = ((bookedCount / totalLead) * 100).toFixed(1);
+  const arrivedPct = ((arrivedCount / totalLead) * 100).toFixed(1);
+
+  container.innerHTML = `
+    <div class="funnel-bar">
+      <div class="funnel-bar__header">
+        <span class="funnel-bar__label">📥 Tổng Data</span>
+        <span class="funnel-bar__value">${dataCount}</span>
+      </div>
+      <div class="funnel-bar__track">
+        <div class="funnel-bar__fill funnel-bar__fill--lead" style="width: 100%">
+          <span class="funnel-bar__percent">100%</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="funnel-bar">
+      <div class="funnel-bar__header">
+        <span class="funnel-bar__label">📅 Lịch Hẹn</span>
+        <span class="funnel-bar__value">${bookedCount}</span>
+      </div>
+      <div class="funnel-bar__track">
+        <div class="funnel-bar__fill funnel-bar__fill--booked" style="width: ${bookedPct}%">
+          ${parseFloat(bookedPct) > 15 ? `<span class="funnel-bar__percent">${bookedPct}%</span>` : ''}
+        </div>
+      </div>
+    </div>
+    
+    <div class="funnel-bar">
+      <div class="funnel-bar__header">
+        <span class="funnel-bar__label">✅ Khách Tới</span>
+        <span class="funnel-bar__value">${arrivedCount}</span>
+      </div>
+      <div class="funnel-bar__track">
+        <div class="funnel-bar__fill funnel-bar__fill--arrived" style="width: ${arrivedPct}%">
+          ${parseFloat(arrivedPct) > 15 ? `<span class="funnel-bar__percent">${arrivedPct}%</span>` : ''}
+        </div>
+      </div>
+    </div>
+    
+    <div class="funnel-rate">
+      <div class="funnel-rate__label">Tỷ lệ chuyển đổi tổng</div>
+      <div class="funnel-rate__value">${arrivedPct}%</div>
+    </div>
+  `;
+
+  // Animate bars
+  requestAnimationFrame(() => {
+    container.querySelectorAll('.funnel-bar__fill').forEach(bar => {
+      const w = bar.style.width;
+      bar.style.width = '0%';
+      requestAnimationFrame(() => { bar.style.width = w; });
+    });
+  });
+}
+

@@ -9,6 +9,8 @@ const SHEET_TABS = {
     ARRIVED: 'KHÁCH ĐÃ ĐẾN'
 };
 
+const MKT_GID = '1227076939';
+
 // Column mapping (0-indexed based on gviz response)
 const COL = {
     STT: 0,      // A
@@ -51,6 +53,29 @@ async function fetchTab(sheetId, tabName) {
     // gviz returns JSONP-like: google.visualization.Query.setResponse({...})
     const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?\s*$/);
     if (!jsonMatch) throw new Error(`Dữ liệu tab "${tabName}" không hợp lệ`);
+
+    const data = JSON.parse(jsonMatch[1]);
+
+    if (data.status === 'error') {
+        throw new Error(data.errors?.[0]?.message || 'Lỗi không xác định');
+    }
+
+    return data.table;
+}
+
+/**
+ * Fetch data from Marketing tab by GID
+ */
+async function fetchMarketingTab(sheetId) {
+    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${MKT_GID}`;
+
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Không thể tải tab Marketing`);
+
+    const text = await response.text();
+
+    const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?\s*$/);
+    if (!jsonMatch) throw new Error(`Dữ liệu tab Marketing không hợp lệ`);
 
     const data = JSON.parse(jsonMatch[1]);
 
@@ -204,6 +229,29 @@ export async function fetchAllData(sheetId) {
     const booked = parseRows(bookedTable);
     const arrived = parseRows(arrivedTable, true);
 
+    // FIX DATA INTEGRITY: Force status 'Đã đến' for any lead/booking that exists in Arrived list
+    // This handles the reality where telesales forget to update the source tracker.
+    const arrivedPhones = new Set();
+    arrived.forEach(item => {
+        if (item.phone) {
+            arrivedPhones.add(item.phone.replace(/^0/, ''));
+        }
+    });
+
+    const fixStatus = (list) => {
+        list.forEach(item => {
+            if (item.phone) {
+                const normPhone = item.phone.replace(/^0/, '');
+                if (arrivedPhones.has(normPhone)) {
+                    item.status = 'Đã Đến';
+                }
+            }
+        });
+    };
+
+    fixStatus(leads);
+    fixStatus(booked);
+
     return { leads, booked, arrived };
 }
 
@@ -250,4 +298,62 @@ export function formatDateShort(date) {
 export function formatDateFull(date) {
     if (!date) return '--';
     return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+}
+
+/**
+ * Clean currency string to number
+ */
+export function parseCurrencyStr(str) {
+    if (!str) return 0;
+    if (typeof str === 'number') return str;
+    const cleanStr = String(str).replace(/[đ₫\s,.]/g, '');
+    const num = parseFloat(cleanStr);
+    return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Parse marketing records 
+ */
+function parseMarketingRows(table) {
+    const rows = table.rows || [];
+    const results = [];
+
+    for (const row of rows) {
+        const cells = row.c || [];
+
+        const dateStrObj = cells[0];
+        if (!dateStrObj || !dateStrObj.v) continue;
+        const dateStr = String(dateStrObj.v).trim();
+
+        // Skip aggregate rows (TỔNG, THÁNG...)
+        if (dateStr.toUpperCase().includes('TỔNG') || dateStr.toUpperCase().includes('THÁNG') || dateStr === '') continue;
+
+        const dateObj = parseGvizDate(dateStrObj);
+        if (!dateObj) continue; // Only process valid daily rows
+
+        results.push({
+            date: dateObj,
+            cost: parseCurrencyStr(parseCellValue(cells[5])),
+            data_nangco: Number(parseCellValue(cells[6])) || 0,
+            data_muichi: Number(parseCellValue(cells[7])) || 0,
+            data_khac: Number(parseCellValue(cells[8])) || 0,
+            hen_nangco: Number(parseCellValue(cells[9])) || 0,
+            hen_muichi: Number(parseCellValue(cells[10])) || 0,
+            hen_khac: Number(parseCellValue(cells[11])) || 0,
+            toi_nangco: Number(parseCellValue(cells[12])) || 0,
+            toi_muichi: Number(parseCellValue(cells[13])) || 0,
+            toi_khac: Number(parseCellValue(cells[14])) || 0,
+            revenue: parseCurrencyStr(parseCellValue(cells[15]))
+        });
+    }
+
+    return results;
+}
+
+/**
+ * Fetch Marketing Data
+ */
+export async function fetchMarketingData(sheetId) {
+    const table = await fetchMarketingTab(sheetId);
+    return parseMarketingRows(table);
 }

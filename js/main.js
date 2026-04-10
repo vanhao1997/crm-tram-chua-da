@@ -7,11 +7,14 @@ import { parseSheetUrl, fetchAllData } from './sheets-api.js';
 import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } from './appointments.js';
 import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './charts.js';
 import { initLeadManager } from './lead-manager.js';
+import { fetchMarketingData, formatCurrency, formatDateFull } from './sheets-api.js';
+import { renderMarketingFunnelChart } from './charts.js';
 
 // ─── State ───
 let state = {
     sheetId: null,
     data: null,
+    marketingData: null,
     currentFilter: 'today',
     autoRefreshInterval: null,
     autoRefreshMs: 60 * 60 * 1000 // 1 hour
@@ -30,13 +33,8 @@ function initDom() {
     els.loadingOverlay = document.getElementById('loadingOverlay');
     els.welcomeScreen = document.getElementById('welcomeScreen');
     els.dashboard = document.getElementById('dashboard');
+    els.marketing = document.getElementById('marketing');
     els.toastContainer = document.getElementById('toastContainer');
-
-    // AI Elements
-    els.openaiKey = document.getElementById('openaiKey');
-    els.aiAnalyzeBtn = document.getElementById('aiAnalyzeBtn');
-    els.aiReportBox = document.getElementById('aiReportBox');
-    els.aiReportContent = document.getElementById('aiReportContent');
 }
 
 // ─── Toast Notifications ───
@@ -93,13 +91,28 @@ async function loadData() {
     showLoading();
 
     try {
-        state.data = await fetchAllData(state.sheetId);
-
-        // Switch to dashboard view
+        // Switch to appropriate view depending on the page
         els.welcomeScreen.style.display = 'none';
-        els.dashboard.style.display = 'flex';
+        if (els.dashboard) els.dashboard.style.display = 'flex';
+        if (els.marketing) els.marketing.style.display = 'flex';
 
-        renderDashboard();
+        // Load CRM Dashboard Data
+        if (els.dashboard) {
+            state.data = await fetchAllData(state.sheetId);
+            renderDashboard();
+        }
+
+        // Load Marketing Data if on marketing page
+        if (els.marketing) {
+            try {
+                // Ensure marketing data fetch resolves independently for the marketing page
+                state.marketingData = await fetchMarketingData(state.sheetId);
+                renderMarketingDashboard();
+            } catch (mktErr) {
+                console.error('Marketing Load error:', mktErr);
+                showToast('Không tải được dữ liệu Marketing', 'error');
+            }
+        }
 
         // Update last refresh time
         const now = new Date();
@@ -193,6 +206,77 @@ function renderDashboard() {
     renderStatusChart(leads);
 }
 
+// ─── Render Marketing Dashboard ───
+function renderMarketingDashboard() {
+    if (!state.marketingData) return;
+
+    // Apply global filter
+    const filter = state.currentFilter;
+    const data = filterDataByDate(state.marketingData, 'date', filter);
+
+    let totalCost = 0;
+    let totalRev = 0;
+    let dataNangCo = 0, henNangCo = 0, toiNangCo = 0;
+    let dataMuiChi = 0, henMuiChi = 0, toiMuiChi = 0;
+
+    let tableHtml = '';
+
+    for (const item of data) {
+        totalCost += item.cost;
+        totalRev += item.revenue;
+
+        dataNangCo += item.data_nangco;
+        henNangCo += item.hen_nangco;
+        toiNangCo += item.toi_nangco;
+
+        dataMuiChi += item.data_muichi;
+        henMuiChi += item.hen_muichi;
+        toiMuiChi += item.toi_muichi;
+
+        // Buid table row
+        const costStr = formatCurrency(item.cost);
+        const revStr = formatCurrency(item.revenue);
+        const costPerCus = item.toi_nangco + item.toi_muichi + item.toi_khac > 0
+            ? formatCurrency(item.cost / (item.toi_nangco + item.toi_muichi + item.toi_khac))
+            : '0';
+
+        tableHtml += `
+            <tr>
+                <td class="td-name">${formatDateFull(item.date)}</td>
+                <td style="color:var(--accent-red); font-weight:600">${costStr}</td>
+                <td style="color:var(--accent-emerald); font-weight:600">${revStr}</td>
+                <td>${item.data_nangco}</td>
+                <td>${item.data_muichi}</td>
+                <td>${item.hen_nangco}</td>
+                <td>${item.hen_muichi}</td>
+                <td>${item.toi_nangco}</td>
+                <td>${item.toi_muichi}</td>
+                <td style="color:var(--accent-blue)">${costPerCus}</td>
+            </tr>
+        `;
+    }
+
+    // ROAS logic
+    const roas = totalRev > 0 ? ((totalCost / totalRev) * 100).toFixed(2) : 0;
+
+    // Total arrived
+    const totalArrivedAll = toiNangCo + toiMuiChi + data.reduce((sum, i) => sum + i.toi_khac, 0);
+    const avgCostPerCus = totalArrivedAll > 0 ? (totalCost / totalArrivedAll) : 0;
+
+    // Update KPI UI
+    document.getElementById('mktTổngChiPhí').textContent = formatCurrency(totalCost);
+    document.getElementById('mktTổngDoanhSố').textContent = formatCurrency(totalRev);
+    document.getElementById('mktTỷLệChiPhí').textContent = roas + '%';
+    document.getElementById('mktTỷLệTới').textContent = formatCurrency(avgCostPerCus);
+
+    // Update charts
+    renderMarketingFunnelChart('mktFunnelNangCo', dataNangCo, henNangCo, toiNangCo);
+    renderMarketingFunnelChart('mktFunnelMuiChi', dataMuiChi, henMuiChi, toiMuiChi);
+
+    // Table
+    document.getElementById('mktTableBody').innerHTML = tableHtml;
+}
+
 // ─── Auto Refresh ───
 function startAutoRefresh() {
     stopAutoRefresh();
@@ -211,21 +295,21 @@ function stopAutoRefresh() {
 // ─── Event Listeners ───
 function setupEvents() {
     // Connect button
-    els.connectBtn.addEventListener('click', connectSheet);
+    els.connectBtn?.addEventListener('click', connectSheet);
 
     // Enter key in URL input
-    els.sheetUrl.addEventListener('keydown', (e) => {
+    els.sheetUrl?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') connectSheet();
     });
 
     // Manual refresh
-    els.refreshBtn.addEventListener('click', () => {
+    els.refreshBtn?.addEventListener('click', () => {
         if (state.sheetId) loadData();
         else showToast('Chưa kết nối Google Sheet', 'error');
     });
 
     // Auto refresh toggle
-    els.autoRefreshToggle.addEventListener('change', (e) => {
+    els.autoRefreshToggle?.addEventListener('change', (e) => {
         if (e.target.checked) {
             startAutoRefresh();
             showToast('Auto-refresh: BẬT (mỗi 1 tiếng)', 'info');
@@ -245,108 +329,20 @@ function setupEvents() {
 
             // Update state and re-render everything
             state.currentFilter = tab.dataset.filter;
-            renderDashboard();
+            if (els.dashboard) renderDashboard();
+            if (els.marketing) renderMarketingDashboard();
         }
     });
 
     // Theme Toggle
-    els.themeToggleBtn.addEventListener('click', () => {
+    els.themeToggleBtn?.addEventListener('click', () => {
         document.body.classList.toggle('light-theme');
         const isLight = document.body.classList.contains('light-theme');
-        els.themeToggleBtn.textContent = isLight ? '🌙' : '☀️';
+        if (els.themeToggleBtn) els.themeToggleBtn.textContent = isLight ? '🌙' : '☀️';
         localStorage.setItem('bsn_theme', isLight ? 'light' : 'dark');
     });
-
-    // AI Analytics Buttons
-    els.aiAnalyzeBtn.addEventListener('click', runAIAnalysis);
 }
 
-// ─── AI Analytics ───
-async function runAIAnalysis() {
-    const apiKey = els.openaiKey.value.trim();
-    if (!apiKey) {
-        showToast('Vui lòng nhập OpenAI API Key', 'error');
-        return;
-    }
-
-    // Save key locally
-    localStorage.setItem('bsn_openai_key', apiKey);
-
-    if (!state.data) {
-        showToast('Chưa kết nối dữ liệu Google Sheet', 'error');
-        return;
-    }
-
-    els.aiReportBox.style.display = 'block';
-    els.aiReportContent.innerHTML = '🤖 Đang đọc dữ liệu và phân tích... Vui lòng đợi (khoảng 5-10s)...';
-    els.aiAnalyzeBtn.disabled = true;
-
-    try {
-        // Lọc các ca rớt (từ toàn bộ leads, không bị gò bó bởi filter ngày)
-        const failedLeads = state.data.leads.filter(l => {
-            const status = String(l.status).toLowerCase();
-            return status.includes('hủy') || status.includes('ko nghe') || status.includes('nghe máy') || status.includes('không hoàn') || status.includes('thuê bao');
-        });
-
-        // Chỉ lấy những khách có ghi chú
-        const hints = failedLeads
-            .filter(l => l.note && l.note.trim().length > 3)
-            .map(l => `- DV: ${l.service || 'Không rõ'} | Note: "${l.note}"`)
-            .join('\n');
-
-        if (!hints) {
-            els.aiReportContent.innerHTML = 'Không có đủ dữ liệu ghi chú hợp lệ để phân tích rớt khách.';
-            els.aiAnalyzeBtn.disabled = false;
-            return;
-        }
-
-        const prompt = `Bạn là một chuyên gia quản lý chất lượng (QA) phân tích CRM cho một thẩm mỹ viện (Trạm Chữa Da BSN).
-Dưới đây là ghi chú telesale của các khách hàng ĐÃ HỦY LỊCH, KHÔNG NGHE MÁY, hoặc chốt FAIL.
-Hãy đọc các dòng note và:
-1. Phân loại 3-4 nhóm nguyên nhân phổ biến nhất khiến khách không đến hoặc chốt fail.
-2. Cho lời khuyên ngắn gọn cho team marketing / telesale để cải thiện.
-Trình bày tóm tắt, rõ ràng, gạch đầu dòng. Đừng để câu quá dài.
-
-Dữ liệu:
-${hints}`;
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.3,
-                max_tokens: 800
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error?.message || 'Lỗi từ API OpenAI');
-        }
-
-        const data = await response.json();
-        const markdown = data.choices[0].message.content;
-
-        // Simple Markdown parser to HTML
-        let html = markdown
-            .replace(/(?:\r\n|\r|\n)/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/### (.*?)(<br>|$)/g, '<strong style="font-size:1.1em; color:var(--text-primary)">$1</strong><br>');
-
-        els.aiReportContent.innerHTML = html;
-        showToast('Phân tích AI thành công!', 'success');
-    } catch (err) {
-        console.error(err);
-        els.aiReportContent.innerHTML = `<strong style="color:var(--accent-red)">Lỗi:</strong> ${err.message}`;
-    } finally {
-        els.aiAnalyzeBtn.disabled = false;
-    }
-}
 
 // ─── Initialize ───
 function init() {
@@ -359,26 +355,28 @@ function init() {
         onRefresh: () => { if (state.sheetId) loadData(); }
     });
 
-    // Restore saved URL
-    const savedUrl = localStorage.getItem('bsn_sheet_url');
-    if (savedUrl) {
-        els.sheetUrl.value = savedUrl;
-        // Auto-connect on load
-        connectSheet();
-    }
-
     // Restore Theme
     const savedTheme = localStorage.getItem('bsn_theme');
-    if (savedTheme === 'light') {
+    if (savedTheme !== 'dark') { // Default to light if nothing saved
         document.body.classList.add('light-theme');
-        els.themeToggleBtn.textContent = '🌙';
+        if (els.themeToggleBtn) els.themeToggleBtn.textContent = '🌙';
     }
 
-    // Restore OpenAI API Key
-    const savedKey = localStorage.getItem('bsn_openai_key');
-    if (savedKey) {
-        els.openaiKey.value = savedKey;
+
+    // Set Hardcoded URLs based on active page and Auto Connect
+    if (els.dashboard && els.sheetUrl) {
+        els.sheetUrl.value = 'https://docs.google.com/spreadsheets/d/19Q1Fy1bvnElYhGCCLdDzC4TRzIJQn73lk7LpEN7fX2Q/edit?usp=sharing';
+    } else if (els.marketing && els.sheetUrl) {
+        els.sheetUrl.value = 'https://docs.google.com/spreadsheets/d/124VcfNpFqJKv400Jj156h2aYg4eurDzfJaEvs_wbNQ4/edit?gid=1227076939#gid=1227076939';
     }
+
+    // Hide the input fields to prevent modification since it is hardcoded
+    if (els.sheetUrl?.parentElement) {
+        els.sheetUrl.parentElement.style.display = 'none';
+    }
+
+    // Connect immediately
+    connectSheet();
 
     // Start auto-refresh if toggle is checked
     if (els.autoRefreshToggle.checked) {

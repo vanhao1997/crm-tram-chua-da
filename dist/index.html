@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BSN Dashboard — Trạm Chữa Da BSN</title>
+  <meta name="description"
+    content="CRM Dashboard tổng hợp quản lý lịch hẹn, doanh số và chuyển đổi cho Trạm Chữa Da BSN" />
+  <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <script type="module" crossorigin src="/assets/index-COosbiNn.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-CYZ5iJ4l.css">
+</head>
+
+<body>
+  <!-- HEADER -->
+  <header class="header" id="header">
+    <div class="header__brand">
+      <img src="/logo.jpg" alt="BSN Logo" class="brand-logo" />
+      <div class="header__title">
+        <h1>Trạm Chữa Da BSN</h1>
+        <p class="header__subtitle">CRM Dashboard</p>
+      </div>
+    </div>
+    <div class="header__controls">
+      <div class="sheet-input" id="sheetInput">
+        <svg class="sheet-input__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+        </svg>
+        <input type="text" id="sheetUrl" placeholder="Paste Google Sheet URL..." />
+        <button id="connectBtn" class="btn btn--primary">Kết nối</button>
+      </div>
+      <div class="header__status">
+        <button id="refreshBtn" class="btn btn--icon" title="Refresh dữ liệu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+        </button>
+        <div class="refresh-info">
+          <span class="refresh-info__label">Cập nhật:</span>
+          <span class="refresh-info__time" id="lastRefresh">--:--</span>
+        </div>
+        <button id="themeToggleBtn" class="btn btn--icon theme-toggle" title="Giao diện Sáng/Tối">☀️</button>
+        <button id="settingsBtn" class="btn btn--icon" title="Cài đặt Write API">⚙️</button>
+        <div class="auto-refresh">
+          <label class="toggle">
+            <input type="checkbox" id="autoRefreshToggle" checked />
+            <span class="toggle__slider"></span>
+          </label>
+          <span class="auto-refresh__label">Auto (1h)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAIN TAB NAVIGATION -->
+    <div class="main-tabs-container">
+      <button class="main-tab main-tab--active" data-target="dashboard">CRM Tracking</button>
+      <button class="main-tab" data-target="marketing">Kpi Marketing & Phễu</button>
+    </div>
+  </header>
+
+  <!-- LOADING OVERLAY -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <p>Đang tải dữ liệu...</p>
+  </div>
+
+  <!-- WELCOME SCREEN (shown when no sheet connected) -->
+  <div class="welcome" id="welcomeScreen">
+    <div class="welcome__card">
+      <div class="welcome__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <path d="M3 9h18" />
+          <path d="M3 15h18" />
+          <path d="M9 3v18" />
+          <path d="M15 3v18" />
+        </svg>
+      </div>
+      <h2>Kết nối Google Sheet</h2>
+      <p>Paste link Google Sheet vào thanh trên cùng để bắt đầu.</p>
+      <p class="welcome__hint">Sheet phải ở chế độ <strong>"Anyone with the link can view"</strong></p>
+    </div>
+  </div>
+
+  <!-- MAIN DASHBOARD -->
+  <main class="dashboard" id="dashboard" style="display:none;">
+    <!-- KPI ROW -->
+    <section class="kpi-row" id="kpiRow">
+      <div class="kpi-card" id="kpiTotalLead">
+        <div class="kpi-card__icon kpi-card__icon--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tổng Lead</span>
+          <span class="kpi-card__value" id="kpiTotalLeadValue">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="kpiBooked">
+        <div class="kpi-card__icon kpi-card__icon--amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Đặt Hẹn</span>
+          <span class="kpi-card__value" id="kpiBookedValue">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="kpiArrived">
+        <div class="kpi-card__icon kpi-card__icon--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Đã Đến</span>
+          <span class="kpi-card__value" id="kpiArrivedValue">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="kpiRevenue">
+        <div class="kpi-card__icon kpi-card__icon--emerald">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Doanh Số</span>
+          <span class="kpi-card__value" id="kpiRevenueValue">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN CONTENT -->
+    <section class="main-content">
+      <!-- CENTER: Appointment Table -->
+      <div class="appointments-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            Lịch Hẹn
+          </h2>
+          <div class="filter-tabs" id="filterTabs">
+            <button class="filter-tab filter-tab--active" data-filter="today">Hôm nay</button>
+            <button class="filter-tab" data-filter="week">Tuần này</button>
+            <button class="filter-tab" data-filter="month">Tháng này</button>
+            <button class="filter-tab" data-filter="lastmonth">Tháng trước</button>
+            <button class="filter-tab" data-filter="all">Tất cả</button>
+          </div>
+        </div>
+        <div class="table-wrapper" id="appointmentTableWrapper">
+          <table class="data-table" id="appointmentTable">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Tên KH</th>
+                <th>SĐT</th>
+                <th>Dịch vụ</th>
+                <th>Giờ hẹn</th>
+                <th>Ngày hẹn</th>
+                <th>NV</th>
+                <th>Trạng thái</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody id="appointmentBody">
+            </tbody>
+          </table>
+          <div class="empty-state" id="appointmentEmpty" style="display:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <p>Không có lịch hẹn nào</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT SIDEBAR: Overdue -->
+      <div class="overdue-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title panel-title--warning">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            Quá Hẹn Chưa Đến
+          </h2>
+          <span class="badge badge--danger" id="overdueCount">0</span>
+        </div>
+        <div class="overdue-list" id="overdueList">
+        </div>
+        <div class="empty-state" id="overdueEmpty" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <p>Tất cả khách đã đến đúng hẹn! 🎉</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOTTOM CHARTS -->
+    <section class="charts-row">
+      <!-- Funnel -->
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            Funnel Chuyển Đổi
+          </h2>
+        </div>
+        <div class="funnel-chart" id="funnelChart"></div>
+      </div>
+
+      <!-- Revenue by Service -->
+      <div class="revenue-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+            Doanh Số Theo Dịch Vụ
+          </h2>
+        </div>
+        <div class="revenue-chart" id="revenueChart"></div>
+      </div>
+
+      <!-- Lead Status -->
+      <div class="status-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+            Trạng Thái Lead
+          </h2>
+        </div>
+        <div class="status-chart" id="statusChart"></div>
+      </div>
+    </section>
+
+    <!-- AI ANALYTICS -->
+    <section class="ai-section glass-card">
+      <div class="panel-header">
+        <h2 class="panel-title" style="color: #a855f7;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2a10 10 0 1 0 10 10H12V2z" />
+            <path d="M12 2a10 10 0 0 1 10 10M12 12L22 2" />
+          </svg>
+          🤖 AI Analytics
+        </h2>
+        <div class="ai-controls">
+          <input type="password" id="openaiKey" class="input-key" placeholder="Nhập OpenAI API Key..." />
+          <button id="aiAnalyzeBtn" class="btn btn--primary" style="background:#a855f7; border-color:#a855f7">Phân tích
+            rớt khách</button>
+        </div>
+      </div>
+      <div class="ai-report" id="aiReportBox" style="display:none;">
+        <div class="ai-report__header">Báo cáo phân tích nguyên nhân khách Hủy/Không Đến</div>
+        <div class="ai-report__content" id="aiReportContent">Đang phân tích...</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- MARKETING DASHBOARD -->
+  <main class="dashboard" id="marketing" style="display:none;">
+    <!-- MARKETING KPI ROW -->
+    <section class="kpi-row" id="mktKpiRow">
+      <div class="kpi-card" id="mktKpiSpend">
+        <div class="kpi-card__icon kpi-card__icon--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tổng Chi Phí MKT</span>
+          <span class="kpi-card__value" id="mktTổngChiPhí">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiRevenue">
+        <div class="kpi-card__icon kpi-card__icon--emerald">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tổng Doanh Số</span>
+          <span class="kpi-card__value" id="mktTổngDoanhSố">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiRoas">
+        <div class="kpi-card__icon kpi-card__icon--green">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tỷ lệ Chi Phí/Doanh thu</span>
+          <span class="kpi-card__value" id="mktTỷLệChiPhí">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiData">
+        <div class="kpi-card__icon kpi-card__icon--amber">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tỷ lệ KH Tới</span>
+          <span class="kpi-card__value" id="mktTỷLệTới">--</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="charts-row">
+      <!-- Funnel Chart Nâng cơ -->
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            Phễu - Nâng cơ
+          </h2>
+        </div>
+        <div class="funnel-chart" id="mktFunnelNangCo"></div>
+      </div>
+
+      <!-- Funnel Chart Mũi chỉ -->
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            Phễu - Mũi chỉ
+          </h2>
+        </div>
+        <div class="funnel-chart" id="mktFunnelMuiChi"></div>
+      </div>
+    </section>
+
+    <section class="main-content" style="grid-template-columns: 1fr;">
+      <div class="appointments-panel glass-card" style="overflow-x: auto;">
+        <div class="panel-header">
+          <h2 class="panel-title">Chi Tiết Marketing Hàng Ngày</h2>
+          <div class="filter-tabs">
+            Tháng đang xem (Dữ liệu chốt)
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Ngày</th>
+                <th>Tổng Chi Phí</th>
+                <th>Doanh Số</th>
+                <th>DATA Nâng Cơ</th>
+                <th>DATA Mũi Chỉ</th>
+                <th>HẸN Nâng Cơ</th>
+                <th>HẸN Mũi Chỉ</th>
+                <th>TỚI Nâng Cơ</th>
+                <th>TỚI Mũi Chỉ</th>
+                <th>Giá 1 KHTới</th>
+              </tr>
+            </thead>
+            <tbody id="mktTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- FAB: Add Lead Button -->
+  <button class="fab" id="addLeadFab" title="Thêm Lead mới">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  </button>
+
+  <!-- MODAL: Add Lead -->
+  <div class="modal-overlay" id="addLeadModal">
+    <div class="modal glass-card">
+      <div class="modal__header">
+        <h3>➕ Thêm Lead Mới</h3>
+        <button class="modal__close">&times;</button>
+      </div>
+      <form id="addLeadForm" class="modal__body">
+        <div class="form-group">
+          <label>Họ tên *</label>
+          <input type="text" id="addLeadName" placeholder="Nguyễn Văn A" required />
+        </div>
+        <div class="form-group">
+          <label>Số điện thoại *</label>
+          <input type="tel" id="addLeadPhone" placeholder="0912 345 678" required />
+        </div>
+        <div class="form-group">
+          <label>Dịch vụ</label>
+          <input type="text" id="addLeadService" placeholder="Nâng cơ 999k" />
+        </div>
+        <div class="form-group">
+          <label>Nguồn</label>
+          <select id="addLeadSource">
+            <option value="Facebook">Facebook</option>
+            <option value="Zalo">Zalo</option>
+            <option value="Giới thiệu">Giới thiệu</option>
+            <option value="Walk-in">Walk-in</option>
+            <option value="Khác">Khác</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Ghi chú</label>
+          <textarea id="addLeadNote" rows="2" placeholder="Ghi chú thêm..."></textarea>
+        </div>
+        <div class="duplicate-warning" id="duplicateWarning" style="display:none;"></div>
+        <label class="force-add-label" id="forceAddLabel" style="display:none;">
+          <input type="checkbox" id="forceAddCheck" /> Vẫn thêm (SĐT đã tồn tại)
+        </label>
+        <button type="submit" id="addLeadSubmitBtn" class="btn btn--primary btn--full">Thêm Lead</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Lead Detail -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal glass-card">
+      <div class="modal__header">
+        <h3>📋 Chi Tiết Lead</h3>
+        <button class="modal__close">&times;</button>
+      </div>
+      <div class="modal__body">
+        <div class="detail-grid">
+          <div class="detail-item"><span class="detail-label">Tên</span><span class="detail-value"
+              id="detailName">--</span></div>
+          <div class="detail-item"><span class="detail-label">SĐT</span><span class="detail-value"
+              id="detailPhone">--</span></div>
+          <div class="detail-item"><span class="detail-label">Dịch vụ</span><span class="detail-value"
+              id="detailService">--</span></div>
+          <div class="detail-item"><span class="detail-label">Nguồn</span><span class="detail-value"
+              id="detailSource">--</span></div>
+          <div class="detail-item"><span class="detail-label">Ngày</span><span class="detail-value"
+              id="detailDate">--</span></div>
+          <div class="detail-item"><span class="detail-label">NV</span><span class="detail-value"
+              id="detailStaff">--</span></div>
+        </div>
+        <div class="form-group">
+          <label>Trạng thái</label>
+          <select id="detailStatus" class="status-select">
+            <option value="">-- Chọn --</option>
+            <option value="Đặt Hẹn">📅 Đặt Hẹn</option>
+            <option value="Đã Đến">✅ Đã Đến</option>
+            <option value="Dời Lịch">🔄 Dời Lịch</option>
+            <option value="Hủy Lịch">❌ Hủy Lịch</option>
+            <option value="Không Nghe Máy">📵 Không Nghe Máy</option>
+            <option value="Thuê Bao">🚫 Thuê Bao</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Ghi chú</label>
+          <textarea id="detailNote" rows="3" placeholder="Thêm ghi chú..."></textarea>
+          <button id="saveNoteBtn" class="btn btn--primary btn--full" style="margin-top:8px;">Lưu ghi chú</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Apps Script Setup -->
+  <div class="modal-overlay" id="scriptSetupModal">
+    <div class="modal glass-card">
+      <div class="modal__header">
+        <h3>⚙️ Cài đặt Write API</h3>
+        <button class="modal__close">&times;</button>
+      </div>
+      <div class="modal__body">
+        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Paste URL của Google Apps Script Web
+          App để ghi data vào Sheet.</p>
+        <div class="form-group">
+          <label>Apps Script URL</label>
+          <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/..." />
+        </div>
+        <button id="saveScriptUrl" class="btn btn--primary btn--full">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div class="toast-container" id="toastContainer"></div>
+
+</body>
+
+</html>
