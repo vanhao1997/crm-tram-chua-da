@@ -349,6 +349,7 @@ function parseMarketingRows(table) {
 
         results.push({
             date: dateObj,
+            received: parseCurrencyStr(parseCellValue(cells[2])) || 0,
             marketing_cost: parseCurrencyStr(parseCellValue(cells[3])),
             ad_management_fee: parseCurrencyStr(parseCellValue(cells[4])),
             cost: parseCurrencyStr(parseCellValue(cells[5])),
@@ -367,7 +368,6 @@ function parseMarketingRows(table) {
     }
 
     results.globalBalance = globalBalance;
-    results.globalReceived = globalReceived;
     return results;
 }
 
