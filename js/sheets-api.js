@@ -368,6 +368,7 @@ function parseMarketingRows(table) {
     }
 
     results.globalBalance = globalBalance;
+    results.globalReceived = globalReceived;
     return results;
 }
 

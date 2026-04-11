@@ -223,8 +223,8 @@ function renderMarketingDashboard() {
     let totalMktCost = 0;
     let totalAdFee = 0;
     let totalRev = 0;
-    let totalReceived = 0;
     let totalMessages = 0;
+    let totalReceived = 0;
     let dataNangCo = 0, henNangCo = 0, toiNangCo = 0;
     let dataMuiChi = 0, henMuiChi = 0, toiMuiChi = 0;
     let toiKhac = 0;
@@ -236,8 +236,8 @@ function renderMarketingDashboard() {
         totalMktCost += item.marketing_cost || 0;
         totalAdFee += item.ad_management_fee || 0;
         totalRev += item.revenue;
-        totalReceived += item.received || 0;
         totalMessages += item.messages || 0;
+        totalReceived += item.received || 0;
 
         dataNangCo += item.data_nangco;
         henNangCo += item.hen_nangco;
@@ -287,8 +287,12 @@ function renderMarketingDashboard() {
 
     const mktGlobalReceivedEl = document.getElementById('mktGlobalReceived');
     if (mktGlobalReceivedEl) {
-        // Now totalReceived represents the sum of top-ups for the specific filtered dates
         mktGlobalReceivedEl.textContent = formatCurrency(totalReceived);
+    }
+    const mktGlobalBalanceEl = document.getElementById('mktGlobalBalance');
+    if (mktGlobalBalanceEl) {
+        const dynamicBalance = totalReceived - totalCost;
+        mktGlobalBalanceEl.textContent = formatCurrency(dynamicBalance);
     }
     const mktCostBreakdownEl = document.getElementById('mktCostBreakdown');
     if (mktCostBreakdownEl) {
