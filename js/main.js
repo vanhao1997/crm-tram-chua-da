@@ -220,7 +220,10 @@ function renderMarketingDashboard() {
     const data = filterDataByDate(state.marketingData, 'date', filter);
 
     let totalCost = 0;
+    let totalMktCost = 0;
+    let totalAdFee = 0;
     let totalRev = 0;
+    let totalMessages = 0;
     let dataNangCo = 0, henNangCo = 0, toiNangCo = 0;
     let dataMuiChi = 0, henMuiChi = 0, toiMuiChi = 0;
     let toiKhac = 0;
@@ -229,7 +232,10 @@ function renderMarketingDashboard() {
 
     for (const item of data) {
         totalCost += item.cost;
+        totalMktCost += item.marketing_cost || 0;
+        totalAdFee += item.ad_management_fee || 0;
         totalRev += item.revenue;
+        totalMessages += item.messages || 0;
 
         dataNangCo += item.data_nangco;
         henNangCo += item.hen_nangco;
@@ -244,22 +250,25 @@ function renderMarketingDashboard() {
         // Buid table row
         const costStr = formatCurrency(item.cost);
         const revStr = formatCurrency(item.revenue);
-        const costPerCus = item.toi_nangco + item.toi_muichi + item.toi_khac > 0
-            ? formatCurrency(item.cost / (item.toi_nangco + item.toi_muichi + item.toi_khac))
-            : '0';
+        const costPerMessStr = item.messages && item.messages > 0 ? formatCurrency(item.cost / item.messages) : '0';
+        const costBreakdownStr = `Mkt: ${formatCurrency(item.marketing_cost || 0)}<br>QL: ${formatCurrency(item.ad_management_fee || 0)}`;
 
         tableHtml += `
             <tr>
                 <td class="td-name">${formatDateFull(item.date)}</td>
-                <td style="color:var(--accent-red); font-weight:600">${costStr}</td>
+                <td style="color:var(--accent-red); font-weight:600">
+                    <div>${costStr}</div>
+                    <div style="font-size:11px; font-weight:normal; line-height:1.2; margin-top:2px;">${costBreakdownStr}</div>
+                </td>
                 <td style="color:var(--accent-emerald); font-weight:600">${revStr}</td>
+                <td style="font-weight:600; color:var(--accent-amber);">${item.messages || 0}</td>
                 <td>${item.data_nangco}</td>
                 <td>${item.data_muichi}</td>
                 <td>${item.hen_nangco}</td>
                 <td>${item.hen_muichi}</td>
                 <td>${item.toi_nangco}</td>
                 <td>${item.toi_muichi}</td>
-                <td style="color:var(--accent-blue)">${costPerCus}</td>
+                <td style="color:var(--accent-blue)">${costPerMessStr}</td>
             </tr>
         `;
     }
@@ -273,7 +282,20 @@ function renderMarketingDashboard() {
 
     // Update KPI UI
     document.getElementById('mktTổngChiPhí').textContent = formatCurrency(totalCost);
+    const mktCostBreakdownEl = document.getElementById('mktCostBreakdown');
+    if (mktCostBreakdownEl) {
+        mktCostBreakdownEl.textContent = `Ads: ${formatCurrency(totalMktCost)} - Phí QL: ${formatCurrency(totalAdFee)}`;
+    }
+
     document.getElementById('mktTổngDoanhSố').textContent = formatCurrency(totalRev);
+    const mktMessEl = document.getElementById('mktTổngTinNhắn');
+    if (mktMessEl) mktMessEl.textContent = totalMessages.toLocaleString('vi-VN');
+
+    const mktCPMessEl = document.getElementById('mktCpmess');
+    if (mktCPMessEl) {
+        mktCPMessEl.textContent = totalMessages > 0 ? `Cost/Mess: ${formatCurrency(totalCost / totalMessages)}` : '0';
+    }
+
     document.getElementById('mktTỷLệChiPhí').textContent = roas + '%';
     document.getElementById('mktTỷLệTới').textContent = formatCurrency(avgCostPerCus);
 

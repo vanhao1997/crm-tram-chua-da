@@ -333,17 +333,20 @@ function parseMarketingRows(table) {
 
         results.push({
             date: dateObj,
-            cost: parseCurrencyStr(parseCellValue(cells[5])),
-            data_nangco: Number(parseCellValue(cells[6])) || 0,
-            data_muichi: Number(parseCellValue(cells[7])) || 0,
-            data_khac: Number(parseCellValue(cells[8])) || 0,
-            hen_nangco: Number(parseCellValue(cells[9])) || 0,
-            hen_muichi: Number(parseCellValue(cells[10])) || 0,
-            hen_khac: Number(parseCellValue(cells[11])) || 0,
-            toi_nangco: Number(parseCellValue(cells[12])) || 0,
-            toi_muichi: Number(parseCellValue(cells[13])) || 0,
-            toi_khac: Number(parseCellValue(cells[14])) || 0,
-            revenue: parseCurrencyStr(parseCellValue(cells[15]))
+            marketing_cost: parseCurrencyStr(parseCellValue(cells[1])),
+            ad_management_fee: parseCurrencyStr(parseCellValue(cells[2])),
+            cost: parseCurrencyStr(parseCellValue(cells[3])),
+            data_nangco: Number(parseCellValue(cells[4])) || 0,
+            data_muichi: Number(parseCellValue(cells[5])) || 0,
+            data_khac: Number(parseCellValue(cells[6])) || 0,
+            messages: Number(parseCellValue(cells[7])) || 0,
+            hen_nangco: Number(parseCellValue(cells[8])) || 0,
+            hen_muichi: Number(parseCellValue(cells[9])) || 0,
+            hen_khac: Number(parseCellValue(cells[10])) || 0,
+            toi_nangco: Number(parseCellValue(cells[11])) || 0,
+            toi_muichi: Number(parseCellValue(cells[12])) || 0,
+            toi_khac: Number(parseCellValue(cells[13])) || 0,
+            revenue: parseCurrencyStr(parseCellValue(cells[14]))
         });
     }
 
