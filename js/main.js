@@ -29,7 +29,6 @@ function initDom() {
     els.refreshBtn = document.getElementById('refreshBtn');
     els.lastRefresh = document.getElementById('lastRefresh');
     els.autoRefreshToggle = document.getElementById('autoRefreshToggle');
-    els.themeToggleBtn = document.getElementById('themeToggleBtn');
     els.loadingOverlay = document.getElementById('loadingOverlay');
     els.welcomeScreen = document.getElementById('welcomeScreen');
     els.dashboard = document.getElementById('dashboard');
@@ -343,14 +342,6 @@ function setupEvents() {
             if (els.marketing) renderMarketingDashboard();
         }
     });
-
-    // Theme Toggle
-    els.themeToggleBtn?.addEventListener('click', () => {
-        document.body.classList.toggle('light-theme');
-        const isLight = document.body.classList.contains('light-theme');
-        if (els.themeToggleBtn) els.themeToggleBtn.textContent = isLight ? '🌙' : '☀️';
-        localStorage.setItem('bsn_theme', isLight ? 'light' : 'dark');
-    });
 }
 
 
@@ -365,12 +356,8 @@ function init() {
         onRefresh: () => { if (state.sheetId) loadData(); }
     });
 
-    // Restore Theme
-    const savedTheme = localStorage.getItem('bsn_theme');
-    if (savedTheme !== 'dark') { // Default to light if nothing saved
-        document.body.classList.add('light-theme');
-        if (els.themeToggleBtn) els.themeToggleBtn.textContent = '🌙';
-    }
+    // Always use light theme
+    document.body.classList.add('light-theme');
 
 
     // Set Hardcoded URLs based on active page and Auto Connect

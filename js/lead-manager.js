@@ -13,25 +13,9 @@ export function initLeadManager({ getData, onRefresh }) {
     currentData = getData;
     onRefreshCallback = onRefresh;
 
-    setupScriptUrlInput();
     setupFAB();
     setupModals();
     setupTableRowClick();
-}
-
-// ─── Apps Script URL Setup ───
-function setupScriptUrlInput() {
-    const input = document.getElementById('scriptUrl');
-    const savedUrl = getAppsScriptUrl();
-    if (input && savedUrl) {
-        input.value = savedUrl;
-    }
-    if (input) {
-        input.addEventListener('change', () => {
-            setAppsScriptUrl(input.value);
-            showToast('Đã lưu Apps Script URL', 'success');
-        });
-    }
 }
 
 // ─── FAB Button ───
@@ -60,31 +44,6 @@ function setupModals() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeAllModals();
     });
-
-    // Settings button opens script setup modal
-    const settingsBtn = document.getElementById('settingsBtn');
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            const modal = document.getElementById('scriptSetupModal');
-            if (modal) modal.classList.add('active');
-        });
-    }
-
-    // Save Script URL button
-    const saveScriptBtn = document.getElementById('saveScriptUrl');
-    if (saveScriptBtn) {
-        saveScriptBtn.addEventListener('click', () => {
-            const input = document.getElementById('scriptUrl');
-            if (input && input.value.trim()) {
-                setAppsScriptUrl(input.value);
-                showToast('Đã lưu Apps Script URL', 'success');
-                closeAllModals();
-            } else {
-                showToast('Vui lòng nhập URL', 'error');
-            }
-        });
-    }
-
     // Add Lead form submit
     const addForm = document.getElementById('addLeadForm');
     if (addForm) {

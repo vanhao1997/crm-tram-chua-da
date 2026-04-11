@@ -46,7 +46,6 @@
           <span class="refresh-info__label">Cập nhật:</span>
           <span class="refresh-info__time" id="lastRefresh">--:--</span>
         </div>
-        <button id="settingsBtn" class="btn btn--icon" title="Cài đặt Write API">⚙️</button>
         <div class="auto-refresh">
           <label class="toggle">
             <input type="checkbox" id="autoRefreshToggle" checked />
@@ -360,25 +359,6 @@
           <textarea id="detailNote" rows="3" placeholder="Thêm ghi chú..."></textarea>
           <button id="saveNoteBtn" class="btn btn--primary btn--full" style="margin-top:8px;">Lưu ghi chú</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: Apps Script Setup -->
-  <div class="modal-overlay" id="scriptSetupModal">
-    <div class="modal glass-card">
-      <div class="modal__header">
-        <h3>⚙️ Cài đặt Write API</h3>
-        <button class="modal__close">&times;</button>
-      </div>
-      <div class="modal__body">
-        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Paste URL của Google Apps Script Web
-          App để ghi data vào Sheet.</p>
-        <div class="form-group">
-          <label>Apps Script URL</label>
-          <input type="url" id="scriptUrl" placeholder="https://script.google.com/macros/s/..." />
-        </div>
-        <button id="saveScriptUrl" class="btn btn--primary btn--full">Lưu</button>
       </div>
     </div>
   </div>
