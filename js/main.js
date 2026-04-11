@@ -227,7 +227,7 @@ function renderMarketingDashboard() {
     let totalReceived = 0;
     let dataNangCo = 0, henNangCo = 0, toiNangCo = 0;
     let dataMuiChi = 0, henMuiChi = 0, toiMuiChi = 0;
-    let toiKhac = 0;
+    let dataKhac = 0, toiKhac = 0;
 
     let tableHtml = '';
 
@@ -247,6 +247,7 @@ function renderMarketingDashboard() {
         henMuiChi += item.hen_muichi;
         toiMuiChi += item.toi_muichi;
 
+        dataKhac += item.data_khac || 0;
         toiKhac += item.toi_khac || 0;
 
         // Buid table row
@@ -306,6 +307,16 @@ function renderMarketingDashboard() {
     const mktCPMessEl = document.getElementById('mktCpmess');
     if (mktCPMessEl) {
         mktCPMessEl.textContent = totalMessages > 0 ? `Cost/Mess: ${formatCurrency(totalCost / totalMessages)}` : '0';
+    }
+
+    const totalData = dataNangCo + dataMuiChi + dataKhac;
+    const mktTotalDataEl = document.getElementById('mktTổngData');
+    if (mktTotalDataEl) {
+        mktTotalDataEl.textContent = totalData.toLocaleString('vi-VN');
+    }
+    const mktCpDataEl = document.getElementById('mktCpData');
+    if (mktCpDataEl) {
+        mktCpDataEl.textContent = totalData > 0 ? `Cost/Data: ${formatCurrency(totalCost / totalData)}` : '0';
     }
 
     document.getElementById('mktTỷLệChiPhí').textContent = roas + '%';
