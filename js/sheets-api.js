@@ -317,12 +317,28 @@ export function parseCurrencyStr(str) {
 function parseMarketingRows(table) {
     const rows = table.rows || [];
     const results = [];
+    let globalBalance = 0;
+    let globalReceived = 0;
 
-    for (const row of rows) {
+    for (const [index, row] of rows.entries()) {
         const cells = row.c || [];
 
         const dateStrObj = cells[0];
-        if (!dateStrObj || !dateStrObj.v) continue;
+        if (!dateStrObj || !dateStrObj.v) {
+            // Attempt to capture global metrics from top rows (e.g. row index 0 to 5)
+            if (index < 5 && cells[1] && cells[2]) {
+                const b = parseCurrencyStr(parseCellValue(cells[1]));
+                const rec = parseCurrencyStr(parseCellValue(cells[2]));
+                if (b > 0 || rec > 0) {
+                    if (rec > globalReceived) { // Pick the absolute biggest received (global total row)
+                        globalBalance = b || globalBalance;
+                        globalReceived = rec || globalReceived;
+                    }
+                }
+            }
+            continue;
+        }
+
         const dateStr = String(dateStrObj.v).trim();
 
         // Skip aggregate rows (TỔNG, THÁNG...)
@@ -350,6 +366,8 @@ function parseMarketingRows(table) {
         });
     }
 
+    results.globalBalance = globalBalance;
+    results.globalReceived = globalReceived;
     return results;
 }
 

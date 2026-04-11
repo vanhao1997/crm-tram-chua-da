@@ -108,6 +108,29 @@
 
     <!-- MARKETING KPI ROW -->
     <section class="kpi-row" id="mktKpiRow">
+      <div class="kpi-card" id="mktKpiReceived">
+        <div class="kpi-card__icon kpi-card__icon--emerald">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tổng Nạp (Nhận)</span>
+          <span class="kpi-card__value" id="mktGlobalReceived">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiBalance">
+        <div class="kpi-card__icon" style="background-color:rgba(16, 185, 129, 0.1); color:#10b981;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Ngân sách còn dư</span>
+          <span class="kpi-card__value" id="mktGlobalBalance">--</span>
+        </div>
+      </div>
       <div class="kpi-card" id="mktKpiSpend">
         <div class="kpi-card__icon kpi-card__icon--blue">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
