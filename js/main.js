@@ -139,6 +139,13 @@ function isSameDay(d1, d2) {
         d1.getFullYear() === d2.getFullYear();
 }
 
+function isUpcoming(d) {
+    if (!d) return false;
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    return d > today;
+}
+
 function isThisWeek(d) {
     if (!d) return false;
     const today = new Date();
@@ -177,6 +184,7 @@ function filterDataByDate(dataArray, dateField, filterType) {
             case 'week': return isThisWeek(d);
             case 'month': return isThisMonth(d);
             case 'lastmonth': return isLastMonth(d);
+            case 'upcoming': return isUpcoming(d);
             case 'all': return true;
             default: return true;
         }
