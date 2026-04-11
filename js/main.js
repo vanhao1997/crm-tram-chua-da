@@ -303,6 +303,18 @@ function renderMarketingDashboard() {
         const dynamicBalance = totalReceived - totalCost;
         mktGlobalBalanceEl.textContent = formatCurrency(dynamicBalance);
     }
+
+    const mktKpiReceivedCard = document.getElementById('mktKpiReceived');
+    const mktKpiBalanceCard = document.getElementById('mktKpiBalance');
+    if (mktKpiReceivedCard && mktKpiBalanceCard) {
+        if (filter === 'month' || filter === 'lastmonth' || filter === 'all') {
+            mktKpiReceivedCard.style.display = 'flex';
+            mktKpiBalanceCard.style.display = 'flex';
+        } else {
+            mktKpiReceivedCard.style.display = 'none';
+            mktKpiBalanceCard.style.display = 'none';
+        }
+    }
     const mktCostBreakdownEl = document.getElementById('mktCostBreakdown');
     if (mktCostBreakdownEl) {
         mktCostBreakdownEl.textContent = `Ads: ${formatCurrency(totalMktCost)} - Phí QL: ${formatCurrency(totalAdFee)}`;
