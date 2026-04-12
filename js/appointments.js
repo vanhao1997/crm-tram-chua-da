@@ -146,7 +146,7 @@ export function renderAppointmentTable(data, filter = 'today') {
     }
 
     emptyState.style.display = 'none';
-    document.querySelector('.data-table').style.display = 'table';
+    document.querySelector('.data-table').style.display = '';
 
     tbody.innerHTML = filtered.map((item, i) => `
     <tr>
