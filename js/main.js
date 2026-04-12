@@ -266,20 +266,20 @@ function renderMarketingDashboard() {
 
         tableHtml += `
             <tr>
-                <td class="td-name">${formatDateFull(item.date)}</td>
-                <td style="color:var(--accent-red); font-weight:600">
+                <td class="td-name" data-label="Ngày">${formatDateFull(item.date)}</td>
+                <td style="color:var(--accent-red); font-weight:600" data-label="Chi phí">
                     <div>${costStr}</div>
                     <div style="font-size:11px; font-weight:normal; line-height:1.2; margin-top:2px;">${costBreakdownStr}</div>
                 </td>
-                <td style="color:var(--accent-emerald); font-weight:600">${revStr}</td>
-                <td style="font-weight:600; color:var(--accent-amber);">${item.messages || 0}</td>
-                <td>${item.data_nangco}</td>
-                <td>${item.data_muichi}</td>
-                <td>${item.hen_nangco}</td>
-                <td>${item.hen_muichi}</td>
-                <td>${item.toi_nangco}</td>
-                <td>${item.toi_muichi}</td>
-                <td style="color:var(--accent-blue)">${costPerMessStr}</td>
+                <td style="color:var(--accent-emerald); font-weight:600" data-label="Doanh thu">${revStr}</td>
+                <td style="font-weight:600; color:var(--accent-amber);" data-label="Tin nhắn">${item.messages || 0}</td>
+                <td data-label="Data NC">${item.data_nangco}</td>
+                <td data-label="Data MC">${item.data_muichi}</td>
+                <td data-label="Hẹn NC">${item.hen_nangco}</td>
+                <td data-label="Hẹn MC">${item.hen_muichi}</td>
+                <td data-label="Tới NC">${item.toi_nangco}</td>
+                <td data-label="Tới MC">${item.toi_muichi}</td>
+                <td style="color:var(--accent-blue)" data-label="Cost/Mess">${costPerMessStr}</td>
             </tr>
         `;
     }

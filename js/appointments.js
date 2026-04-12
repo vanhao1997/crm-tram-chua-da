@@ -150,15 +150,15 @@ export function renderAppointmentTable(data, filter = 'today') {
 
     tbody.innerHTML = filtered.map((item, i) => `
     <tr>
-      <td>${i + 1}</td>
-      <td class="td-name">${escapeHtml(item.name)}</td>
-      <td class="td-phone" onclick="copyPhone('${item.phone}')" title="Click để copy">${formatPhoneDisplay(item.phone)}</td>
-      <td class="td-service">${escapeHtml(item.service)}</td>
-      <td>${escapeHtml(item.time || '--')}</td>
-      <td>${formatDateShort(item.aptDate)}</td>
-      <td>${escapeHtml(item.staff)}</td>
-      <td>${getStatusBadge(item.status)}</td>
-      <td class="td-note" title="${escapeHtml(item.note)}">${escapeHtml(truncate(item.note, 40))}</td>
+      <td data-label="STT">${i + 1}</td>
+      <td class="td-name" data-label="Tên KH">${escapeHtml(item.name)}</td>
+      <td class="td-phone" data-label="SĐT" onclick="copyPhone('${item.phone}')" title="Click để copy">${formatPhoneDisplay(item.phone)}</td>
+      <td class="td-service" data-label="Dịch vụ">${escapeHtml(item.service)}</td>
+      <td data-label="Giờ hẹn">${escapeHtml(item.time || '--')}</td>
+      <td data-label="Ngày hẹn">${formatDateShort(item.aptDate)}</td>
+      <td data-label="Nhân viên">${escapeHtml(item.staff)}</td>
+      <td data-label="Trạng thái">${getStatusBadge(item.status)}</td>
+      <td class="td-note" data-label="Ghi chú" title="${escapeHtml(item.note)}">${escapeHtml(truncate(item.note, 40))}</td>
     </tr>
   `).join('');
 }
