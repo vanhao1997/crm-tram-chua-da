@@ -271,6 +271,12 @@ function renderMarketingDashboard() {
         const costPerMessStr = item.messages && item.messages > 0 ? formatCurrency(item.cost / item.messages) : '0';
         const costBreakdownStr = `Mkt: ${formatCurrency(item.marketing_cost || 0)}<br>QL: ${formatCurrency(item.ad_management_fee || 0)}`;
 
+        const totalDataRow = (item.data_nangco || 0) + (item.data_muichi || 0) + (item.data_khac || 0);
+        const totalHenRow = (item.hen_nangco || 0) + (item.hen_muichi || 0) + (item.hen_khac || 0);
+        const totalToiRow = (item.toi_nangco || 0) + (item.toi_muichi || 0) + (item.toi_khac || 0);
+
+        const costPerDataStr = totalDataRow > 0 ? formatCurrency(item.cost / totalDataRow) : '0';
+
         tableHtml += `
             <tr>
                 <td class="td-name" data-label="Ngày">${formatDateFull(item.date)}</td>
@@ -280,13 +286,11 @@ function renderMarketingDashboard() {
                 </td>
                 <td style="color:var(--accent-emerald); font-weight:600" data-label="Doanh thu">${revStr}</td>
                 <td style="font-weight:600; color:var(--accent-amber);" data-label="Tin nhắn">${item.messages || 0}</td>
-                <td data-label="Data NC">${item.data_nangco}</td>
-                <td data-label="Data MC">${item.data_muichi}</td>
-                <td data-label="Hẹn NC">${item.hen_nangco}</td>
-                <td data-label="Hẹn MC">${item.hen_muichi}</td>
-                <td data-label="Tới NC">${item.toi_nangco}</td>
-                <td data-label="Tới MC">${item.toi_muichi}</td>
-                <td style="color:var(--accent-blue)" data-label="Cost/Mess">${costPerMessStr}</td>
+                <td data-label="DATA">${totalDataRow}</td>
+                <td data-label="HẸN">${totalHenRow}</td>
+                <td data-label="TỚI">${totalToiRow}</td>
+                <td style="color:var(--accent-blue)" data-label="Giá 1 Tin">${costPerMessStr}</td>
+                <td style="color:var(--accent-purple)" data-label="Giá 1 Data">${costPerDataStr}</td>
             </tr>
         `;
     }
