@@ -7,7 +7,7 @@ import { parseSheetUrl, fetchAllData } from './sheets-api.js';
 import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } from './appointments.js';
 import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './charts.js';
 import { initLeadManager } from './lead-manager.js';
-import { fetchMarketingData, formatCurrency, formatDateFull } from './sheets-api.js';
+import { fetchMarketingData, formatCurrency, formatDateShort, formatDateFull } from './sheets-api.js';
 import { renderMarketingFunnelChart, renderMarketingPieCharts } from './charts.js';
 
 // ─── State ───
