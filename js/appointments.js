@@ -158,7 +158,7 @@ export function renderAppointmentTable(data, filter = 'today') {
       <td data-label="Ngày hẹn">${formatDateShort(item.aptDate)}</td>
       <td data-label="Nhân viên">${escapeHtml(item.staff)}</td>
       <td data-label="Trạng thái">${getStatusBadge(item.status)}</td>
-      <td class="td-note" data-label="Ghi chú" title="${escapeHtml(item.note)}">${escapeHtml(truncate(item.note, 40))}</td>
+      <td class="td-note" data-label="Ghi chú">${formatNotes(item.note)}</td>
     </tr>
   `).join('');
 }
@@ -248,10 +248,22 @@ export function renderOverdueList(overdueData) {
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function formatNotes(noteStr) {
+    if (!noteStr) return '';
+    const str = String(noteStr);
+    const lines = str.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    if (lines.length > 1) {
+        return lines.map((l, i) => `<b>[${i + 1}]</b> ${escapeHtml(l)}`).join('<br>');
+    }
+    return escapeHtml(str);
 }
 
 function truncate(str, len) {
