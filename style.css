@@ -1732,6 +1732,12 @@ body {
     /* Override previous 900px min-width */
   }
 
+  .data-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
   /* Hide Headers */
   .data-table thead {
     display: none;
@@ -1739,16 +1745,13 @@ body {
 
   /* Row Wrapper = The Card */
   .data-table tbody tr {
+    display: flex;
+    flex-direction: column;
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
+    border: 1px solid var(--border-subtle) !important;
     border-radius: var(--radius-md);
     padding: 12px;
-    margin-bottom: 12px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-  }
-
-  .data-table tbody tr:last-child {
-    margin-bottom: 0;
   }
 
   /* Cell Styles */
@@ -1766,7 +1769,7 @@ body {
 
   .data-table td:last-child {
     border-bottom: none;
-    padding-bottom: 0;
+    padding-bottom: 4px;
   }
 
   .data-table td:first-child {
