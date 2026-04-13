@@ -237,6 +237,7 @@ export function renderOverdueList(overdueData) {
           <span class="overdue-item__days">${daysDiff} ngày trước</span>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${escapeHtml(item.service)}</div>
+        ${item.note ? `<div style="font-size:12px;color:var(--text-primary);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border-subtle);word-wrap:break-word;">${formatNotes(item.note)}</div>` : ''}
       </div>
     `;
     }).join('');
