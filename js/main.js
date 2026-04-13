@@ -226,7 +226,13 @@ function renderMarketingDashboard() {
 
     // Apply global filter
     const filter = state.currentFilter;
-    const data = filterDataByDate(state.marketingData, 'date', filter);
+    let data = filterDataByDate(state.marketingData, 'date', filter);
+
+    // Remove future dates and sort from newest to oldest
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    data = data.filter(item => item.date && item.date <= today)
+        .sort((a, b) => b.date.getTime() - a.date.getTime());
 
     let totalCost = 0;
     let totalMktCost = 0;
