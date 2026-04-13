@@ -1299,7 +1299,7 @@ body {
 
   /* Overdue panel */
   .overdue-list {
-    max-height: 300px;
+    max-height: 600px;
   }
 
   /* AI section */
