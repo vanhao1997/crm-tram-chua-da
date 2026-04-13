@@ -1233,6 +1233,11 @@ body {
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    background: var(--bg-card);
+    padding: 6px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-subtle);
+    box-shadow: var(--glass-shadow);
   }
 
   .filter-tabs::-webkit-scrollbar {
@@ -1248,6 +1253,7 @@ body {
   .overdue-panel {
     min-width: 0;
     overflow: hidden;
+    margin-bottom: 24px;
   }
 
   /* Table: horizontal scroll within contained panel */
@@ -1910,10 +1916,10 @@ body {
   padding: 40px 0;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .pie-chart-wrapper {
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
   }
 
   .pie-chart {

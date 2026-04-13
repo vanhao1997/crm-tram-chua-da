@@ -24,8 +24,6 @@ let state = {
 const els = {};
 
 function initDom() {
-    els.sheetUrl = document.getElementById('sheetUrl');
-    els.connectBtn = document.getElementById('connectBtn');
     els.refreshBtn = document.getElementById('refreshBtn');
     els.lastRefresh = document.getElementById('lastRefresh');
     els.autoRefreshToggle = document.getElementById('autoRefreshToggle');
@@ -62,11 +60,14 @@ function hideLoading() {
 
 // ─── Connect to Sheet ───
 async function connectSheet() {
-    const url = els.sheetUrl.value.trim();
-    if (!url) {
-        showToast('Vui lòng paste link Google Sheet', 'error');
-        return;
+    let url = '';
+    if (els.dashboard) {
+        url = 'https://docs.google.com/spreadsheets/d/19Q1Fy1bvnElYhGCCLdDzC4TRzIJQn73lk7LpEN7fX2Q/edit?usp=sharing';
+    } else if (els.marketing) {
+        url = 'https://docs.google.com/spreadsheets/d/124VcfNpFqJKv400Jj156h2aYg4eurDzfJaEvs_wbNQ4/edit?gid=1227076939#gid=1227076939';
     }
+
+    if (!url) return;
 
     try {
         state.sheetId = parseSheetUrl(url);
@@ -368,14 +369,6 @@ function stopAutoRefresh() {
 
 // ─── Event Listeners ───
 function setupEvents() {
-    // Connect button
-    els.connectBtn?.addEventListener('click', connectSheet);
-
-    // Enter key in URL input
-    els.sheetUrl?.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') connectSheet();
-    });
-
     // Manual refresh
     els.refreshBtn?.addEventListener('click', () => {
         if (state.sheetId) loadData();
@@ -423,19 +416,6 @@ function init() {
 
     // Always use light theme
     document.body.classList.add('light-theme');
-
-
-    // Set Hardcoded URLs based on active page and Auto Connect
-    if (els.dashboard && els.sheetUrl) {
-        els.sheetUrl.value = 'https://docs.google.com/spreadsheets/d/19Q1Fy1bvnElYhGCCLdDzC4TRzIJQn73lk7LpEN7fX2Q/edit?usp=sharing';
-    } else if (els.marketing && els.sheetUrl) {
-        els.sheetUrl.value = 'https://docs.google.com/spreadsheets/d/124VcfNpFqJKv400Jj156h2aYg4eurDzfJaEvs_wbNQ4/edit?gid=1227076939#gid=1227076939';
-    }
-
-    // Hide the input fields to prevent modification since it is hardcoded
-    if (els.sheetUrl?.parentElement) {
-        els.sheetUrl.parentElement.style.display = 'none';
-    }
 
     // Connect immediately
     connectSheet();
