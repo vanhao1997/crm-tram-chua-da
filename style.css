@@ -1783,6 +1783,17 @@ body {
     margin-right: 16px;
     text-align: left;
     white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .data-table td.td-note {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .data-table td.td-note::before {
+    margin-bottom: 6px;
   }
 }
 
