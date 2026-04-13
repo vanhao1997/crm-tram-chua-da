@@ -1729,6 +1729,14 @@ body {
   margin: 0 auto;
 }
 
+@media (min-width: 901px) {
+  .main-tabs-container {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
 .main-tab {
   padding: 8px 16px;
   border-radius: var(--radius-sm);
