@@ -1790,12 +1790,13 @@ body {
   }
 
   .data-table td.td-note {
-    flex-direction: column;
-    align-items: flex-start;
+    display: block;
     text-align: left;
+    width: 100%;
   }
 
   .data-table td.td-note::before {
+    display: block;
     margin-bottom: 6px;
   }
 }
