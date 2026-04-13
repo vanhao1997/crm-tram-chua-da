@@ -1804,12 +1804,14 @@ body {
 /* ─── Main Tabs ─── */
 .main-tabs-container {
   display: flex;
+  justify-content: center;
   gap: 8px;
   background: var(--bg-card);
   padding: 6px;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--glass-shadow);
+  margin: 0 auto;
 }
 
 .main-tab {
