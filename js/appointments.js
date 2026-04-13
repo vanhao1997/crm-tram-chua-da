@@ -224,13 +224,20 @@ export function renderOverdueList(overdueData) {
     list.style.display = 'flex';
     emptyState.style.display = 'none';
 
+    window.__overdueData = overdueData;
+
     const today = new Date();
 
-    list.innerHTML = overdueData.map(item => {
+    list.innerHTML = overdueData.map((item, index) => {
         const daysDiff = Math.floor((today - item.aptDate) / (1000 * 60 * 60 * 24));
         return `
       <div class="overdue-item">
-        <div class="overdue-item__name">${escapeHtml(item.name)}</div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:2px;">
+            <div class="overdue-item__name" style="margin-bottom:0;">${escapeHtml(item.name)}</div>
+            <button class="btn btn--icon" onclick="window.shareOverdueItem(${index})" style="width:26px;height:26px;border:none;background:rgba(56, 189, 248, 0.1);color:var(--accent-blue);" title="Chia sẻ qua Zalo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </button>
+        </div>
         <div class="overdue-item__phone" onclick="copyPhone('${item.phone}')" title="Click để copy">📞 ${formatPhoneDisplay(item.phone)}</div>
         <div class="overdue-item__meta">
           <span>Hẹn: ${formatDateFull(item.aptDate)}</span>
@@ -266,6 +273,40 @@ function formatNotes(noteStr) {
     }
     return escapeHtml(str);
 }
+
+// Global share
+window.shareOverdueItem = function (index) {
+    const item = window.__overdueData[index];
+    if (!item) return;
+
+    const today = new Date();
+    const daysDiff = Math.floor((today - item.aptDate) / (1000 * 60 * 60 * 24));
+
+    const text = `📌 KHÁCH QUÁ HẸN CHƯA ĐẾN (${daysDiff} ngày)
+👤 Khách hàng: ${item.name}
+📞 SĐT: 0${item.phone.replace(/^0/, '')}
+⏰ Hẹn ngày: ${formatDateFull(item.aptDate)}
+Dịch vụ: ${item.service || 'Không có'}
+📝 Ghi chú:
+${item.note || 'Không có'}
+`;
+
+    if (navigator.share) {
+        navigator.share({
+            title: 'Thông tin Khách Quá Hẹn',
+            text: text
+        }).catch(err => {
+            console.log('Share failed:', err);
+            navigator.clipboard.writeText(text).then(() => {
+                window.showToast?.('Đã copy thông tin để dán vào Zalo', 'success');
+            });
+        });
+    } else {
+        navigator.clipboard.writeText(text).then(() => {
+            window.showToast?.('Đã copy thông tin để dán vào Zalo', 'success');
+        });
+    }
+};
 
 function truncate(str, len) {
     if (!str) return '';
