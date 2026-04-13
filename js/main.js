@@ -303,16 +303,16 @@ function renderMarketingDashboard() {
     const avgCostPerCus = totalArrivedAll > 0 ? (totalCost / totalArrivedAll) : 0;
 
     // Update KPI UI
-    document.getElementById('mktTổngChiPhí').textContent = formatCurrency(totalCost);
+    animateValue(document.getElementById('mktTổngChiPhí'), 0, totalCost, 800, formatCurrency);
 
     const mktGlobalReceivedEl = document.getElementById('mktGlobalReceived');
     if (mktGlobalReceivedEl) {
-        mktGlobalReceivedEl.textContent = formatCurrency(totalReceived);
+        animateValue(mktGlobalReceivedEl, 0, totalReceived, 800, formatCurrency);
     }
     const mktGlobalBalanceEl = document.getElementById('mktGlobalBalance');
     if (mktGlobalBalanceEl) {
         const dynamicBalance = totalReceived - totalCost;
-        mktGlobalBalanceEl.textContent = formatCurrency(dynamicBalance);
+        animateValue(mktGlobalBalanceEl, 0, dynamicBalance, 800, formatCurrency);
     }
 
     const mktKpiReceivedCard = document.getElementById('mktKpiReceived');
@@ -331,9 +331,11 @@ function renderMarketingDashboard() {
         mktCostBreakdownEl.textContent = `Ads: ${formatCurrency(totalMktCost)} - Phí QL: ${formatCurrency(totalAdFee)}`;
     }
 
-    document.getElementById('mktTổngDoanhSố').textContent = formatCurrency(totalRev);
+    const totalRevEl = document.getElementById('mktTổngDoanhSố');
+    if (totalRevEl) animateValue(totalRevEl, 0, totalRev, 800, formatCurrency);
+
     const mktMessEl = document.getElementById('mktTổngTinNhắn');
-    if (mktMessEl) mktMessEl.textContent = totalMessages.toLocaleString('vi-VN');
+    if (mktMessEl) animateValue(mktMessEl, 0, totalMessages, 800, val => val.toLocaleString('vi-VN'));
 
     const mktCPMessEl = document.getElementById('mktCpmess');
     if (mktCPMessEl) {
@@ -343,7 +345,7 @@ function renderMarketingDashboard() {
     const totalData = dataNangCo + dataMuiChi + dataKhac;
     const mktTotalDataEl = document.getElementById('mktTổngData');
     if (mktTotalDataEl) {
-        mktTotalDataEl.textContent = totalData.toLocaleString('vi-VN');
+        animateValue(mktTotalDataEl, 0, totalData, 800, val => val.toLocaleString('vi-VN'));
     }
     const mktCpDataEl = document.getElementById('mktCpData');
     if (mktCpDataEl) {
@@ -357,12 +359,264 @@ function renderMarketingDashboard() {
     renderMarketingFunnelChart('mktFunnelNangCo', dataNangCo, henNangCo, toiNangCo);
     renderMarketingFunnelChart('mktFunnelMuiChi', dataMuiChi, henMuiChi, toiMuiChi);
     renderMarketingPieCharts(totalCost, totalRev, toiNangCo, toiMuiChi, toiKhac);
+    renderMarketingTrends(data);
+    renderMoMComparison(state.marketingData);
+    renderPeriodAnalysis(state.marketingData);
 
     // Table
     document.getElementById('mktTableBody').innerHTML = tableHtml;
 }
 
+// ─── Render Trend Chart ───
+function renderMarketingTrends(data) {
+    const ctx = document.getElementById('mktTrendChart');
+    if (!ctx) return;
+
+    if (window.mktTrendChartInstance) {
+        window.mktTrendChartInstance.destroy();
+    }
+
+    if (!data || data.length === 0) return;
+
+    // Chart needs chronological order (oldest -> newest)
+    const chartData = [...data].reverse();
+
+    const labels = chartData.map(d => formatDateShort(d.date));
+
+    const costs = chartData.map(d => d.cost / 1000000); // in millions
+    const datas = chartData.map(d => (d.data_nangco || 0) + (d.data_muichi || 0) + (d.data_khac || 0));
+    const arrived = chartData.map(d => (d.toi_nangco || 0) + (d.toi_muichi || 0) + (d.toi_khac || 0));
+
+    window.mktTrendChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Chi phí (Triệu)',
+                    data: costs,
+                    borderColor: '#f43f5e',
+                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                    yAxisID: 'y',
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Số Data',
+                    data: datas,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.4
+                },
+                {
+                    label: 'Khách Tới',
+                    data: arrived,
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    yAxisID: 'y1',
+                    tension: 0.4
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false,
+            },
+            plugins: {
+                legend: { position: 'bottom' }
+            },
+            scales: {
+                x: {
+                    grid: { display: false }
+                },
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: false, text: 'Chi phí (Tr)' },
+                    beginAtZero: true
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: false, text: 'Số lượng' },
+                    grid: { drawOnChartArea: false },
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+}
+
+// ─── Render MoM Comparison ───
+function renderMoMComparison(rawData) {
+    const container = document.getElementById('momComparison');
+    if (!container) return;
+    if (!rawData || rawData.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-muted);">Không có đủ dữ liệu</div>';
+        return;
+    }
+
+    const thisMonthData = filterDataByDate(rawData, 'date', 'month');
+    const lastMonthData = filterDataByDate(rawData, 'date', 'lastmonth');
+
+    const calc = (arr) => {
+        let rev = 0, cost = 0, msg = 0, data = 0, arrived = 0;
+        for (const item of arr) {
+            rev += item.revenue || 0;
+            cost += item.cost || 0;
+            msg += item.messages || 0;
+            data += (item.data_nangco || 0) + (item.data_muichi || 0) + (item.data_khac || 0);
+            arrived += (item.toi_nangco || 0) + (item.toi_muichi || 0) + (item.toi_khac || 0);
+        }
+        const cpd = data > 0 ? cost / data : 0;
+        return { rev, cost, msg, data, arrived, cpd };
+    };
+
+    const cur = calc(thisMonthData);
+    const prev = calc(lastMonthData);
+
+    const getChange = (currVal, prevVal, isGoodIfHigher) => {
+        if (prevVal === 0) return { pct: 0, str: '--', cls: 'neutral' };
+        const diff = currVal - prevVal;
+        const pct = (diff / prevVal) * 100;
+        const absPct = Math.abs(pct).toFixed(1);
+
+        let cls = 'neutral';
+        let arrow = '';
+        if (diff > 0) {
+            arrow = '▲';
+            cls = isGoodIfHigher ? 'good' : 'bad';
+        } else if (diff < 0) {
+            arrow = '▼';
+            cls = isGoodIfHigher ? 'bad' : 'good';
+        } else {
+            return { pct: 0, str: '-', cls: 'neutral' };
+        }
+        return { pct, str: `${arrow} ${absPct}%`, cls };
+    };
+
+    const metrics = [
+        { label: 'Chi phí MKT', c: cur.cost, p: prev.cost, fmt: formatCurrency, goodUp: false },
+        { label: 'Doanh số', c: cur.rev, p: prev.rev, fmt: formatCurrency, goodUp: true },
+        { label: 'Tin nhắn', c: cur.msg, p: prev.msg, fmt: val => val.toLocaleString('vi-VN'), goodUp: true },
+        { label: 'Tổng Data', c: cur.data, p: prev.data, fmt: val => val.toLocaleString('vi-VN'), goodUp: true },
+        { label: 'Khách Tới', c: cur.arrived, p: prev.arrived, fmt: val => val.toLocaleString('vi-VN'), goodUp: true },
+        { label: 'Giá/Data', c: cur.cpd, p: prev.cpd, fmt: formatCurrency, goodUp: false },
+    ];
+
+    let html = `<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px;">`;
+
+    for (const m of metrics) {
+        const change = getChange(m.c, m.p, m.goodUp);
+        const colorHtml = change.cls === 'good' ? 'color:var(--accent-emerald)' :
+            change.cls === 'bad' ? 'color:var(--accent-red)' : 'color:var(--text-muted)';
+
+        html += `
+            <div style="background:var(--bg-secondary); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-bottom:4px;">${m.label}</div>
+                <div style="font-size:16px; font-weight:700; color:var(--text-primary); margin-bottom:4px;">${m.fmt(m.c)}</div>
+                <div style="font-size:12px; font-weight:600; ${colorHtml}">${change.str}</div>
+            </div>
+        `;
+    }
+    html += `</div>`;
+
+    container.innerHTML = html;
+}
+
+// ─── Render Period Analysis ───
+function renderPeriodAnalysis(rawData) {
+    const container = document.getElementById('mktPeriodAnalysis');
+    if (!container) return;
+
+    // Lọc lấy dữ liệu của tháng hiện tại
+    const thisMonthData = filterDataByDate(rawData, 'date', 'month');
+    if (!thisMonthData || thisMonthData.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-muted);">Không có đủ dữ liệu</div>';
+        return;
+    }
+
+    const periods = {
+        dau_thang: { label: 'Đầu tháng (1-10)', data: [] },
+        giua_thang: { label: 'Giữa tháng (11-20)', data: [] },
+        cuoi_thang: { label: 'Cuối tháng (21+)', data: [] }
+    };
+
+    for (const item of thisMonthData) {
+        const d = item.date.getDate();
+        if (d <= 10) periods.dau_thang.data.push(item);
+        else if (d <= 20) periods.giua_thang.data.push(item);
+        else periods.cuoi_thang.data.push(item);
+    }
+
+    const calc = (arr) => {
+        let cost = 0, data = 0, msg = 0;
+        for (const item of arr) {
+            cost += item.cost || 0;
+            msg += item.messages || 0;
+            data += (item.data_nangco || 0) + (item.data_muichi || 0) + (item.data_khac || 0);
+        }
+        const days = arr.length || 1;
+        return {
+            avgCost: cost / days,
+            avgData: (data / days).toFixed(1),
+            cpd: data > 0 ? (cost / data) : 0
+        };
+    };
+
+    let html = `<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">`;
+
+    for (const key of ['dau_thang', 'giua_thang', 'cuoi_thang']) {
+        const p = periods[key];
+        const c = calc(p.data);
+
+        html += `
+            <div style="background:var(--bg-secondary); padding:12px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle);">
+                <div style="font-size:12px; color:var(--text-primary); font-weight:700; margin-bottom:12px; border-bottom:1px solid var(--border-subtle); padding-bottom:6px;">${p.label}</div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <span style="font-size:11px; color:var(--text-muted);">Chi phí/ngày:</span>
+                    <span style="font-size:12px; font-weight:600;">${formatCurrency(c.avgCost)}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                    <span style="font-size:11px; color:var(--text-muted);">Data/ngày:</span>
+                    <span style="font-size:12px; font-weight:600;">${c.avgData}</span>
+                </div>
+                 <div style="display:flex; justify-content:space-between;">
+                    <span style="font-size:11px; color:var(--text-muted);">Giá 1 Data:</span>
+                    <span style="font-size:12px; font-weight:700; color:var(--accent-purple);">${formatCurrency(c.cpd)}</span>
+                </div>
+            </div>
+        `;
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
 // ─── Auto Refresh ───
+function animateValue(obj, start, end, duration, formatter = val => val) {
+    if (!obj) return;
+    let startTimestamp = null;
+    const isNegative = end < start;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        const current = isNegative
+            ? Math.ceil(start - progress * (start - end))
+            : Math.floor(progress * (end - start) + start);
+        obj.textContent = formatter(current);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+}
+
 function startAutoRefresh() {
     stopAutoRefresh();
     state.autoRefreshInterval = setInterval(() => {
@@ -375,6 +629,75 @@ function stopAutoRefresh() {
         clearInterval(state.autoRefreshInterval);
         state.autoRefreshInterval = null;
     }
+}
+
+// ─── Setup Pull To Refresh ───
+function setupPullToRefresh() {
+    let startY = 0;
+    let currentY = 0;
+    let isRefreshing = false;
+    let isPulling = false;
+
+    let ptrEl = document.getElementById('pullToRefresh');
+    if (!ptrEl) {
+        ptrEl = document.createElement('div');
+        ptrEl.id = 'pullToRefresh';
+        ptrEl.className = 'ptr-element';
+        ptrEl.innerHTML = '⬇️ Kéo xuống để tải lại';
+        document.body.prepend(ptrEl);
+    }
+
+    document.addEventListener('touchstart', (e) => {
+        if (window.scrollY === 0) {
+            startY = e.touches[0].clientY;
+            isPulling = true;
+        }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isPulling || isRefreshing) return;
+        currentY = e.touches[0].clientY;
+        const pullDistance = currentY - startY;
+
+        if (pullDistance > 0 && window.scrollY === 0) {
+            if (e.cancelable) e.preventDefault();
+            ptrEl.style.transform = `translateY(${Math.min(pullDistance - 50, 10)}px)`;
+            ptrEl.style.opacity = Math.min(pullDistance / 80, 1);
+
+            if (pullDistance > 70) {
+                ptrEl.innerHTML = '🔄 Thả ra để tải lại...';
+            } else {
+                ptrEl.innerHTML = '⬇️ Kéo xuống để tải lại';
+            }
+        }
+    }, { passive: false });
+
+    document.addEventListener('touchend', () => {
+        if (!isPulling || isRefreshing) return;
+        isPulling = false;
+
+        const pullDistance = currentY - startY;
+        if (pullDistance > 70 && window.scrollY === 0) {
+            isRefreshing = true;
+            ptrEl.innerHTML = '🔄 Đang tải dữ liệu...';
+            ptrEl.classList.add('ptr-refreshing');
+
+            // Refresh logic
+            loadData().finally(() => {
+                isRefreshing = false;
+                ptrEl.style.transform = 'translateY(-50px)';
+                ptrEl.style.opacity = '0';
+                setTimeout(() => {
+                    ptrEl.classList.remove('ptr-refreshing');
+                }, 200);
+            });
+        } else {
+            ptrEl.style.transform = 'translateY(-50px)';
+            ptrEl.style.opacity = '0';
+        }
+        currentY = 0;
+        startY = 0;
+    });
 }
 
 // ─── Event Listeners ───
