@@ -148,10 +148,19 @@ export function renderAppointmentTable(data, filter = 'today') {
     emptyState.style.display = 'none';
     document.querySelector('.data-table').style.display = '';
 
+    window.__appointmentData = filtered;
+
     tbody.innerHTML = filtered.map((item, i) => `
     <tr>
       <td data-label="STT">${i + 1}</td>
-      <td class="td-name" data-label="Tên KH">${escapeHtml(item.name)}</td>
+      <td class="td-name" data-label="Tên KH">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <span>${escapeHtml(item.name)}</span>
+          <button class="btn btn--icon" onclick="window.shareAppointmentItem(${i})" style="width:26px;height:26px;border:none;background:rgba(56, 189, 248, 0.1);color:var(--accent-blue);" title="Chia sẻ thông tin">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </button>
+        </div>
+      </td>
       <td class="td-phone" data-label="SĐT" onclick="copyPhone('${item.phone}')" title="Click để copy">${formatPhoneDisplay(item.phone)}</td>
       <td class="td-service" data-label="Dịch vụ">${escapeHtml(item.service)}</td>
       <td data-label="Giờ hẹn">${escapeHtml(item.time || '--')}</td>
@@ -273,6 +282,38 @@ function formatNotes(noteStr) {
     }
     return escapeHtml(str);
 }
+
+// Global share appointment
+window.shareAppointmentItem = function (index) {
+    const item = window.__appointmentData[index];
+    if (!item) return;
+
+    const text = `📌 THÔNG TIN LỊCH HẸN
+👤 Khách hàng: ${item.name}
+📞 SĐT: 0${item.phone.replace(/^0/, '')}
+⏰ Hẹn ngày: ${formatDateFull(item.aptDate)} lúc ${item.time || '--'}
+Dịch vụ: ${item.service || 'Không có'}
+Trạng thái: ${item.status || 'Chưa xác định'}
+📝 Ghi chú:
+${item.note || 'Không có'}
+`;
+
+    if (navigator.share) {
+        navigator.share({
+            title: 'Thông tin Lịch Hẹn',
+            text: text
+        }).catch(err => {
+            console.log('Share failed:', err);
+            navigator.clipboard.writeText(text).then(() => {
+                window.showToast?.('Đã copy thông tin để dán vào Zalo', 'success');
+            });
+        });
+    } else {
+        navigator.clipboard.writeText(text).then(() => {
+            window.showToast?.('Đã copy thông tin để dán vào Zalo', 'success');
+        });
+    }
+};
 
 // Global share
 window.shareOverdueItem = function (index) {
