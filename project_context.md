@@ -22,15 +22,16 @@
 - **Containerization**: Docker (node:20-alpine build → nginx:alpine serve)
 - **Domain**: `crm-bsn.vibecodingsolution.ovh` (via Cloudflare Tunnel)
 
-## 📋 Sprint Hiện Tại (Phase 2 — HOÀN THÀNH)
-- [x] Thêm Logo + Favicon
-- [x] Light / Dark Mode Toggle (localStorage persistence)
-- [x] Advanced Global Filtering (Hôm nay, Tuần, Tháng này, Tháng trước)
-- [x] Smart Status Parsing (regex quét cột M+ để suy luận trạng thái)
-- [x] OpenAI AI Analytics (phân tích lý do rớt lịch)
-- [x] Deploy lên Coolify Production
+## 📋 Sprint Hiện Tại (Phase 3 — HOÀN THÀNH)
+- [x] Khởi tạo Clean Architecture folder structure
+- [x] Global Search theo Tên và Số điện thoại
+- [x] Custom Date Range Picker (Từ ngày - Đến ngày)
+- [x] Action Buttons (Gọi điện, Chat Zalo) tích hợp inline SVG
+- [x] Biểu đồ tỉ trọng doanh thu (Doughnut Chart) bằng Chart.js
 
 ## 📝 Key Decisions
+- **2026-04-16**: Áp dụng Clean Architecture chia module \`src/features\` và \`src/core/api\` dễ manage hơn.
+- **2026-04-16**: Dùng Inline SVG thay vì file qua \`<img>\` để tránh Vite build path issue không render được asset tĩnh ở prod chạy JS.
 - **2026-04-09**: Chọn Vite + Vanilla JS thay Next.js — Lý do: App đọc data read-only, không cần SSR/backend
 - **2026-04-09**: Dùng Google Gviz API thay vì Google Sheets API v4 — Lý do: Không cần OAuth, chỉ cần sheet public
 - **2026-04-09**: AI Analytics dùng nút bấm thủ công thay vì auto — Lý do: Tránh tốn token mỗi khi refresh

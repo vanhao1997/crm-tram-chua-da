@@ -1,35 +1,15 @@
-# Changelog — BSN CRM Dashboard
+# Changelog
 
-## [2026-04-09] — Phase 2 Complete + Production Deploy
-
+## [2026-04-16]
 ### Added
-- 🎨 Brand Identity: Logo clinic BSN + responsive CSS
-- 🌗 Theme Engine: Light/Dark mode toggle với localStorage persistence
-- 📊 Advanced Global Filtering: Hôm nay, Tuần này, Tháng này, Tháng trước
-- 🤖 Smart Status Parsing: Regex quét cột M+ để suy luận trạng thái lead
-- 🧠 AI Analytics: Tích hợp OpenAI (gpt-4o-mini) phân tích lý do rớt lịch
-- 🐳 Dockerfile: Multi-stage build (node:20-alpine → nginx:alpine)
+- Tính năng Global Search theo \`name\` và \`phone\`.
+- Bộ lọc khoảng ngày tuỳ chỉnh (Custom Date Range Picker).
+- Button Gọi điện và Zalo tích hợp thẳng vào bảng CRM kèm Inline SVG Icons.
+- Biểu đồ Doughnut (Pie Chart) hiển thị Tỷ trọng Doanh Thu theo dịch vụ bằng thư viện \`Chart.js\`.
+
+### Changed
+- Cấu trúc thư mục được refactor sang Clean Architecture (\`src/features\`, \`src/core/api\`).
+- Thay thế emojis điện thoại sang các \`.action-btn\` với hover CSS animation và Inline SVG SVG parsing.
 
 ### Fixed
-- 📅 Date Parsing: Fix `parseGvizDate` khi Google Sheets trả chuỗi DD/MM/YYYY
-- 🔄 Filter Logic: Chuyển cột lọc "KHÁCH ĐÃ ĐẾN" từ `date` sang `aptDate`
-- 💰 Revenue Parsing: Fix NaN khi tính doanh thu do dấu phân cách (`,`, `.`)
-- 🐳 Docker Build: Fix `vite: Permission denied` bằng chmod + npx
-- 🌐 Coolify 502: Fix port mismatch (3000 → 80) trong Coolify config
-
-### Deployed
-- ✅ Live tại `https://crm-bsn.vibecodingsolution.ovh`
-- 🏗️ Coolify v4.0.0-beta.472 trên VPS Contabo
-- ☁️ SSL via Cloudflare Tunnel
-
----
-
-## [2026-04-09] — Phase 1: Initial Build
-
-### Added
-- 📊 KPI Cards: Tổng Lead, Đặt Hẹn, Đã Đến, Doanh Số
-- 📅 Bảng Lịch Hẹn: Tab Hôm nay / Tuần này / Tháng này
-- ⚠️ Bộ lọc "Quá hẹn chưa đến"
-- 📈 Charts: Funnel chuyển đổi, Doanh thu theo tháng, Nguồn khách
-- 🔄 Auto-refresh timer (1h interval)
-- 🔗 Google Sheets Gviz API integration
+- Lỗi Asset Resolution build Vite đối với file ảnh \`.svg\` khi mount từ chuỗi template literal JS string.
