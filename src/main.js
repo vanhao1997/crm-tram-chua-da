@@ -5,7 +5,7 @@
 
 import { parseSheetUrl, fetchAllData } from './core/api/sheets-api.js';
 import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } from './features/appointments/appointments.js';
-import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './features/dashboard/charts.js';
+import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart, renderRevenuePieChart } from './features/dashboard/charts.js';
 import { initLeadManager } from './features/dashboard/lead-manager.js';
 import { fetchMarketingData, formatCurrency, formatDateShort, formatDateFull } from './core/api/sheets-api.js';
 import { renderMarketingFunnelChart, renderMarketingPieCharts } from './features/dashboard/charts.js';
@@ -16,6 +16,9 @@ let state = {
     data: null,
     marketingData: null,
     currentFilter: 'today',
+    customStart: null,
+    customEnd: null,
+    searchQuery: '',
     autoRefreshInterval: null,
     autoRefreshMs: 60 * 60 * 1000 // 1 hour
 };
@@ -32,6 +35,11 @@ function initDom() {
     els.dashboard = document.getElementById('dashboard');
     els.marketing = document.getElementById('marketing');
     els.toastContainer = document.getElementById('toastContainer');
+    els.globalSearch = document.getElementById('globalSearch');
+    els.customDatePicker = document.getElementById('customDatePicker');
+    els.dateStart = document.getElementById('dateStart');
+    els.dateEnd = document.getElementById('dateEnd');
+    els.applyCustomDateBtn = document.getElementById('applyCustomDateBtn');
 }
 
 // ─── Toast Notifications ───
@@ -187,8 +195,27 @@ function filterDataByDate(dataArray, dateField, filterType) {
             case 'lastmonth': return isLastMonth(d);
             case 'upcoming': return isUpcoming(d);
             case 'all': return true;
+            case 'custom':
+                const ds = state.customStart ? new Date(state.customStart) : null;
+                const de = state.customEnd ? new Date(state.customEnd) : null;
+                if (ds) ds.setHours(0, 0, 0, 0);
+                if (de) de.setHours(23, 59, 59, 999);
+                if (ds && de) return d >= ds && d <= de;
+                if (ds) return d >= ds;
+                if (de) return d <= de;
+                return true;
             default: return true;
         }
+    });
+}
+
+function filterDataBySearch(dataArray, query) {
+    if (!query) return dataArray;
+    const lowerQuery = query.toLowerCase();
+    return dataArray.filter(item => {
+        const nameMatch = item.name && item.name.toLowerCase().includes(lowerQuery);
+        const phoneMatch = item.phone && item.phone.replace(/^0/, '').includes(lowerQuery.replace(/^0/, ''));
+        return nameMatch || phoneMatch;
     });
 }
 
@@ -198,10 +225,14 @@ function renderDashboard() {
 
     // Apply global filters
     const filter = state.currentFilter;
-    const leads = filterDataByDate(state.data.leads, 'date', filter);
-    const booked = filterDataByDate(state.data.booked, 'aptDate', filter);
-    // For arrived, user measures revenue based on aptDate (Ngày hẹn) instead of creation date
-    const arrived = filterDataByDate(state.data.arrived, 'aptDate', filter);
+    let leads = filterDataByDate(state.data.leads, 'date', filter);
+    let booked = filterDataByDate(state.data.booked, 'aptDate', filter);
+    let arrived = filterDataByDate(state.data.arrived, 'aptDate', filter);
+
+    const sq = state.searchQuery;
+    leads = filterDataBySearch(leads, sq);
+    booked = filterDataBySearch(booked, sq);
+    arrived = filterDataBySearch(arrived, sq);
 
     // KPI Cards
     renderKPICards(leads, booked, arrived);
@@ -218,6 +249,7 @@ function renderDashboard() {
     renderFunnelChart(leads, booked, arrived);
     renderRevenueChart(arrived);
     renderStatusChart(leads);
+    renderRevenuePieChart(arrived);
 }
 
 // ─── Render Marketing Dashboard ───
@@ -727,11 +759,34 @@ function setupEvents() {
             document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('filter-tab--active'));
             tab.classList.add('filter-tab--active');
 
+            // Handle custom date picker visibility
+            const filterValue = tab.dataset.filter;
+            if (els.customDatePicker) {
+                els.customDatePicker.style.display = filterValue === 'custom' ? 'flex' : 'none';
+            }
+
             // Update state and re-render everything
-            state.currentFilter = tab.dataset.filter;
+            state.currentFilter = filterValue;
             if (els.dashboard) renderDashboard();
             if (els.marketing) renderMarketingDashboard();
         }
+    });
+
+    els.globalSearch?.addEventListener('input', (e) => {
+        state.searchQuery = e.target.value.trim();
+        if (els.dashboard) renderDashboard();
+    });
+
+    els.applyCustomDateBtn?.addEventListener('click', () => {
+        if (!els.dateStart.value && !els.dateEnd.value) {
+            showToast('Vui lòng chọn ngày', 'error');
+            return;
+        }
+        state.customStart = els.dateStart.value;
+        state.customEnd = els.dateEnd.value;
+        if (els.dashboard) renderDashboard();
+        if (els.marketing) renderMarketingDashboard();
+        showToast('Đã áp dụng bộ lọc ngày', 'success');
     });
 }
 

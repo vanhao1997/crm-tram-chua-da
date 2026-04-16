@@ -206,6 +206,70 @@ export function renderStatusChart(leads) {
   });
 }
 
+/**
+ * Render Revenue Pie Chart
+ */
+export function renderRevenuePieChart(arrived) {
+  const ctx = document.getElementById('revenuePieChart');
+  if (!ctx) return;
+
+  if (window.revenuePieChartInstance) {
+    window.revenuePieChartInstance.destroy();
+  }
+
+  const serviceRevenue = {};
+  for (const item of arrived) {
+    const revenue = Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0;
+    if (revenue <= 0) continue;
+    const service = item.service || 'Khác';
+    serviceRevenue[service] = (serviceRevenue[service] || 0) + revenue;
+  }
+
+  // Sort descending
+  const sorted = Object.entries(serviceRevenue).sort(([, a], [, b]) => b - a);
+
+  // Group into Top 6 and 'Khác'
+  const top = sorted.slice(0, 6);
+  const others = sorted.slice(6).reduce((sum, [, rev]) => sum + rev, 0);
+
+  const labels = top.map(item => item[0]);
+  const data = top.map(item => item[1]);
+  if (others > 0) {
+    labels.push('Cơ sở khác');
+    data.push(others);
+  }
+
+  window.revenuePieChartInstance = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: data,
+        backgroundColor: [
+          '#38bdf8', '#34d399', '#fbbf24', '#f472b6', '#a78bfa', '#10b981', '#94a3b8'
+        ],
+        borderWidth: 0,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: function (context) {
+              return ' ' + context.label + ': ' + context.raw.toLocaleString('vi-VN') + ' đ';
+            }
+          }
+        }
+      },
+      cutout: '65%'
+    }
+  });
+}
+
 /* ─── Helpers ─── */
 
 function animateValue(elementId, endValue) {

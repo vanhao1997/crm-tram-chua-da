@@ -19,8 +19,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet" />
-  <script type="module" crossorigin src="/assets/main-HbN3ylb-.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/main-DXp723X-.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script type="module" crossorigin src="/assets/main-Da_kwUrV.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/main-Bh8ZZRey.css">
 </head>
 
 <body>
@@ -34,7 +35,14 @@
       </div>
     </div>
     <div class="header__controls">
-
+      <div class="header__search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+          style="width:16px; height:16px; margin-right:8px; opacity:0.6;">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input type="text" id="globalSearch" placeholder="Tìm tên KH, SĐT..." />
+      </div>
       <div class="header__status">
         <button id="refreshBtn" class="btn btn--icon" title="Refresh dữ liệu">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -99,7 +107,16 @@
         <button class="filter-tab" data-filter="lastmonth">Tháng trước</button>
         <button class="filter-tab" data-filter="upcoming">Sắp tới</button>
         <button class="filter-tab" data-filter="all">Tất cả</button>
+        <button class="filter-tab" data-filter="custom" id="customFilterTab">Tùy chọn...</button>
       </div>
+    </div>
+    <div class="custom-date-picker" id="customDatePicker"
+      style="display:none; justify-content:flex-end; padding-bottom: 20px; gap: 10px; align-items: center; margin-top:-10px;">
+      <input type="date" id="dateStart" class="form-input" style="width:auto;" />
+      <span style="font-size:12px; font-weight:600; color:var(--text-muted)">ĐẾN</span>
+      <input type="date" id="dateEnd" class="form-input" style="width:auto;" />
+      <button class="btn btn--primary btn--small" id="applyCustomDateBtn"
+        style="padding: 6px 12px; font-size: 13px;">Lọc</button>
     </div>
 
     <!-- KPI ROW -->
@@ -272,6 +289,22 @@
           </h2>
         </div>
         <div class="status-chart" id="statusChart"></div>
+      </div>
+
+      <!-- Revenue Pie Chart -->
+      <div class="pie-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 2a10 10 0 0 1 10 10h-10z" style="fill:currentColor; opacity: 0.2;" />
+            </svg>
+            Tỷ Trọng Dịch Vụ
+          </h2>
+        </div>
+        <div class="pie-chart-container" style="padding:20px; height:280px; position:relative;">
+          <canvas id="revenuePieChart"></canvas>
+        </div>
       </div>
     </section>
 

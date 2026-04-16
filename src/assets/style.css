@@ -158,6 +158,46 @@ body {
   gap: 16px;
 }
 
+/* ─── Header Search & Forms ─── */
+.header__search {
+  display: flex;
+  align-items: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 6px 12px;
+  width: 250px;
+  transition: all var(--transition);
+}
+
+.header__search:focus-within {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.header__search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font);
+  font-size: 13px;
+  width: 100%;
+}
+
+.form-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-family: var(--font);
+  font-size: 13px;
+  outline: none;
+}
+
+.form-input:focus {
+  border-color: var(--accent-blue);
+}
+
 /* ─── Sheet Input ─── */
 .sheet-input {
   display: flex;
@@ -753,7 +793,7 @@ body {
 /* ─── Charts Row ─── */
 .charts-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 20px;
 }
 

@@ -161,7 +161,13 @@ export function renderAppointmentTable(data, filter = 'today') {
           </button>
         </div>
       </td>
-      <td class="td-phone" data-label="SĐT" onclick="copyPhone('${item.phone}')" title="Click để copy">${formatPhoneDisplay(item.phone)}</td>
+      <td class="td-phone" data-label="SĐT">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span onclick="copyPhone('${item.phone}')" title="Click để copy" style="cursor:pointer;">${formatPhoneDisplay(item.phone)}</span>
+          <a href="tel:0${item.phone.replace(/^0/, '')}" title="Gọi điện" style="text-decoration:none; font-size:14px;" onclick="event.stopPropagation();">📞</a>
+          <a href="https://zalo.me/0${item.phone.replace(/^0/, '')}" target="_blank" title="Chat Zalo" style="text-decoration:none; font-size:14px;" onclick="event.stopPropagation();">💙</a>
+        </div>
+      </td>
       <td class="td-service" data-label="Dịch vụ">${escapeHtml(item.service)}</td>
       <td data-label="Giờ hẹn">${escapeHtml(item.time || '--')}</td>
       <td data-label="Ngày hẹn">${formatDateShort(item.aptDate)}</td>
@@ -247,7 +253,11 @@ export function renderOverdueList(overdueData) {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
             </button>
         </div>
-        <div class="overdue-item__phone" onclick="copyPhone('${item.phone}')" title="Click để copy">📞 ${formatPhoneDisplay(item.phone)}</div>
+        <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+            <div class="overdue-item__phone" onclick="copyPhone('${item.phone}')" title="Click để copy" style="flex:1;">📞 ${formatPhoneDisplay(item.phone)}</div>
+            <a href="tel:0${item.phone.replace(/^0/, '')}" title="Gọi điện" style="text-decoration:none; font-size:14px;">📞</a>
+            <a href="https://zalo.me/0${item.phone.replace(/^0/, '')}" target="_blank" title="Chat Zalo" style="text-decoration:none; font-size:14px;">💙</a>
+        </div>
         <div class="overdue-item__meta">
           <span>Hẹn: ${formatDateFull(item.aptDate)}</span>
           <span class="overdue-item__days">${daysDiff} ngày trước</span>
