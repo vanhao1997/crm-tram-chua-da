@@ -3,12 +3,12 @@
  * Orchestrates data fetching, rendering, and auto-refresh
  */
 
-import { parseSheetUrl, fetchAllData } from './sheets-api.js';
-import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } from './appointments.js';
-import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './charts.js';
-import { initLeadManager } from './lead-manager.js';
-import { fetchMarketingData, formatCurrency, formatDateShort, formatDateFull } from './sheets-api.js';
-import { renderMarketingFunnelChart, renderMarketingPieCharts } from './charts.js';
+import { parseSheetUrl, fetchAllData } from './core/api/sheets-api.js';
+import { renderAppointmentTable, getOverdueAppointments, renderOverdueList } from './features/appointments/appointments.js';
+import { renderKPICards, renderFunnelChart, renderRevenueChart, renderStatusChart } from './features/dashboard/charts.js';
+import { initLeadManager } from './features/dashboard/lead-manager.js';
+import { fetchMarketingData, formatCurrency, formatDateShort, formatDateFull } from './core/api/sheets-api.js';
+import { renderMarketingFunnelChart, renderMarketingPieCharts } from './features/dashboard/charts.js';
 
 // ─── State ───
 let state = {

@@ -1,7 +1,7 @@
 /**
  * Lead Manager — UI logic for add/edit lead modals
  */
-import { addLead, updateStatus, updateNote, checkDuplicate, getAppsScriptUrl, setAppsScriptUrl } from './sheets-write.js';
+import { addLead, updateStatus, updateNote, checkDuplicate, getAppsScriptUrl, setAppsScriptUrl } from '../../core/api/sheets-write.js';
 
 let currentData = null; // Reference to dashboard data
 let onRefreshCallback = null;

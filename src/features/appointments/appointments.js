@@ -3,7 +3,7 @@
  * Handles appointment table rendering, filtering, and overdue detection
  */
 
-import { normalizeStatus, formatDateShort, formatDateFull } from './sheets-api.js';
+import { normalizeStatus, formatDateShort, formatDateFull } from '../../core/api/sheets-api.js';
 
 /**
  * Check if a date is today

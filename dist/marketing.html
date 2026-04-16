@@ -11,14 +11,14 @@
 
   <!-- iOS PWA settings -->
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
-  <meta name="apple-mobile-web-app-title" content="BSN CRM" />
+  <meta name="apple-mobile-web-app-title" content="BSN Mkt" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script type="module" crossorigin src="/assets/main-HbN3ylb-.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/main-DXp723X-.css">
 </head>
@@ -59,8 +59,8 @@
 
     <!-- MAIN TAB NAVIGATION -->
     <div class="main-tabs-container">
-      <a href="index.html" class="main-tab main-tab--active">CRM Tracking</a>
-      <a href="marketing.html" class="main-tab">Kpi Marketing & Phễu</a>
+      <a href="index.html" class="main-tab">CRM Tracking</a>
+      <a href="marketing.html" class="main-tab main-tab--active">Kpi Marketing & Phễu</a>
     </div>
   </header>
 
@@ -88,51 +88,85 @@
     </div>
   </div>
 
-  <!-- MAIN DASHBOARD -->
-  <main class="dashboard" id="dashboard">
-    <!-- Global CRM Controls -->
+  <!-- MARKETING DASHBOARD -->
+  <main class="dashboard" id="marketing">
+    <!-- FILTER TABS FOR MARKETING (Global Wrapper) -->
     <div class="dashboard-controls" style="display: flex; justify-content: flex-end; padding-bottom: 20px;">
       <div class="filter-tabs" id="filterTabs">
-        <button class="filter-tab filter-tab--active" data-filter="today">Hôm nay</button>
+        <button class="filter-tab" data-filter="today">Hôm nay</button>
         <button class="filter-tab" data-filter="week">Tuần này</button>
-        <button class="filter-tab" data-filter="month">Tháng này</button>
+        <button class="filter-tab filter-tab--active" data-filter="month">Tháng này</button>
         <button class="filter-tab" data-filter="lastmonth">Tháng trước</button>
-        <button class="filter-tab" data-filter="upcoming">Sắp tới</button>
         <button class="filter-tab" data-filter="all">Tất cả</button>
       </div>
     </div>
 
-    <!-- KPI ROW -->
-    <section class="kpi-row" id="kpiRow">
-      <div class="kpi-card" id="kpiTotalLead">
+    <!-- MARKETING KPI ROW -->
+    <section class="kpi-row" id="mktKpiRow">
+      <div class="kpi-card" id="mktKpiReceived">
+        <div class="kpi-card__icon kpi-card__icon--emerald">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tổng Nạp (Nhận)</span>
+          <span class="kpi-card__value" id="mktGlobalReceived">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiBalance">
+        <div class="kpi-card__icon" style="background-color:rgba(16, 185, 129, 0.1); color:#10b981;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Ngân sách còn dư</span>
+          <span class="kpi-card__value" id="mktGlobalBalance">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiSpend">
         <div class="kpi-card__icon kpi-card__icon--blue">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            <line x1="12" y1="1" x2="12" y2="23" />
+            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
           </svg>
         </div>
         <div class="kpi-card__content">
-          <span class="kpi-card__label">Tổng Lead</span>
-          <span class="kpi-card__value" id="kpiTotalLeadValue">--</span>
+          <span class="kpi-card__label">Tổng Chi Phí MKT</span>
+          <span class="kpi-card__value" id="mktTổngChiPhí">--</span>
+          <div class="kpi-card__sub" id="mktCostBreakdown"
+            style="font-size:12px; color:var(--text-secondary); margin-top:2px;"></div>
         </div>
       </div>
-      <div class="kpi-card" id="kpiBooked">
+      <div class="kpi-card" id="mktKpiMessages">
         <div class="kpi-card__icon kpi-card__icon--amber">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
+            <path
+              d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
           </svg>
         </div>
         <div class="kpi-card__content">
-          <span class="kpi-card__label">Đặt Hẹn</span>
-          <span class="kpi-card__value" id="kpiBookedValue">--</span>
+          <span class="kpi-card__label">Số Tin Nhắn</span>
+          <span class="kpi-card__value" id="mktTổngTinNhắn">--</span>
+          <div class="kpi-card__sub" id="mktCpmess" style="font-size:12px; color:var(--accent-red); margin-top:2px;">
+          </div>
         </div>
       </div>
-      <div class="kpi-card" id="kpiArrived">
+      <div class="kpi-card" id="mktKpiRevenue">
+        <div class="kpi-card__icon kpi-card__icon--emerald">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="5" width="20" height="14" rx="2" />
+            <line x1="2" y1="10" x2="22" y2="10" />
+          </svg>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Tổng Doanh Số</span>
+          <span class="kpi-card__value" id="mktTổngDoanhSố">--</span>
+        </div>
+      </div>
+      <div class="kpi-card" id="mktKpiRoas">
         <div class="kpi-card__icon kpi-card__icon--green">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -140,145 +174,178 @@
           </svg>
         </div>
         <div class="kpi-card__content">
-          <span class="kpi-card__label">Đã Đến</span>
-          <span class="kpi-card__value" id="kpiArrivedValue">--</span>
+          <span class="kpi-card__label">Tỷ lệ Phí/Doanh thu</span>
+          <span class="kpi-card__value" id="mktTỷLệChiPhí">--</span>
         </div>
       </div>
-      <div class="kpi-card" id="kpiRevenue">
-        <div class="kpi-card__icon kpi-card__icon--emerald">
+      <div class="kpi-card" id="mktKpiTotalData">
+        <div class="kpi-card__icon kpi-card__icon--amber">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="1" x2="12" y2="23" />
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
           </svg>
         </div>
         <div class="kpi-card__content">
-          <span class="kpi-card__label">Doanh Số</span>
-          <span class="kpi-card__value" id="kpiRevenueValue">--</span>
-        </div>
-      </div>
-    </section>
-
-
-    <!-- MAIN CONTENT -->
-    <section class="main-content">
-      <!-- CENTER: Appointment Table -->
-      <div class="appointments-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            Lịch Hẹn
-          </h2>
-        </div>
-        <div class="table-wrapper" id="appointmentTableWrapper">
-          <table class="data-table" id="appointmentTable">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Tên KH</th>
-                <th>SĐT</th>
-                <th>Dịch vụ</th>
-                <th>Giờ hẹn</th>
-                <th id="sortDateBtn" style="cursor: pointer; user-select: none;" title="Sắp xếp theo ngày hẹn">Ngày hẹn
-                  ↕</th>
-                <th>NV</th>
-                <th>Trạng thái</th>
-                <th>Ghi chú</th>
-              </tr>
-            </thead>
-            <tbody id="appointmentBody">
-            </tbody>
-          </table>
-          <div class="empty-state" id="appointmentEmpty" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            <p>Không có lịch hẹn nào</p>
+          <span class="kpi-card__label">Tổng Số Data</span>
+          <span class="kpi-card__value" id="mktTổngData">--</span>
+          <div class="kpi-card__sub" id="mktCpData" style="font-size:12px; color:var(--accent-red); margin-top:2px;">
           </div>
         </div>
       </div>
-
-      <!-- RIGHT SIDEBAR: Overdue -->
-      <div class="overdue-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title panel-title--warning">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            Quá Hẹn Chưa Đến
-          </h2>
-          <span class="badge badge--danger" id="overdueCount">0</span>
-        </div>
-        <div class="overdue-list" id="overdueList">
-        </div>
-        <div class="empty-state" id="overdueEmpty" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
+      <div class="kpi-card" id="mktKpiCostPerCus">
+        <div class="kpi-card__icon kpi-card__icon--blue">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+            <polyline points="10 9 9 9 8 9"></polyline>
           </svg>
-          <p>Tất cả khách đã đến đúng hẹn! 🎉</p>
+        </div>
+        <div class="kpi-card__content">
+          <span class="kpi-card__label">Giá 1 KH Tới</span>
+          <span class="kpi-card__value" id="mktTỷLệTới">--</span>
         </div>
       </div>
     </section>
 
-    <!-- BOTTOM CHARTS -->
     <section class="charts-row">
-      <!-- Funnel -->
+      <!-- Pie Chart Ngân sách / Doanh Thu -->
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
+              <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
+            </svg>
+            Tỷ trọng Ngân sách / Lợi nhuận
+          </h2>
+        </div>
+        <div id="mktPieBudget"></div>
+      </div>
+
+      <!-- Pie Chart Cơ cấu Dịch vụ -->
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+              <path d="M2 12h20"></path>
+            </svg>
+            Cơ cấu Khách tới theo Dịch vụ
+          </h2>
+        </div>
+        <div id="mktPieServices"></div>
+      </div>
+    </section>
+
+    <section class="charts-row">
+      <!-- Funnel Chart Nâng cơ -->
       <div class="funnel-panel glass-card">
         <div class="panel-header">
           <h2 class="panel-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
-            Funnel Chuyển Đổi
+            Phễu - Nâng cơ
           </h2>
         </div>
-        <div class="funnel-chart" id="funnelChart"></div>
+        <div class="funnel-chart" id="mktFunnelNangCo"></div>
       </div>
 
-      <!-- Revenue by Service -->
-      <div class="revenue-panel glass-card">
+      <!-- Funnel Chart Mũi chỉ -->
+      <div class="funnel-panel glass-card">
         <div class="panel-header">
           <h2 class="panel-title">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
             </svg>
-            Doanh Số Theo Dịch Vụ
+            Phễu - Mũi chỉ
           </h2>
         </div>
-        <div class="revenue-chart" id="revenueChart"></div>
-      </div>
-
-      <!-- Lead Status -->
-      <div class="status-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-              <path d="M21 3v5h-5" />
-            </svg>
-            Trạng Thái Lead
-          </h2>
-        </div>
-        <div class="status-chart" id="statusChart"></div>
+        <div class="funnel-chart" id="mktFunnelMuiChi"></div>
       </div>
     </section>
 
+    <!-- MoM Comparison -->
+    <section class="charts-row" style="grid-template-columns: 1fr;">
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            So sánh Tháng này vs Tháng trước
+          </h2>
+        </div>
+        <div id="momComparison" style="padding:16px;"></div>
+      </div>
+    </section>
 
+    <!-- Line Chart Trend -->
+    <section class="charts-row" style="grid-template-columns: 1fr;">
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+              <polyline points="17 6 23 6 23 12" />
+            </svg>
+            Xu hướng Chi phí / Data / Khách tới
+          </h2>
+        </div>
+        <div style="padding:16px; position:relative; height:300px;">
+          <canvas id="mktTrendChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Period Analysis -->
+    <section class="charts-row" style="grid-template-columns: 1fr;">
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+            </svg>
+            Phân tích theo Giai đoạn (Tháng này)
+          </h2>
+        </div>
+        <div id="mktPeriodAnalysis" style="padding:16px;"></div>
+      </div>
+    </section>
+
+    <section class="main-content" style="grid-template-columns: 1fr;">
+      <div class="appointments-panel glass-card" style="overflow-x: auto;">
+        <div class="panel-header">
+          <h2 class="panel-title">Chi Tiết Marketing Hàng Ngày</h2>
+          <div class="filter-tabs">
+            Tháng đang xem (Dữ liệu chốt)
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Ngày</th>
+                <th>Tổng Chi (Mkt/QL)</th>
+                <th>Doanh Số</th>
+                <th>Tin Nhắn</th>
+                <th>DATA</th>
+                <th>HẸN</th>
+                <th>TỚI</th>
+                <th>Giá 1 Tin Nhắn</th>
+                <th>Giá 1 DATA</th>
+              </tr>
+            </thead>
+            <tbody id="mktTableBody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
   </main>
-
-
 
   <!-- MODAL: Add Lead -->
   <div class="modal-overlay" id="addLeadModal">
@@ -366,12 +433,14 @@
     </div>
   </div>
 
+
+
   <!-- TOAST NOTIFICATION -->
   <div class="toast-container" id="toastContainer"></div>
 
   <!-- Mobile Bottom Navigation -->
   <nav class="mobile-bottom-nav">
-    <a href="index.html" class="nav-item nav-item--active">
+    <a href="index.html" class="nav-item">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
         <line x1="16" y1="2" x2="16" y2="6" />
@@ -380,7 +449,7 @@
       </svg>
       <span>CRM Tracking</span>
     </a>
-    <a href="marketing.html" class="nav-item">
+    <a href="marketing.html" class="nav-item nav-item--active">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <line x1="18" y1="20" x2="18" y2="10" />
         <line x1="12" y1="20" x2="12" y2="4" />

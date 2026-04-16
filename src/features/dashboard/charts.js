@@ -3,7 +3,7 @@
  * Pure CSS/HTML charts for KPI, Funnel, Revenue, and Status
  */
 
-import { normalizeStatus, formatCurrency } from './sheets-api.js';
+import { normalizeStatus, formatCurrency } from '../../core/api/sheets-api.js';
 
 /**
  * Render KPI cards with data
