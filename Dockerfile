@@ -1,13 +1,22 @@
-# Build stage
+# Build frontend with dev dependencies available.
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci
 COPY . .
-RUN chmod -R +x node_modules/.bin/ && npx vite build
+RUN npm run build
 
-# Production stage
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# Run API and the built frontend from one same-origin Node process.
+FROM node:20-alpine AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOST=0.0.0.0
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist ./dist
+COPY server ./server
+COPY public ./public
+COPY index.html marketing.html vite.config.js ./
+EXPOSE 3000
+CMD ["node", "server/index.js"]

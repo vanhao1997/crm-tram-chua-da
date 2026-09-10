@@ -1,15 +1,24 @@
 {
-    "name": "bsn-dashboard",
-    "version": "1.0.0",
-    "description": "CRM Dashboard - Trạm Chữa Da BSN",
-    "type": "module",
-    "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "preview": "vite preview"
-    },
-    "devDependencies": {
-        "sharp": "^0.34.5",
-        "vite": "^6.0.0"
-    }
+  "name": "bsn-dashboard",
+  "version": "1.0.0",
+  "description": "CRM Dashboard - Trạm Chữa Da BSN",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "api": "node server/index.js",
+    "test": "node --test server/*.test.js src/core/analytics/*.test.js",
+    "test:server": "node --test server/*.test.js"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5",
+    "vite": "^6.0.0"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "googleapis": "^178.1.1"
+  }
 }

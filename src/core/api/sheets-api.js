@@ -3,6 +3,8 @@
  * Reads public Google Sheets via the Visualization API (gviz)
  */
 
+import { normalizeMarketingRecord } from '../analytics/budget-intelligence.js';
+
 const SHEET_TABS = {
     LEADS: 'DATA NGUỒN MKT HẢO',
     BOOKED: 'KHÁCH ĐẶT HẸN',
@@ -41,54 +43,27 @@ export function parseSheetUrl(url) {
 /**
  * Fetch data from a single sheet tab
  */
-async function fetchTab(sheetId, tabName) {
-    const encodedTab = encodeURIComponent(tabName);
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodedTab}`;
-
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Không thể tải tab "${tabName}"`);
-
-    const text = await response.text();
-
-    // gviz returns JSONP-like: google.visualization.Query.setResponse({...})
-    const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?\s*$/);
-    if (!jsonMatch) throw new Error(`Dữ liệu tab "${tabName}" không hợp lệ`);
-
-    const data = JSON.parse(jsonMatch[1]);
-
-    if (data.status === 'error') {
-        throw new Error(data.errors?.[0]?.message || 'Lỗi không xác định');
+async function fetchInternalTab(sheetId, tabName) {
+    const map = { [SHEET_TABS.LEADS]: 'leads', [SHEET_TABS.BOOKED]: 'booked', [SHEET_TABS.ARRIVED]: 'arrived', '2026': 'marketing' };
+    const source = map[tabName]; if (!source) throw new Error(`Unknown Sheet tab: ${tabName}`);
+    const response = await fetch(`/api/sheets?source=${source}`);
+    if (!response.ok) throw new Error(`API nội bộ không đọc được tab "${tabName}"`);
+    const payload = await response.json();
+    if (!Array.isArray(payload?.values) || payload.values.some(row => !Array.isArray(row))) {
+        throw new Error(`Dữ liệu API không hợp lệ cho tab "${tabName}"`);
     }
-
-    return data.table;
+    const table = { rows: payload.values.map(row => ({ c: row.map(v => ({ v })) })) };
+    table.metadata = payload.metadata || {};
+    return table;
 }
+
+async function fetchTab(sheetId, tabName) { return fetchInternalTab(sheetId, tabName); }
 
 /**
  * Fetch data from Marketing tab by GID
  */
-async function fetchMarketingTab(sheetId) {
-    const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&gid=${MKT_GID}`;
+async function fetchMarketingTab(sheetId) { return fetchInternalTab(sheetId, '2026'); }
 
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Không thể tải tab Marketing`);
-
-    const text = await response.text();
-
-    const jsonMatch = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?\s*$/);
-    if (!jsonMatch) throw new Error(`Dữ liệu tab Marketing không hợp lệ`);
-
-    const data = JSON.parse(jsonMatch[1]);
-
-    if (data.status === 'error') {
-        throw new Error(data.errors?.[0]?.message || 'Lỗi không xác định');
-    }
-
-    return data.table;
-}
-
-/**
- * Parse a gviz cell value
- */
 function parseCellValue(cell) {
     if (!cell || cell.v === null || cell.v === undefined) return null;
     return cell.v;
@@ -97,6 +72,12 @@ function parseCellValue(cell) {
 /**
  * Parse date from gviz date format: "Date(year, month, day)"
  */
+function checkedDate(year, month, day, hour = 0, minute = 0) {
+    const value = new Date(year, month, day, hour, minute);
+    return value.getFullYear() === year && value.getMonth() === month && value.getDate() === day
+        && value.getHours() === hour && value.getMinutes() === minute ? value : null;
+}
+
 function parseGvizDate(cell) {
     if (!cell || !cell.v) return null;
 
@@ -104,7 +85,7 @@ function parseGvizDate(cell) {
     if (typeof cell.v === 'string' && cell.v.startsWith('Date(')) {
         const match = cell.v.match(/Date\((\d+),\s*(\d+),\s*(\d+)/);
         if (match) {
-            return new Date(parseInt(match[1]), parseInt(match[2]), parseInt(match[3]));
+            return checkedDate(Number(match[1]), Number(match[2]), Number(match[3]));
         }
     }
 
@@ -123,10 +104,13 @@ function parseGvizDate(cell) {
             if (p3 > 1900 && p2 <= 12 && p1 <= 31) {
                 const hour = parts[3] ? parseInt(parts[3], 10) : 0;
                 const min = parts[4] ? parseInt(parts[4], 10) : 0;
-                return new Date(p3, p2 - 1, p1, hour, min);
+                return checkedDate(p3, p2 - 1, p1, hour, min);
             }
         }
 
+        if (cell.v.includes('/')) return null;
+        const iso = cell.v.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (iso) return checkedDate(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
         const d = new Date(cell.v);
         return isNaN(d.getTime()) ? null : d;
     }
@@ -148,6 +132,8 @@ function parseRows(table, includeRevenue = false) {
 
         // Skip empty/header rows
         if (!name && !phone) continue;
+        const headerText = String(name || '').trim().toUpperCase();
+        if (['HỌ TÊN', 'HỌ VÀ TÊN', 'TÊN KH'].includes(headerText) || headerText.includes('KHÁCH ĐÃ ĐẾN')) continue;
 
         // Skip month separator rows (e.g., "THÁNG 2", "THÁNG 3")
         const infoVal = parseCellValue(cells[COL.INFO]);
@@ -156,30 +142,22 @@ function parseRows(table, includeRevenue = false) {
         // Combine notes from column M (12) onwards
         let combinedNotes = '';
         for (let i = 12; i < Math.min(cells.length, 30); i++) {
+            if (includeRevenue && i >= 21) continue;
             const val = parseCellValue(cells[i]);
             if (val) combinedNotes += String(val).trim() + ' | ';
         }
         combinedNotes = combinedNotes.replace(/ \| $/, '');
 
         let rawStatus = parseCellValue(cells[COL.STATUS]) || '';
-        let normalized = normalizeStatus(rawStatus);
-
-        // Smart Status: If status is empty or unknown, infer from notes
+        const normalized = normalizeStatus(rawStatus);
         if (normalized === 'unknown' || normalized === 'other') {
-            const lowerNote = combinedNotes.toLowerCase();
-            if (lowerNote.includes('hủy') || lowerNote.includes('không đi') || lowerNote.includes('huỷ')) {
-                rawStatus = 'Hủy Lịch';
-            } else if (lowerNote.includes('dời') || lowerNote.includes('đổi ý')) {
-                rawStatus = 'Dời Lịch';
-            } else if (lowerNote.includes('thuê bao') || lowerNote.includes('tắt máy')) {
-                rawStatus = 'Thuê Bao';
-            } else if (lowerNote.includes('không nghe máy') || lowerNote.includes('knm') || lowerNote.includes('ko nghe')) {
-                rawStatus = 'Không Nghe Máy';
-            } else if (lowerNote.includes('không hoàn thành') || lowerNote.includes('fail')) {
-                rawStatus = 'Không Hoàn Thành';
-            }
+            const lowerNote = combinedNotes.toLocaleLowerCase('vi-VN');
+            if (lowerNote.includes('hủy') || lowerNote.includes('huỷ') || lowerNote.includes('không đi')) rawStatus = 'Hủy Lịch';
+            else if (lowerNote.includes('dời') || lowerNote.includes('đổi ý')) rawStatus = 'Dời Lịch';
+            else if (lowerNote.includes('thuê bao') || lowerNote.includes('tắt máy')) rawStatus = 'Thuê Bao';
+            else if (lowerNote.includes('không nghe máy') || lowerNote.includes('knm') || lowerNote.includes('ko nghe')) rawStatus = 'Không Nghe Máy';
+            else if (lowerNote.includes('không hoàn thành') || lowerNote.includes('fail')) rawStatus = 'Không Hoàn Thành';
         }
-
         const record = {
             stt: parseCellValue(cells[COL.STT]),
             date: parseGvizDate(cells[COL.DATE]),
@@ -196,8 +174,11 @@ function parseRows(table, includeRevenue = false) {
             note: combinedNotes
         };
 
-        if (includeRevenue && cells[COL.REVENUE]) {
-            record.revenue = parseCellValue(cells[COL.REVENUE]) || 0;
+        if (includeRevenue) {
+            // Historical rows use V; later rows use W with weekday text in V.
+            const currentRevenue = parseCurrencyStr(parseCellValue(cells[22]));
+            const legacyRevenue = parseCurrencyStr(parseCellValue(cells[21]));
+            record.revenue = currentRevenue ?? legacyRevenue;
         }
 
         results.push(record);
@@ -229,30 +210,7 @@ export async function fetchAllData(sheetId) {
     const booked = parseRows(bookedTable);
     const arrived = parseRows(arrivedTable, true);
 
-    // FIX DATA INTEGRITY: Force status 'Đã đến' for any lead/booking that exists in Arrived list
-    // This handles the reality where telesales forget to update the source tracker.
-    const arrivedPhones = new Set();
-    arrived.forEach(item => {
-        if (item.phone) {
-            arrivedPhones.add(item.phone.replace(/^0/, ''));
-        }
-    });
-
-    const fixStatus = (list) => {
-        list.forEach(item => {
-            if (item.phone) {
-                const normPhone = item.phone.replace(/^0/, '');
-                if (arrivedPhones.has(normPhone)) {
-                    item.status = 'Đã Đến';
-                }
-            }
-        });
-    };
-
-    fixStatus(leads);
-    fixStatus(booked);
-
-    return { leads, booked, arrived };
+    return { leads, booked, arrived, metadata: leadsTable.metadata || bookedTable.metadata || arrivedTable.metadata || {} };
 }
 
 /**
@@ -304,11 +262,11 @@ export function formatDateFull(date) {
  * Clean currency string to number
  */
 export function parseCurrencyStr(str) {
-    if (!str) return 0;
+    if (str === null || str === undefined || str === '') return null;
     if (typeof str === 'number') return str;
     const cleanStr = String(str).replace(/[đ₫\s,.]/g, '');
     const num = parseFloat(cleanStr);
-    return isNaN(num) ? 0 : num;
+    return Number.isFinite(num) ? num : null;
 }
 
 /**
@@ -316,19 +274,20 @@ export function parseCurrencyStr(str) {
  */
 function parseMarketingRows(table) {
     const rows = table.rows || [];
+    const cellValue = cell => (cell && typeof cell === 'object' && 'v' in cell) ? cell.v : cell;
     const results = [];
-    let globalBalance = 0;
-    let globalReceived = 0;
+    let globalBalance = null;
+    let globalReceived = null;
 
     for (const [index, row] of rows.entries()) {
         const cells = row.c || [];
 
         const dateStrObj = cells[0];
-        if (!dateStrObj || !dateStrObj.v) {
+        if (!dateStrObj || !cellValue(dateStrObj)) {
             // Attempt to capture global metrics from top rows (e.g. row index 0 to 5)
             if (index < 5 && cells[1] && cells[2]) {
-                const b = parseCurrencyStr(parseCellValue(cells[1]));
-                const rec = parseCurrencyStr(parseCellValue(cells[2]));
+                const b = parseCurrencyStr(cellValue(cells[1]));
+                const rec = parseCurrencyStr(cellValue(cells[2]));
                 if (b > 0 || rec > 0) {
                     if (rec > globalReceived) { // Pick the absolute biggest received (global total row)
                         globalBalance = b || globalBalance;
@@ -339,7 +298,12 @@ function parseMarketingRows(table) {
             continue;
         }
 
-        const dateStr = String(dateStrObj.v).trim();
+        const dateStr = String(cellValue(dateStrObj)).trim();
+        if (dateStr.toUpperCase() === 'TỔNG' && index < 5) {
+            globalBalance = parseCurrencyStr(cellValue(cells[1]));
+            globalReceived = parseCurrencyStr(cellValue(cells[2]));
+            continue;
+        }
 
         // Skip aggregate rows (TỔNG, THÁNG...)
         if (dateStr.toUpperCase().includes('TỔNG') || dateStr.toUpperCase().includes('THÁNG') || dateStr === '') continue;
@@ -349,21 +313,21 @@ function parseMarketingRows(table) {
 
         results.push({
             date: dateObj,
-            received: parseCurrencyStr(parseCellValue(cells[2])) || 0,
+            received: parseCurrencyStr(cellValue(cells[2])),
             marketing_cost: parseCurrencyStr(parseCellValue(cells[3])),
             ad_management_fee: parseCurrencyStr(parseCellValue(cells[4])),
             cost: parseCurrencyStr(parseCellValue(cells[5])),
-            data_nangco: Number(parseCellValue(cells[6])) || 0,
-            data_muichi: Number(parseCellValue(cells[7])) || 0,
-            data_khac: Number(parseCellValue(cells[8])) || 0,
-            hen_nangco: Number(parseCellValue(cells[9])) || 0,
-            hen_muichi: Number(parseCellValue(cells[10])) || 0,
-            hen_khac: Number(parseCellValue(cells[11])) || 0,
-            toi_nangco: Number(parseCellValue(cells[12])) || 0,
-            toi_muichi: Number(parseCellValue(cells[13])) || 0,
-            toi_khac: Number(parseCellValue(cells[14])) || 0,
+            data_nangco: parseCellValue(cells[6]) == null ? null : Number(parseCellValue(cells[6])),
+            data_muichi: parseCellValue(cells[7]) == null ? null : Number(parseCellValue(cells[7])),
+            data_khac: parseCellValue(cells[8]) == null ? null : Number(parseCellValue(cells[8])),
+            hen_nangco: parseCellValue(cells[9]) == null ? null : Number(parseCellValue(cells[9])),
+            hen_muichi: parseCellValue(cells[10]) == null ? null : Number(parseCellValue(cells[10])),
+            hen_khac: parseCellValue(cells[11]) == null ? null : Number(parseCellValue(cells[11])),
+            toi_nangco: parseCellValue(cells[12]) == null ? null : Number(parseCellValue(cells[12])),
+            toi_muichi: parseCellValue(cells[13]) == null ? null : Number(parseCellValue(cells[13])),
+            toi_khac: parseCellValue(cells[14]) == null ? null : Number(parseCellValue(cells[14])),
             revenue: parseCurrencyStr(parseCellValue(cells[15])),
-            messages: Number(parseCellValue(cells[17])) || 0
+            messages: parseCellValue(cells[17]) == null ? null : Number(parseCellValue(cells[17]))
         });
     }
 
@@ -377,5 +341,10 @@ function parseMarketingRows(table) {
  */
 export async function fetchMarketingData(sheetId) {
     const table = await fetchMarketingTab(sheetId);
-    return parseMarketingRows(table);
+    const rows = parseMarketingRows(table);
+    const normalized = rows.map(row => normalizeMarketingRecord(row));
+    normalized.globalBalance = rows.globalBalance;
+    normalized.globalReceived = rows.globalReceived;
+    normalized.metadata = table.metadata || {};
+    return normalized;
 }

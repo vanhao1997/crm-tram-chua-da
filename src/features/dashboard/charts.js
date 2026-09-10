@@ -12,7 +12,16 @@ export function renderKPICards(leads, booked, arrived) {
   const totalLead = leads.length;
   const totalBooked = booked.length;
   const totalArrived = arrived.length;
-  const totalRevenue = arrived.reduce((sum, item) => sum + (Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0), 0);
+  let totalRevenue = 0;
+  let hasRevenue = false;
+  for (const item of arrived) {
+    if (item.revenue === null || item.revenue === undefined || item.revenue === '') continue;
+    const value = Number(String(item.revenue).replace(/[,.]/g, ''));
+    if (Number.isFinite(value)) {
+      totalRevenue += value;
+      hasRevenue = true;
+    }
+  }
 
   animateValue('kpiTotalLeadValue', totalLead);
   animateValue('kpiBookedValue', totalBooked);
@@ -20,7 +29,7 @@ export function renderKPICards(leads, booked, arrived) {
 
   const revenueEl = document.getElementById('kpiRevenueValue');
   if (revenueEl) {
-    revenueEl.textContent = formatCurrency(totalRevenue);
+    revenueEl.textContent = hasRevenue ? formatCurrency(totalRevenue) : '—';
   }
 }
 
@@ -31,12 +40,17 @@ export function renderFunnelChart(leads, booked, arrived) {
   const container = document.getElementById('funnelChart');
   if (!container) return;
 
-  const totalLead = leads.length || 1;
+  const totalLead = leads.length;
   const totalBooked = booked.length;
   const totalArrived = arrived.length;
 
-  const bookedPct = ((totalBooked / totalLead) * 100).toFixed(1);
-  const arrivedPct = ((totalArrived / totalLead) * 100).toFixed(1);
+  if (totalLead === 0 && totalBooked === 0 && totalArrived === 0) {
+    container.innerHTML = '<div class="empty-inline">Chưa có dữ liệu trong kỳ.</div>';
+    return;
+  }
+
+  const bookedPct = totalLead > 0 ? ((totalBooked / totalLead) * 100).toFixed(1) : '—';
+  const arrivedPct = totalLead > 0 ? ((totalArrived / totalLead) * 100).toFixed(1) : '—';
 
   container.innerHTML = `
     <div class="funnel-bar">
@@ -57,7 +71,7 @@ export function renderFunnelChart(leads, booked, arrived) {
         <span class="funnel-bar__value">${totalBooked}</span>
       </div>
       <div class="funnel-bar__track">
-        <div class="funnel-bar__fill funnel-bar__fill--booked" style="width: ${bookedPct}%">
+        <div class="funnel-bar__fill funnel-bar__fill--booked" style="width: ${parseFloat(bookedPct) || 0}%">
           ${parseFloat(bookedPct) > 15 ? `<span class="funnel-bar__percent">${bookedPct}%</span>` : ''}
         </div>
       </div>
@@ -69,7 +83,7 @@ export function renderFunnelChart(leads, booked, arrived) {
         <span class="funnel-bar__value">${totalArrived}</span>
       </div>
       <div class="funnel-bar__track">
-        <div class="funnel-bar__fill funnel-bar__fill--arrived" style="width: ${arrivedPct}%">
+        <div class="funnel-bar__fill funnel-bar__fill--arrived" style="width: ${parseFloat(arrivedPct) || 0}%">
           ${parseFloat(arrivedPct) > 15 ? `<span class="funnel-bar__percent">${arrivedPct}%</span>` : ''}
         </div>
       </div>
@@ -77,7 +91,7 @@ export function renderFunnelChart(leads, booked, arrived) {
     
     <div class="funnel-rate">
       <div class="funnel-rate__label">Tỷ lệ chuyển đổi tổng</div>
-      <div class="funnel-rate__value">${arrivedPct}%</div>
+      <div class="funnel-rate__value">${arrivedPct === '—' ? '—' : `${arrivedPct}%`}</div>
     </div>
   `;
 
@@ -133,11 +147,11 @@ export function renderRevenueChart(arrived) {
   }).join('');
 
   container.innerHTML = `
-    ${barsHtml}
-    <div class="revenue-total">
+    ${barsHtml || '<div class="empty-inline">Chưa có doanh thu trong kỳ.</div>'}
+    ${sorted.length ? `<div class="revenue-total">
       <div class="revenue-total__label">Tổng doanh số</div>
       <div class="revenue-total__value">${formatCurrency(totalRevenue)}</div>
-    </div>
+    </div>` : ''}
   `;
 
   // Animate
@@ -180,6 +194,11 @@ export function renderStatusChart(leads) {
   // Sort by count descending
   const sorted = Object.entries(statusCounts)
     .sort(([, a], [, b]) => b - a);
+
+  if (!sorted.length) {
+    container.innerHTML = '<div class="empty-inline">Chưa có trạng thái trong kỳ.</div>';
+    return;
+  }
 
   container.innerHTML = sorted.map(([status, count]) => {
     const config = statusConfig[status] || statusConfig.other;
@@ -228,6 +247,24 @@ export function renderRevenuePieChart(arrived) {
   // Sort descending
   const sorted = Object.entries(serviceRevenue).sort(([, a], [, b]) => b - a);
 
+  if (!sorted.length || typeof Chart === 'undefined') {
+    const parent = ctx.parentElement;
+    if (parent) {
+      ctx.style.display = 'none';
+      let empty = parent.querySelector('.pie-chart-empty');
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'pie-chart-empty';
+        parent.appendChild(empty);
+      }
+      empty.textContent = 'Chưa có doanh thu trong kỳ.';
+      empty.style.display = '';
+    }
+    return;
+  }
+  ctx.style.display = '';
+  ctx.parentElement?.querySelector('.pie-chart-empty')?.remove();
+
   // Group into Top 6 and 'Khác'
   const top = sorted.slice(0, 6);
   const others = sorted.slice(6).reduce((sum, [, rev]) => sum + rev, 0);
@@ -256,7 +293,7 @@ export function renderRevenuePieChart(arrived) {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right', labels: { color: '#64748b', font: { family: 'Inter', size: 11 } } },
+        legend: { position: 'right', labels: { color: '#64748b', font: { family: 'Segoe UI, Noto Sans, Arial, sans-serif', size: 11 } } },
         tooltip: {
           callbacks: {
             label: function (context) {
@@ -314,9 +351,13 @@ export function renderMarketingFunnelChart(containerId, dataCount, bookedCount, 
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  const totalLead = dataCount || 1;
-  const bookedPct = ((bookedCount / totalLead) * 100).toFixed(1);
-  const arrivedPct = ((arrivedCount / totalLead) * 100).toFixed(1);
+  if (!dataCount && !bookedCount && !arrivedCount) {
+    container.innerHTML = '<div class="empty-inline">Chưa có dữ liệu trong kỳ.</div>';
+    return;
+  }
+  const totalLead = dataCount;
+  const bookedPct = totalLead > 0 ? ((bookedCount / totalLead) * 100).toFixed(1) : '—';
+  const arrivedPct = totalLead > 0 ? ((arrivedCount / totalLead) * 100).toFixed(1) : '—';
 
   container.innerHTML = `
     <div class="funnel-bar">
@@ -337,7 +378,7 @@ export function renderMarketingFunnelChart(containerId, dataCount, bookedCount, 
         <span class="funnel-bar__value">${bookedCount}</span>
       </div>
       <div class="funnel-bar__track">
-        <div class="funnel-bar__fill funnel-bar__fill--booked" style="width: ${bookedPct}%">
+        <div class="funnel-bar__fill funnel-bar__fill--booked" style="width: ${parseFloat(bookedPct) || 0}%">
           ${parseFloat(bookedPct) > 15 ? `<span class="funnel-bar__percent">${bookedPct}%</span>` : ''}
         </div>
       </div>
@@ -349,7 +390,7 @@ export function renderMarketingFunnelChart(containerId, dataCount, bookedCount, 
         <span class="funnel-bar__value">${arrivedCount}</span>
       </div>
       <div class="funnel-bar__track">
-        <div class="funnel-bar__fill funnel-bar__fill--arrived" style="width: ${arrivedPct}%">
+        <div class="funnel-bar__fill funnel-bar__fill--arrived" style="width: ${parseFloat(arrivedPct) || 0}%">
           ${parseFloat(arrivedPct) > 15 ? `<span class="funnel-bar__percent">${arrivedPct}%</span>` : ''}
         </div>
       </div>
@@ -357,7 +398,7 @@ export function renderMarketingFunnelChart(containerId, dataCount, bookedCount, 
     
     <div class="funnel-rate">
       <div class="funnel-rate__label">Tỷ lệ chuyển đổi tổng</div>
-      <div class="funnel-rate__value">${arrivedPct}%</div>
+      <div class="funnel-rate__value">${arrivedPct === '—' ? '—' : `${arrivedPct}%`}</div>
     </div>
   `;
 
@@ -387,11 +428,11 @@ export function renderMarketingPieCharts(totalCost, totalRev, toiNangCo, toiMuiC
       mktBudgetContainer.innerHTML = `
         <div class="pie-chart-wrapper">
           <div class="pie-chart donut" style="background: conic-gradient(var(--accent-red) 0% ${costRatio}%, var(--accent-emerald) ${costRatio}% 100%);">
-            <span class="donut-inner">${profitRatio.toFixed(1)}%<br/><small style="font-size:10px;color:var(--text-secondary)">Lợi nhuận</small></span>
+            <span class="donut-inner">${costRatio.toFixed(1)}%<br/><small style="font-size:10px;color:var(--text-secondary)">Chi phí</small></span>
           </div>
           <div class="pie-legend">
             <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-red)"></span>Ngân sách (${costRatio.toFixed(1)}%)</div>
-            <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-emerald)"></span>Lợi nhuận (${profitRatio.toFixed(1)}%)</div>
+            <div class="pie-legend-item"><span class="color-box" style="background:var(--accent-emerald)"></span>Phần còn lại (${profitRatio.toFixed(1)}%)</div>
           </div>
         </div>
       `;

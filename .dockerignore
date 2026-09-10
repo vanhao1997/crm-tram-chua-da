@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+*.pem
+*.key
+*service-account*.json
+google-service-account.json
+.playwright-cli
+output

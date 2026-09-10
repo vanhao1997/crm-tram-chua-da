@@ -15,10 +15,6 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-    rel="stylesheet" />
   <link rel="stylesheet" href="/src/assets/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -59,7 +55,7 @@
             <input type="checkbox" id="autoRefreshToggle" checked />
             <span class="toggle__slider"></span>
           </label>
-          <span class="auto-refresh__label">Auto (1h)</span>
+          <span class="auto-refresh__label">Auto (5 phút)</span>
         </div>
       </div>
     </div>
@@ -68,6 +64,7 @@
     <div class="main-tabs-container">
       <a href="index.html" class="main-tab main-tab--active">CRM Tracking</a>
       <a href="marketing.html" class="main-tab">Kpi Marketing & Phễu</a>
+      <a href="settings.html" class="main-tab">Dữ liệu & vận hành</a>
     </div>
   </header>
 
@@ -98,11 +95,22 @@
   <!-- MAIN DASHBOARD -->
   <main class="dashboard" id="dashboard">
     <!-- Global CRM Controls -->
+    <div class="page-context" id="pageContext">
+      <div>
+        <p class="page-context__eyebrow">BSN CRM</p>
+        <h2>Điều hành lịch hẹn và khách hàng</h2>
+        <p class="page-context__period" id="activePeriodLabel">Đang xem tháng này</p>
+      </div>
+      <div class="data-status" id="dataStatusBar" role="status" aria-live="polite">
+        <span class="data-status__dot"></span>
+        <span class="data-status__text">Đang kiểm tra dữ liệu</span>
+      </div>
+    </div>
     <div class="dashboard-controls" style="display: flex; justify-content: flex-end; padding-bottom: 20px;">
       <div class="filter-tabs" id="filterTabs">
-        <button class="filter-tab filter-tab--active" data-filter="today">Hôm nay</button>
+        <button class="filter-tab" data-filter="today">Hôm nay</button>
         <button class="filter-tab" data-filter="week">Tuần này</button>
-        <button class="filter-tab" data-filter="month">Tháng này</button>
+        <button class="filter-tab filter-tab--active" data-filter="month">Tháng này</button>
         <button class="filter-tab" data-filter="lastmonth">Tháng trước</button>
         <button class="filter-tab" data-filter="upcoming">Sắp tới</button>
         <button class="filter-tab" data-filter="all">Tất cả</button>
@@ -189,6 +197,26 @@
             </svg>
             Lịch Hẹn
           </h2>
+          <div class="panel-actions">
+            <div class="record-tabs" id="recordTabs" role="tablist" aria-label="Loại dữ liệu CRM">
+              <button class="record-tab record-tab--active" data-record-view="appointments" role="tab"
+                aria-selected="true">Lịch hẹn</button>
+              <button class="record-tab" data-record-view="leads" role="tab" aria-selected="false">Lead</button>
+              <button class="record-tab" data-record-view="customers" role="tab"
+                aria-selected="false">Khách hàng</button>
+            </div>
+          </div>
+        </div>
+        <div class="table-filters" id="tableFilters">
+          <input id="tableSearch" class="form-input" type="search" placeholder="Tìm tên hoặc số điện thoại..."
+            aria-label="Tìm trong danh sách" />
+          <select id="serviceFilter" class="form-input" aria-label="Lọc theo dịch vụ">
+            <option value="all">Tất cả dịch vụ</option>
+          </select>
+          <select id="statusFilter" class="form-input" aria-label="Lọc theo trạng thái">
+            <option value="all">Tất cả trạng thái</option>
+          </select>
+          <span class="table-result-count" id="tableResultCount"></span>
         </div>
         <div class="table-wrapper" id="appointmentTableWrapper">
           <table class="data-table" id="appointmentTable">
@@ -199,11 +227,10 @@
                 <th>SĐT</th>
                 <th>Dịch vụ</th>
                 <th>Giờ hẹn</th>
-                <th id="sortDateBtn" style="cursor: pointer; user-select: none;" title="Sắp xếp theo ngày hẹn">Ngày hẹn
-                  ↕</th>
-                <th>NV</th>
+                <th id="sortDateBtn" style="cursor: pointer; user-select: none;" title="Sắp xếp theo ngày hẹn">Ngày hẹn ↕</th>
                 <th>Trạng thái</th>
-                <th>Ghi chú</th>
+                <th>Thao tác</th>
+                <th>Telegram</th>
               </tr>
             </thead>
             <tbody id="appointmentBody">
@@ -312,54 +339,11 @@
 
 
 
-  <!-- MODAL: Add Lead -->
-  <div class="modal-overlay" id="addLeadModal">
-    <div class="modal glass-card">
-      <div class="modal__header">
-        <h3>➕ Thêm Lead Mới</h3>
-        <button class="modal__close">&times;</button>
-      </div>
-      <form id="addLeadForm" class="modal__body">
-        <div class="form-group">
-          <label>Họ tên *</label>
-          <input type="text" id="addLeadName" placeholder="Nguyễn Văn A" required />
-        </div>
-        <div class="form-group">
-          <label>Số điện thoại *</label>
-          <input type="tel" id="addLeadPhone" placeholder="0912 345 678" required />
-        </div>
-        <div class="form-group">
-          <label>Dịch vụ</label>
-          <input type="text" id="addLeadService" placeholder="Nâng cơ 999k" />
-        </div>
-        <div class="form-group">
-          <label>Nguồn</label>
-          <select id="addLeadSource">
-            <option value="Facebook">Facebook</option>
-            <option value="Zalo">Zalo</option>
-            <option value="Giới thiệu">Giới thiệu</option>
-            <option value="Walk-in">Walk-in</option>
-            <option value="Khác">Khác</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Ghi chú</label>
-          <textarea id="addLeadNote" rows="2" placeholder="Ghi chú thêm..."></textarea>
-        </div>
-        <div class="duplicate-warning" id="duplicateWarning" style="display:none;"></div>
-        <label class="force-add-label" id="forceAddLabel" style="display:none;">
-          <input type="checkbox" id="forceAddCheck" /> Vẫn thêm (SĐT đã tồn tại)
-        </label>
-        <button type="submit" id="addLeadSubmitBtn" class="btn btn--primary btn--full">Thêm Lead</button>
-      </form>
-    </div>
-  </div>
-
   <!-- MODAL: Lead Detail -->
   <div class="modal-overlay" id="detailModal">
     <div class="modal glass-card">
       <div class="modal__header">
-        <h3>📋 Chi Tiết Lead</h3>
+        <h3>Chi tiết hồ sơ</h3>
         <button class="modal__close">&times;</button>
       </div>
       <div class="modal__body">
@@ -377,22 +361,31 @@
           <div class="detail-item"><span class="detail-label">NV</span><span class="detail-value"
               id="detailStaff">--</span></div>
         </div>
-        <div class="form-group">
-          <label>Trạng thái</label>
-          <select id="detailStatus" class="status-select">
-            <option value="">-- Chọn --</option>
-            <option value="Đặt Hẹn">📅 Đặt Hẹn</option>
-            <option value="Đã Đến">✅ Đã Đến</option>
-            <option value="Dời Lịch">🔄 Dời Lịch</option>
-            <option value="Hủy Lịch">❌ Hủy Lịch</option>
-            <option value="Không Nghe Máy">📵 Không Nghe Máy</option>
-            <option value="Thuê Bao">🚫 Thuê Bao</option>
-          </select>
+        <div class="detail-section">
+          <div class="detail-section__heading">Lịch sử ghi nhận</div>
+          <div class="detail-timeline" id="detailTimeline"></div>
         </div>
-        <div class="form-group">
-          <label>Ghi chú</label>
-          <textarea id="detailNote" rows="3" placeholder="Thêm ghi chú..."></textarea>
-          <button id="saveNoteBtn" class="btn btn--primary btn--full" style="margin-top:8px;">Lưu ghi chú</button>
+        <div class="detail-actions">
+          <button id="detailCopyBtn" class="btn btn--secondary" type="button">Copy thông tin telesale</button>
+          <a id="detailOpenSheet" class="btn btn--ghost" href="#" target="_blank" rel="noreferrer">Mở nguồn dữ liệu</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="drilldownModal">
+    <div class="modal modal--wide glass-card">
+      <div class="modal__header">
+        <h3 id="drilldownTitle">Chi tiết chỉ số</h3>
+        <button class="modal__close" type="button">&times;</button>
+      </div>
+      <div class="modal__body">
+        <p class="modal__hint" id="drilldownSummary"></p>
+        <div class="table-wrapper drilldown-table-wrapper">
+          <table class="data-table">
+            <thead id="drilldownHead"></thead>
+            <tbody id="drilldownBody"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -419,6 +412,9 @@
         <line x1="6" y1="20" x2="6" y2="14" />
       </svg>
       <span>Marketing</span>
+    </a>
+    <a href="settings.html" class="nav-item">
+      <span>⚙</span><span>Dữ liệu</span>
     </a>
   </nav>
 

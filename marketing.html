@@ -14,10 +14,6 @@
   <meta name="apple-mobile-web-app-title" content="BSN Mkt" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
-    rel="stylesheet" />
   <link rel="stylesheet" href="/src/assets/style.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 </head>
@@ -51,7 +47,7 @@
             <input type="checkbox" id="autoRefreshToggle" checked />
             <span class="toggle__slider"></span>
           </label>
-          <span class="auto-refresh__label">Auto (1h)</span>
+          <span class="auto-refresh__label">Auto (5 phút)</span>
         </div>
       </div>
     </div>
@@ -60,6 +56,7 @@
     <div class="main-tabs-container">
       <a href="index.html" class="main-tab">CRM Tracking</a>
       <a href="marketing.html" class="main-tab main-tab--active">Kpi Marketing & Phễu</a>
+      <a href="settings.html" class="main-tab">Dữ liệu & vận hành</a>
     </div>
   </header>
 
@@ -89,6 +86,17 @@
 
   <!-- MARKETING DASHBOARD -->
   <main class="dashboard" id="marketing">
+    <div class="page-context" id="pageContext">
+      <div>
+        <p class="page-context__eyebrow">BSN MARKETING</p>
+        <h2>Hiệu quả chi phí và chuyển đổi</h2>
+        <p class="page-context__period" id="activePeriodLabel">Đang xem tháng này</p>
+      </div>
+      <div class="data-status" id="dataStatusBar" role="status" aria-live="polite">
+        <span class="data-status__dot"></span>
+        <span class="data-status__text">Đang kiểm tra dữ liệu</span>
+      </div>
+    </div>
     <!-- FILTER TABS FOR MARKETING (Global Wrapper) -->
     <div class="dashboard-controls" style="display: flex; justify-content: flex-end; padding-bottom: 20px;">
       <div class="filter-tabs" id="filterTabs">
@@ -97,7 +105,16 @@
         <button class="filter-tab filter-tab--active" data-filter="month">Tháng này</button>
         <button class="filter-tab" data-filter="lastmonth">Tháng trước</button>
         <button class="filter-tab" data-filter="all">Tất cả</button>
+        <button class="filter-tab" data-filter="custom">Tùy chọn...</button>
       </div>
+    </div>
+    <div class="custom-date-picker" id="customDatePicker"
+      style="display:none; justify-content:flex-end; padding-bottom: 20px; gap: 10px; align-items: center; margin-top:-10px;">
+      <input type="date" id="dateStart" class="form-input" style="width:auto;" />
+      <span style="font-size:12px; font-weight:600; color:var(--text-muted)">ĐẾN</span>
+      <input type="date" id="dateEnd" class="form-input" style="width:auto;" />
+      <button class="btn btn--primary btn--small" id="applyCustomDateBtn" type="button"
+        style="padding: 6px 12px; font-size: 13px;">Lọc</button>
     </div>
 
     <!-- MARKETING KPI ROW -->
@@ -173,7 +190,7 @@
           </svg>
         </div>
         <div class="kpi-card__content">
-          <span class="kpi-card__label">Tỷ lệ Phí/Doanh thu</span>
+          <span class="kpi-card__label">ROAS</span>
           <span class="kpi-card__value" id="mktTỷLệChiPhí">--</span>
         </div>
       </div>
@@ -202,13 +219,13 @@
           </svg>
         </div>
         <div class="kpi-card__content">
-          <span class="kpi-card__label">Giá 1 KH Tới</span>
+          <span class="kpi-card__label">Chi phí / khách tới</span>
           <span class="kpi-card__value" id="mktTỷLệTới">--</span>
         </div>
       </div>
     </section>
 
-    <section class="charts-row">
+    <section class="budget-intelligence glass-card" id="budgetIntelligence" aria-label="Đề xuất ngân sách theo giai đoạn"><p class="empty-inline">Đang phân tích dữ liệu đã chốt...</p></section>    <section class="charts-row">
       <!-- Pie Chart Ngân sách / Doanh Thu -->
       <div class="funnel-panel glass-card">
         <div class="panel-header">
@@ -217,7 +234,7 @@
               <path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path>
               <path d="M22 12A10 10 0 0 0 12 2v10z"></path>
             </svg>
-            Tỷ trọng Ngân sách / Lợi nhuận
+            Tỷ trọng Chi phí / Doanh thu
           </h2>
         </div>
         <div id="mktPieBudget"></div>
@@ -265,6 +282,18 @@
         </div>
         <div class="funnel-chart" id="mktFunnelMuiChi"></div>
       </div>
+
+      <div class="funnel-panel glass-card">
+        <div class="panel-header">
+          <h2 class="panel-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+            </svg>
+            Phễu - Khác
+          </h2>
+        </div>
+        <div class="funnel-chart" id="mktFunnelKhac"></div>
+      </div>
     </section>
 
     <!-- MoM Comparison -->
@@ -308,7 +337,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
             </svg>
-            Phân tích theo Giai đoạn (Tháng này)
+            <span id="periodAnalysisTitle">Phân tích theo giai đoạn · Tháng này</span>
           </h2>
         </div>
         <div id="mktPeriodAnalysis" style="padding:16px;"></div>
@@ -346,54 +375,11 @@
     </section>
   </main>
 
-  <!-- MODAL: Add Lead -->
-  <div class="modal-overlay" id="addLeadModal">
-    <div class="modal glass-card">
-      <div class="modal__header">
-        <h3>➕ Thêm Lead Mới</h3>
-        <button class="modal__close">&times;</button>
-      </div>
-      <form id="addLeadForm" class="modal__body">
-        <div class="form-group">
-          <label>Họ tên *</label>
-          <input type="text" id="addLeadName" placeholder="Nguyễn Văn A" required />
-        </div>
-        <div class="form-group">
-          <label>Số điện thoại *</label>
-          <input type="tel" id="addLeadPhone" placeholder="0912 345 678" required />
-        </div>
-        <div class="form-group">
-          <label>Dịch vụ</label>
-          <input type="text" id="addLeadService" placeholder="Nâng cơ 999k" />
-        </div>
-        <div class="form-group">
-          <label>Nguồn</label>
-          <select id="addLeadSource">
-            <option value="Facebook">Facebook</option>
-            <option value="Zalo">Zalo</option>
-            <option value="Giới thiệu">Giới thiệu</option>
-            <option value="Walk-in">Walk-in</option>
-            <option value="Khác">Khác</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Ghi chú</label>
-          <textarea id="addLeadNote" rows="2" placeholder="Ghi chú thêm..."></textarea>
-        </div>
-        <div class="duplicate-warning" id="duplicateWarning" style="display:none;"></div>
-        <label class="force-add-label" id="forceAddLabel" style="display:none;">
-          <input type="checkbox" id="forceAddCheck" /> Vẫn thêm (SĐT đã tồn tại)
-        </label>
-        <button type="submit" id="addLeadSubmitBtn" class="btn btn--primary btn--full">Thêm Lead</button>
-      </form>
-    </div>
-  </div>
-
   <!-- MODAL: Lead Detail -->
   <div class="modal-overlay" id="detailModal">
     <div class="modal glass-card">
       <div class="modal__header">
-        <h3>📋 Chi Tiết Lead</h3>
+        <h3>Chi tiết hồ sơ</h3>
         <button class="modal__close">&times;</button>
       </div>
       <div class="modal__body">
@@ -411,22 +397,13 @@
           <div class="detail-item"><span class="detail-label">NV</span><span class="detail-value"
               id="detailStaff">--</span></div>
         </div>
-        <div class="form-group">
-          <label>Trạng thái</label>
-          <select id="detailStatus" class="status-select">
-            <option value="">-- Chọn --</option>
-            <option value="Đặt Hẹn">📅 Đặt Hẹn</option>
-            <option value="Đã Đến">✅ Đã Đến</option>
-            <option value="Dời Lịch">🔄 Dời Lịch</option>
-            <option value="Hủy Lịch">❌ Hủy Lịch</option>
-            <option value="Không Nghe Máy">📵 Không Nghe Máy</option>
-            <option value="Thuê Bao">🚫 Thuê Bao</option>
-          </select>
+        <div class="detail-section">
+          <div class="detail-section__heading">Lịch sử ghi nhận</div>
+          <div class="detail-timeline" id="detailTimeline"></div>
         </div>
-        <div class="form-group">
-          <label>Ghi chú</label>
-          <textarea id="detailNote" rows="3" placeholder="Thêm ghi chú..."></textarea>
-          <button id="saveNoteBtn" class="btn btn--primary btn--full" style="margin-top:8px;">Lưu ghi chú</button>
+        <div class="detail-actions">
+          <button id="detailCopyBtn" class="btn btn--secondary" type="button">Copy thông tin telesale</button>
+          <a id="detailOpenSheet" class="btn btn--ghost" href="#" target="_blank" rel="noreferrer">Mở nguồn dữ liệu</a>
         </div>
       </div>
     </div>
@@ -456,6 +433,7 @@
       </svg>
       <span>Marketing</span>
     </a>
+    <a href="settings.html" class="nav-item"><span>⚙</span><span>Dữ liệu</span></a>
   </nav>
 
   <script type="module" src="/src/main.js"></script>
