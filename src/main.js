@@ -999,6 +999,17 @@ function setupEvents() {
         });
         renderRecordTable();
     });
+    document.getElementById('marketingDataTabs')?.addEventListener('click', event => {
+        const tab = event.target.closest('[data-marketing-tab]');
+        if (!tab) return;
+        document.querySelectorAll('#marketingDataTabs [data-marketing-tab]').forEach(item => {
+            const active = item === tab;
+            item.classList.toggle('record-tab--active', active);
+            item.setAttribute('aria-selected', String(active));
+        });
+        const targets = { overview: 'marketingOverviewSections', daily: 'marketingDailySection', budget: 'budgetIntelligence' };
+        document.getElementById(targets[tab.dataset.marketingTab])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     document.addEventListener('click', event => {
         const closeButton = event.target.closest('.modal__close');
         if (closeButton) closeModals();

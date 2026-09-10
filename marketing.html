@@ -329,6 +329,12 @@
       </div>
     </section>
 
+    <div class="record-tabs marketing-data-tabs" id="marketingDataTabs" role="tablist" aria-label="Dữ liệu Marketing">
+      <button class="record-tab record-tab--active" type="button" role="tab" aria-selected="true" data-marketing-tab="overview">Tổng quan</button>
+      <button class="record-tab" type="button" role="tab" aria-selected="false" data-marketing-tab="daily">Dữ liệu hàng ngày</button>
+      <button class="record-tab" type="button" role="tab" aria-selected="false" data-marketing-tab="budget">Quyết định Budget</button>
+    </div>
+
     <!-- Period Analysis -->
     <section class="charts-row" style="grid-template-columns: 1fr;">
       <div class="funnel-panel glass-card">
@@ -344,7 +350,7 @@
       </div>
     </section>
 
-    <section class="main-content" style="grid-template-columns: 1fr;">
+    <section class="main-content" id="marketingDailySection" style="grid-template-columns: 1fr;">
       <div class="appointments-panel glass-card" style="overflow-x: auto;">
         <div class="panel-header">
           <h2 class="panel-title">Chi Tiết Marketing Hàng Ngày</h2>
