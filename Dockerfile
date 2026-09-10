@@ -9,6 +9,7 @@ RUN npm run build
 # Run API and the built frontend from one same-origin Node process.
 FROM node:20-alpine AS runtime
 WORKDIR /app
+RUN apk add --no-cache wget
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOST=0.0.0.0
