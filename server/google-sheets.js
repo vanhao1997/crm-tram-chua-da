@@ -7,7 +7,10 @@ export function createGoogleSheetsClient(config) {
         scopes: [GOOGLE_SHEETS_READONLY_SCOPE]
     };
 
-    if (config.credentialFile) authOptions.keyFile = config.credentialFile;
+    if (config.credentialJson) {
+        try { authOptions.credentials = JSON.parse(config.credentialJson); }
+        catch { throw new Error('GOOGLE_SERVICE_ACCOUNT_JSON is invalid'); }
+    } else if (config.credentialFile) authOptions.keyFile = config.credentialFile;
 
     const auth = new google.auth.GoogleAuth(authOptions);
     const sheets = google.sheets({ version: 'v4', auth });

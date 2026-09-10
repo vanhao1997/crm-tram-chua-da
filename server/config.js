@@ -28,6 +28,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const production = nodeEnv === 'production';
     const staticDir = path.resolve(cwd, env.STATIC_DIR || 'dist');
     const credentialFile = env.GOOGLE_SERVICE_ACCOUNT_FILE || env.GOOGLE_APPLICATION_CREDENTIALS || '';
+    const credentialJson = String(env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim();
     const crmSheetId = env.CRM_SHEET_ID || DEFAULT_CRM_SHEET_ID;
     const marketingSheetId = env.MARKETING_SHEET_ID || DEFAULT_MARKETING_SHEET_ID;
     const allowedClientCidrs = splitList(env.ALLOWED_CLIENT_CIDRS);
@@ -35,8 +36,8 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const telegramBotToken = String(env.TELEGRAM_BOT_TOKEN || '').trim();
     const telegramChatId = String(env.TELEGRAM_CHAT_ID || '').trim();
 
-    if (production && !credentialFile) {
-        throw new Error('GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_APPLICATION_CREDENTIALS is required in production');
+    if (production && !credentialFile && !credentialJson) {
+        throw new Error('GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_SERVICE_ACCOUNT_JSON is required in production');
     }
     if (production && allowedClientCidrs.length === 0) {
         throw new Error('ALLOWED_CLIENT_CIDRS is required in production');
@@ -91,6 +92,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
         host,
         port,
         credentialFile,
+        credentialJson,
         staticDir,
         serveStatic: production || String(env.SERVE_STATIC || '').toLowerCase() === 'true',
         timezone: env.BSN_TIMEZONE || 'Asia/Ho_Chi_Minh',
@@ -112,7 +114,7 @@ export function validateSourceName(source) {
 export function assertStartupConfig(config, fsModule = fs) {
     const errors = [];
 
-    if (config.production && config.credentialFile && !fsModule.existsSync(config.credentialFile)) {
+    if (config.production && config.credentialFile && !config.credentialJson && !fsModule.existsSync(config.credentialFile)) {
         errors.push('Google service-account secret file is not mounted');
     }
     if (config.production && config.serveStatic && !fsModule.existsSync(config.staticDir)) {
