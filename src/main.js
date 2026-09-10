@@ -1007,7 +1007,7 @@ function setupEvents() {
             item.classList.toggle('record-tab--active', active);
             item.setAttribute('aria-selected', String(active));
         });
-        const targets = { overview: 'marketingOverviewSections', daily: 'marketingDailySection', budget: 'budgetIntelligence' };
+        const targets = { overview: 'mktKpiRow', daily: 'marketingDailySection', budget: 'budgetIntelligence' };
         document.getElementById(targets[tab.dataset.marketingTab])?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     document.addEventListener('click', event => {
@@ -1107,4 +1107,5 @@ function init() {
 
 document.addEventListener('DOMContentLoaded', init);
 import { buildBudgetDecisionModel } from './core/analytics/budget-intelligence.js';
+
 
