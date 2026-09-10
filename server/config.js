@@ -28,7 +28,11 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const production = nodeEnv === 'production';
     const staticDir = path.resolve(cwd, env.STATIC_DIR || 'dist');
     const credentialFile = env.GOOGLE_SERVICE_ACCOUNT_FILE || env.GOOGLE_APPLICATION_CREDENTIALS || '';
-    const credentialJson = String(env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim();
+    const encodedCredential = String(env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 || '').trim();
+    const credentialJson = String(env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim() || (() => {
+        if (!encodedCredential) return '';
+        try { return Buffer.from(encodedCredential, 'base64').toString('utf8'); } catch { return ''; }
+    })();
     const crmSheetId = env.CRM_SHEET_ID || DEFAULT_CRM_SHEET_ID;
     const marketingSheetId = env.MARKETING_SHEET_ID || DEFAULT_MARKETING_SHEET_ID;
     const allowedClientCidrs = splitList(env.ALLOWED_CLIENT_CIDRS);
