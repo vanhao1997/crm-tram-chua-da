@@ -234,7 +234,17 @@ async function loadData() {
     state.refreshFailed = false;
     try {
         if (els.dashboard) {
-            const payload = await fetchAllData(state.sheetId);
+            const [crmResult, marketingResult] = await Promise.allSettled([
+                fetchAllData(state.sheetId), fetchMarketingData(state.marketingSheetId)
+            ]);
+            state.crmMarketingFailed = marketingResult.status !== 'fulfilled';
+            if (!state.crmMarketingFailed) {
+                state.marketingData = marketingResult.value;
+                state.marketingMeta = marketingResult.value.metadata || {};
+            }
+            renderCrmMarketingCards();
+            if (crmResult.status !== 'fulfilled') throw crmResult.reason;
+            const payload = crmResult.value;
             state.data = Array.isArray(payload)
                 ? { leads: [], booked: [], arrived: [], metadata: {} }
                 : payload;
@@ -314,7 +324,25 @@ function updateStatusOptions(records) {
     state.statusFilter = els.statusFilter.value;
 }
 
+function renderCrmMarketingCards() {
+    const raw = state.marketingData;
+    const stale = state.crmMarketingFailed || state.marketingMeta?.stale || state.marketingMeta?.status === 'stale';
+    setText('crmMktStatus', !raw ? 'Chưa tải được Marketing. Nhấn tải lại để thử lại.'
+        : `Nguồn: Sheet 2026 · ${formatPeriodLabel()}${stale ? ' · Dữ liệu gần nhất, chưa cập nhật được' : ''}`);
+    if (!raw) return;
+    const rows = raw.filter(item => inDateFilter(item.date, state.currentFilter, state.customStart, state.customEnd))
+        .filter(item => toDate(item.date) && toDate(item.date) <= new Date());
+    const cost = sumMetric(rows, 'cost');
+    const revenue = sumMetric(rows, 'revenue');
+    const ratio = cost.hasValue && revenue.hasValue && revenue.value > 0 ? cost.value / revenue.value * 100 : null;
+    setMetric('crmMktReceived', officialMetric(raw, state.marketingMeta, 'globalReceived'));
+    setMetric('crmMktBalance', officialMetric(raw, state.marketingMeta, 'globalBalance'));
+    setMetric('crmMktCost', cost);
+    setMetric('crmMktCostRatio', { hasValue: ratio !== null, value: ratio }, value => `${value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`);
+}
+
 function renderDashboard() {
+    renderCrmMarketingCards();
     if (!state.data) return;
     const leads = filterByDate(state.data.leads, 'date');
     const booked = filterByDate(state.data.booked, 'aptDate');
