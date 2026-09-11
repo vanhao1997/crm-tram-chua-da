@@ -151,6 +151,7 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
   .dashboard { padding: 22px; }
 }
 @media (max-width: 600px) {
+  html, body { overflow-x: clip; }
   body .filter-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); width: 100%; overflow: visible; gap: 6px; padding: 0; }
   body .filter-tabs .filter-tab { min-width: 0; min-height: 44px; padding: 8px 3px; font-size: 12px; text-align: center; }
   body .header { position: static; }
@@ -172,6 +173,9 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
   .panel-header { padding: 16px; }
   .charts-row { gap: 14px; }
   .table-filters { padding: 12px; }
+  .table-wrapper, .table-wrap, .appointment-table-wrap, .phase-table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 720px; }
+  .panel, .glass-card, .comparison-grid, .charts-row, .funnel-panel { min-width: 0; max-width: 100%; }
   .settings-grid { grid-template-columns: minmax(0,1fr); }
   .settings-page .settings-sources { padding: 16px; }
   .marketing-page #mktKpiRow { grid-template-columns: repeat(2,minmax(0,1fr)); }
