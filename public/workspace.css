@@ -92,8 +92,8 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 .settings-page .settings-sources, .settings-page .settings-notes { padding: 24px; }
 .settings-page .panel-header { padding: 0 0 16px; margin-bottom: 16px; }
 .budget-intelligence { margin-top: 0; }
-.marketing-page #mktKpiRow { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
-.marketing-page #mktKpiRow .kpi-card { min-height: 132px; }
+.marketing-page #mktKpiRow { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.marketing-page #mktKpiRow .kpi-card { min-height: 124px; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) { background: #f8faf5; border-color: #cbd9ca; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) { background: var(--forest); color: #fff; border-color: var(--forest); }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__label,
