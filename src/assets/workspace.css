@@ -28,7 +28,9 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 .kpi-card__value { line-height: 1.1; }
 .header { background: var(--forest) !important; color: #fff; border: 0; box-shadow: none; }
 .header__title h1 { color: #fff !important; font-size: 18px; letter-spacing: -.3px; }
+.header .header__brand .header__title h1 { color: #fff !important; -webkit-text-fill-color: #fff !important; background: none !important; }
 .header__subtitle { color: #b8cfc2 !important; letter-spacing: .04em; text-transform: none; }
+.header .header__brand .header__subtitle { color: #b8cfc2 !important; -webkit-text-fill-color: #b8cfc2 !important; background: none !important; }
 .brand-logo { border-radius: 50%; width: 48px; height: 48px; }
 .header__brand { position: relative; z-index: 1; }
 .main-tabs-container { border: 0; background: transparent; gap: 8px; }
@@ -64,6 +66,7 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 .kpi-card__value { font-size: clamp(26px, 2.8vw, 38px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
 .kpi-card small { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
 #kpiRevenue { background: var(--forest); color: #fff; border-color: var(--forest); }
+#kpiRevenue .kpi-card__value { color: #fff !important; -webkit-text-fill-color: #fff !important; }
 #kpiRevenue .kpi-card__label { color: #d9e5dc; }
 #kpiRevenue .kpi-card__icon { background: #ffffff15; color: var(--champagne); }
 #kpiRevenue .kpi-card__icon { color: var(--champagne) !important; }
