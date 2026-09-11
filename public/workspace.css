@@ -22,6 +22,10 @@
   --radius-lg: 14px;
 }
 body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%), var(--bg-primary); }
+body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Arial, sans-serif !important; }
+.kpi-card, .glass-card, .panel, .chart-container { color: var(--text-primary) !important; }
+.kpi-card__label, .panel-title, .data-table th { line-height: 1.35; }
+.kpi-card__value { line-height: 1.1; }
 .header { background: var(--forest) !important; color: #fff; border: 0; box-shadow: none; }
 .header__title h1 { color: #fff !important; font-size: 18px; letter-spacing: -.3px; }
 .header__subtitle { color: #b8cfc2 !important; letter-spacing: .04em; text-transform: none; }
