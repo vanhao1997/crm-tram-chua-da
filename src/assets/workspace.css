@@ -52,6 +52,7 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 .kpi-card { padding: 22px; align-items: flex-start; flex-direction: row-reverse; justify-content: space-between; border-radius: 12px; backdrop-filter: none; }
 .kpi-card:hover { transform: none; box-shadow: 0 4px 16px #173e340b; border-color: #a5bbae; }
 .kpi-card__icon { width: 34px; height: 34px; border-radius: 8px; background: #eef4ee; color: var(--forest); }
+.kpi-card__icon { color: var(--forest) !important; }
 .kpi-card__icon svg { width: 18px; height: 18px; }
 .kpi-card__icon--blue, .kpi-card__icon--amber, .kpi-card__icon--green, .kpi-card__icon--emerald { background: #eef4ee !important; color: var(--forest) !important; }
 .action-btn--call, .action-btn--zalo { background: #f0f5ef !important; color: var(--forest) !important; border-color: #cbd9ca !important; }
@@ -64,6 +65,7 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 #kpiRevenue { background: var(--forest); color: #fff; border-color: var(--forest); }
 #kpiRevenue .kpi-card__label { color: #d9e5dc; }
 #kpiRevenue .kpi-card__icon { background: #ffffff15; color: var(--champagne); }
+#kpiRevenue .kpi-card__icon { color: var(--champagne) !important; }
 [aria-label="Tài chính Marketing"] { padding: 20px; background: #e9eee3; border: 1px solid #d6dfd0; border-radius: 14px; }
 #crmMktStatus { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
 [aria-label="Tài chính Marketing"] .kpi-card { background: #ffffffb8; padding: 16px; }
