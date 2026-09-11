@@ -26,6 +26,7 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 .header__title h1 { color: #fff; font-size: 18px; letter-spacing: -.3px; }
 .header__subtitle { color: #b8cfc2; letter-spacing: .04em; text-transform: none; }
 .brand-logo { border-radius: 50%; width: 48px; height: 48px; }
+.header__brand { position: relative; z-index: 1; }
 .main-tabs-container { border: 0; background: transparent; gap: 8px; }
 .main-tab { color: #cadbd1; border: 0; border-radius: 8px; font-size: 14px; text-transform: none; letter-spacing: 0; }
 .main-tab:hover { color: #fff; background: #ffffff12; }
@@ -60,6 +61,13 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 [aria-label="Tài chính Marketing"] .kpi-card { background: #ffffffb8; padding: 16px; }
 [aria-label="Tài chính Marketing"] .kpi-card__value { font-size: 28px; }
 .glass-card { box-shadow: var(--glass-shadow); backdrop-filter: none; }
+.charts-row { gap: 20px; }
+.chart-container, .comparison-section, .budget-intelligence, .settings-page .glass-card { border: 1px solid var(--border-subtle); box-shadow: var(--glass-shadow); }
+.chart-container h2, .comparison-section h2 { color: var(--text-primary); }
+.overdue-panel { border-left: 3px solid var(--accent-amber); }
+.appointment-table-wrap, .table-wrap { border: 1px solid var(--border-subtle); border-radius: 10px; }
+.settings-page .settings-grid { gap: 20px; }
+.settings-page .settings-card__value, .settings-page code { color: var(--forest); font-variant-numeric: tabular-nums; }
 .panel-header { padding: 20px 22px; border-bottom: 1px solid var(--border-subtle); gap: 12px; flex-wrap: wrap; }
 .panel-title { font-size: 16px; font-weight: 650; text-transform: none; letter-spacing: -.2px; }
 .main-content { grid-template-columns: minmax(0,1fr) 275px; gap: 20px; }
@@ -80,6 +88,14 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 .settings-page .settings-sources, .settings-page .settings-notes { padding: 24px; }
 .settings-page .panel-header { padding: 0 0 16px; margin-bottom: 16px; }
 .budget-intelligence { margin-top: 0; }
+.marketing-page #mktKpiRow { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.marketing-page #mktKpiRow .kpi-card { min-height: 132px; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) { background: #f8faf5; border-color: #cbd9ca; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) { background: var(--forest); color: #fff; border-color: var(--forest); }
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__label,
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) small { color: #d8e7dc; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(6) { background: #f4edda; border-color: #e2d3ad; }
+.marketing-page .budget-intelligence { border: 1px solid #b7cabc; box-shadow: 0 8px 26px #18362f12; }
 .decision-summary { padding: 0 20px; }
 .decision-summary > div { background: #f5f6ef; border-radius: 9px; }
 .decision-reasons { margin: 16px 20px; background: #edf3e8; }
@@ -91,6 +107,8 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
   body { padding-left: 232px; }
   .header { position: fixed !important; inset: 0 auto 0 0; width: 232px; height: 100dvh; padding: 28px 18px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 30px; z-index: 50; }
   .header__brand { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .header__brand .brand-logo { flex: 0 0 48px; object-fit: cover; }
+  .header__brand .header__title { width: 100%; }
   .header__title h1 { font-size: 17px; }
   .header__controls { order: 3; margin-top: auto; display: flex; flex-direction: column; gap: 18px; width: 100%; }
   .header__search { width: 100%; min-width: 0; display: flex; padding: 10px; }
@@ -115,9 +133,12 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
   [aria-label="Tài chính Marketing"] { padding: 12px; }
   [aria-label="Tài chính Marketing"] .kpi-row { grid-template-columns: minmax(0,1fr); }
   .panel-header { padding: 16px; }
+  .charts-row { gap: 14px; }
   .table-filters { padding: 12px; }
   .settings-grid { grid-template-columns: minmax(0,1fr); }
   .settings-page .settings-sources { padding: 16px; }
+  .marketing-page #mktKpiRow { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .marketing-page #mktKpiRow .kpi-card { min-height: 108px; }
   .record-tabs { max-width: 100%; overflow-x: auto; }
   .mobile-bottom-nav { background: #fff; border-top: 1px solid var(--border-subtle); }
   .nav-item--active { color: var(--forest); }
