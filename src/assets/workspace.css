@@ -73,6 +73,9 @@ body .kpi-card small { color: var(--text-muted); font-size: 12px !important; lin
 [aria-label="Tài chính Marketing"] { padding: 20px; background: #e9eee3; border: 1px solid #d6dfd0; border-radius: 14px; }
 #crmMktStatus { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
 [aria-label="Tài chính Marketing"] .kpi-card { background: #ffffffb8; padding: 16px; }
+/* Finance cards have no icon: keep their content on one shared left edge. */
+[aria-label="Tài chính Marketing"] .kpi-card { flex-direction: column; align-items: stretch; }
+[aria-label="Tài chính Marketing"] .kpi-card__content { width: 100%; height: 100%; text-align: left; display: grid; grid-template-rows: auto auto 1fr; align-content: start; }
 [aria-label="Tài chính Marketing"] .kpi-row > .kpi-card { min-height: 112px; }
 [aria-label="Tài chính Marketing"] .kpi-card__value { font-size: 30px !important; }
 .glass-card { box-shadow: var(--glass-shadow); backdrop-filter: none; }
@@ -170,6 +173,8 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
   .kpi-card__label { font-size: 14px; line-height: 1.3; }
   [aria-label="Tài chính Marketing"] { padding: 12px; }
   [aria-label="Tài chính Marketing"] .kpi-row { grid-template-columns: minmax(0,1fr); }
+  [aria-label="Tài chính Marketing"] .kpi-card__label { min-height: 0; }
+  [aria-label="Tài chính Marketing"] .kpi-card small { min-height: 36px; }
   .panel-header { padding: 16px; }
   .charts-row { gap: 14px; }
   .table-filters { padding: 12px; }
