@@ -80,6 +80,14 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 .settings-page .settings-sources, .settings-page .settings-notes { padding: 24px; }
 .settings-page .panel-header { padding: 0 0 16px; margin-bottom: 16px; }
 .budget-intelligence { margin-top: 0; }
+.marketing-page #mktKpiRow { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.marketing-page #mktKpiRow .kpi-card { min-height: 132px; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) { background: #f8faf5; border-color: #cbd9ca; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) { background: var(--forest); color: #fff; border-color: var(--forest); }
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__label,
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) small { color: #d8e7dc; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(6) { background: #f4edda; border-color: #e2d3ad; }
+.marketing-page .budget-intelligence { border: 1px solid #b7cabc; box-shadow: 0 8px 26px #18362f12; }
 .decision-summary { padding: 0 20px; }
 .decision-summary > div { background: #f5f6ef; border-radius: 9px; }
 .decision-reasons { margin: 16px 20px; background: #edf3e8; }
@@ -118,6 +126,8 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
   .table-filters { padding: 12px; }
   .settings-grid { grid-template-columns: minmax(0,1fr); }
   .settings-page .settings-sources { padding: 16px; }
+  .marketing-page #mktKpiRow { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .marketing-page #mktKpiRow .kpi-card { min-height: 108px; }
   .record-tabs { max-width: 100%; overflow-x: auto; }
   .mobile-bottom-nav { background: #fff; border-top: 1px solid var(--border-subtle); }
   .nav-item--active { color: var(--forest); }
