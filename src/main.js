@@ -491,11 +491,12 @@ function renderPhone(value) {
 
 function renderRowActions(record, index, appointment) {
     const label = appointment ? 'Chia sẻ lịch hẹn' : 'Copy thông tin telesale';
-    return `<button class="btn btn--icon row-action" type="button" data-action="copy-record" data-record-index="${index}" data-record-type="${appointment ? 'appointments' : 'leads'}" title="${label}" aria-label="${label}"><img src="/icons/copy.svg" alt="" aria-hidden="true" /></button>`;
+    const type = appointment ? 'appointments' : 'leads';
+    return `<button class="btn btn--icon row-action" type="button" data-action="view-detail" data-record-index="${index}" data-record-type="${type}" title="Xem chi tiết" aria-label="Xem chi tiết"><img src="/icons/file-text.svg" alt="" aria-hidden="true" /></button><button class="btn btn--icon row-action" type="button" data-action="copy-record" data-record-index="${index}" data-record-type="${type}" title="${label}" aria-label="${label}"><img src="/icons/copy.svg" alt="" aria-hidden="true" /></button>`;
 }
 
 function renderCopyAction(index, type, label) {
-    return `<button class="btn btn--icon row-action" type="button" data-action="copy-record" data-record-index="${index}" data-record-type="${type}" title="${label}" aria-label="${label}"><img src="/icons/copy.svg" alt="" aria-hidden="true" /></button>`;
+    return `<button class="btn btn--icon row-action" type="button" data-action="view-detail" data-record-index="${index}" data-record-type="${type}" title="Xem chi tiết" aria-label="Xem chi tiết"><img src="/icons/file-text.svg" alt="" aria-hidden="true" /></button><button class="btn btn--icon row-action" type="button" data-action="copy-record" data-record-index="${index}" data-record-type="${type}" title="${label}" aria-label="${label}"><img src="/icons/copy.svg" alt="" aria-hidden="true" /></button>`;
 }
 
 function renderTelegramAction(index, type) {
@@ -1047,6 +1048,13 @@ function setupEvents() {
             event.stopPropagation();
             const record = state.tableRecords[Number(telegramButton.dataset.recordIndex)];
             if (record) sendTelegramRecord(record, telegramButton.dataset.recordType, telegramButton);
+            return;
+        }
+        const detailButton = event.target.closest('[data-action="view-detail"]');
+        if (detailButton) {
+            event.stopPropagation();
+            const record = state.tableRecords[Number(detailButton.dataset.recordIndex)];
+            if (record) openDetail(record, detailButton.dataset.recordType || state.activeRecordType);
             return;
         }
         const copyButton = event.target.closest('[data-action="copy-record"]');
