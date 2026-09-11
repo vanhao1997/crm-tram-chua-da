@@ -114,7 +114,7 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
   .header__search { width: 100%; min-width: 0; display: flex; padding: 10px; }
   .header__search input { width: 100%; min-width: 0; font-size: 12px; }
   .header__status { flex-wrap: wrap; gap: 12px; }
-  .main-tabs-container { display: flex; flex-direction: column; width: 100%; padding: 0; }
+  .main-tabs-container { position: static; left: auto; transform: none; display: flex; flex-direction: column; width: 100%; padding: 0; margin: 0; }
   .main-tab { width: 100%; text-align: left; padding: 13px 14px; }
   .dashboard { max-width: 1640px; }
   .mobile-bottom-nav { display: none; }
