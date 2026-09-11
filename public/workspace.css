@@ -62,9 +62,9 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 .action-btn--call:hover, .action-btn--zalo:hover { background: var(--champagne) !important; color: var(--forest) !important; }
 .btn--icon img { width: 17px; height: 17px; opacity: .78; }
 .kpi-card__content { gap: 12px; min-width: 0; }
-.kpi-card__label { text-transform: none; font-size: 13px; font-weight: 600; letter-spacing: 0; }
-.kpi-card__value { font-size: clamp(26px, 2.8vw, 38px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
-.kpi-card small { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+body .kpi-card__label { text-transform: none; font-size: 14px !important; font-weight: 600; letter-spacing: 0; }
+body .kpi-card__value { font-size: clamp(30px, 3vw, 40px) !important; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+body .kpi-card small { color: var(--text-muted); font-size: 12px !important; line-height: 1.5; }
 #kpiRevenue { background: var(--forest); color: #fff; border-color: var(--forest); }
 #kpiRevenue .kpi-card__value { color: #fff !important; -webkit-text-fill-color: #fff !important; }
 #kpiRevenue .kpi-card__label { color: #d9e5dc; }
@@ -74,7 +74,7 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 #crmMktStatus { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
 [aria-label="Tài chính Marketing"] .kpi-card { background: #ffffffb8; padding: 16px; }
 [aria-label="Tài chính Marketing"] .kpi-row > .kpi-card { min-height: 112px; }
-[aria-label="Tài chính Marketing"] .kpi-card__value { font-size: 28px; }
+[aria-label="Tài chính Marketing"] .kpi-card__value { font-size: 30px !important; }
 .glass-card { box-shadow: var(--glass-shadow); backdrop-filter: none; }
 .charts-row { gap: 20px; }
 .chart-container, .comparison-section, .budget-intelligence, .settings-page .glass-card { border: 1px solid var(--border-subtle); box-shadow: var(--glass-shadow); }
@@ -92,7 +92,7 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
 .record-tab { border-radius: 6px; padding: 8px 12px; white-space: nowrap; }
 .record-tab--active { color: var(--forest); background: #fff; box-shadow: 0 1px 5px #18362f12; }
 .data-table th { background: #f1f5ef; color: var(--text-muted); font-size: 11px; font-weight: 650; letter-spacing: .03em; }
-.data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid #eaf0e7; font-size: 13px; }
+.data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid #eaf0e7; font-size: 14px; }
 .data-table tbody tr:hover { background: #f4f8f1; }
 .btn, .nav-item { white-space: nowrap; }
 .btn--primary { background: var(--forest); }
@@ -153,8 +153,8 @@ body, button, input, select, textarea { font-family: 'Segoe UI', 'Noto Sans', Ar
   .dashboard { padding: 16px 12px 90px; gap: 18px; }
   .kpi-row { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
   .kpi-card { padding: 14px; flex-direction: column; gap: 10px; }
-  .kpi-card__value { font-size: 28px; }
-  .kpi-card__label { font-size: 12px; }
+  .kpi-card__value { font-size: 30px; }
+  .kpi-card__label { font-size: 13px; }
   [aria-label="Tài chính Marketing"] { padding: 12px; }
   [aria-label="Tài chính Marketing"] .kpi-row { grid-template-columns: minmax(0,1fr); }
   .panel-header { padding: 16px; }
