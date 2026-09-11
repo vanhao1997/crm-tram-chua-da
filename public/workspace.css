@@ -1,0 +1,125 @@
+/* BSN workspace: operational data stays primary, brand frames navigation. */
+:root {
+  --forest: #123e34;
+  --champagne: #efe1bd;
+  --bg-primary: #f4f4ee;
+  --bg-secondary: #fff;
+  --bg-card: #fff;
+  --bg-card-hover: #f0f5ef;
+  --text-primary: #18362f;
+  --text-secondary: #3c514a;
+  --text-muted: #62746b;
+  --border-subtle: #dbe3da;
+  --border-glow: #82a397;
+  --accent-blue: #226653;
+  --accent-emerald: #226653;
+  --accent-green: #226653;
+  --accent-amber: #95691e;
+  --accent-red: #ad4641;
+  --glass-bg: #fff;
+  --glass-border: #dbe3da;
+  --glass-shadow: 0 3px 14px #18362f05;
+  --radius-lg: 14px;
+}
+body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%), var(--bg-primary); }
+.header { background: var(--forest); color: #fff; border: 0; box-shadow: none; }
+.header__title h1 { color: #fff; font-size: 18px; letter-spacing: -.3px; }
+.header__subtitle { color: #b8cfc2; letter-spacing: .04em; text-transform: none; }
+.brand-logo { border-radius: 50%; width: 48px; height: 48px; }
+.main-tabs-container { border: 0; background: transparent; gap: 8px; }
+.main-tab { color: #cadbd1; border: 0; border-radius: 8px; font-size: 14px; text-transform: none; letter-spacing: 0; }
+.main-tab:hover { color: #fff; background: #ffffff12; }
+.main-tab--active { background: var(--champagne); color: var(--forest); box-shadow: none; }
+.main-tab--active:hover { background: var(--champagne); color: var(--forest); }
+.header__search { background: #fff; color: var(--forest); border: none; }
+.header__search input { color: var(--forest); }
+.header__status, .refresh-info__time, .auto-refresh__label { color: #d8e5db; }
+.dashboard { gap: 24px; padding: 32px; }
+.page-context { background: none; border: none; padding: 0 0 6px; }
+.page-context h2 { font-size: clamp(24px, 2.4vw, 34px); letter-spacing: -.8px; line-height: 1.25; font-weight: 650; }
+.page-context__eyebrow { color: var(--accent-emerald); letter-spacing: .15em; font-size: 10px; margin-bottom: 8px; }
+.page-context__period { margin-top: 8px; }
+.data-status { border: 1px solid var(--border-subtle); background: #fff; border-radius: 8px; }
+.filter-tabs { border: 0; background: transparent; gap: 6px; }
+.filter-tab { border: 1px solid var(--border-subtle); background: #fff; padding: 9px 16px; border-radius: 7px; color: var(--text-secondary); white-space: nowrap; }
+.filter-tab--active { background: var(--forest); color: #fff; border-color: var(--forest); box-shadow: none; }
+.kpi-row { gap: 14px; }
+.kpi-card { padding: 22px; align-items: flex-start; flex-direction: row-reverse; justify-content: space-between; border-radius: 12px; backdrop-filter: none; }
+.kpi-card:hover { transform: none; box-shadow: 0 4px 16px #173e340b; border-color: #a5bbae; }
+.kpi-card__icon { width: 34px; height: 34px; border-radius: 8px; background: #eef4ee; color: var(--forest); }
+.kpi-card__icon svg { width: 18px; height: 18px; }
+.kpi-card__content { gap: 12px; min-width: 0; }
+.kpi-card__label { text-transform: none; font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.kpi-card__value { font-size: clamp(26px, 2.8vw, 38px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.kpi-card small { color: var(--text-muted); font-size: 11px; line-height: 1.5; }
+#kpiRevenue { background: var(--forest); color: #fff; border-color: var(--forest); }
+#kpiRevenue .kpi-card__label { color: #d9e5dc; }
+#kpiRevenue .kpi-card__icon { background: #ffffff15; color: var(--champagne); }
+[aria-label="Tài chính Marketing"] { padding: 20px; background: #e9eee3; border: 1px solid #d6dfd0; border-radius: 14px; }
+#crmMktStatus { font-size: 12px; color: var(--text-secondary); margin-bottom: 14px; }
+[aria-label="Tài chính Marketing"] .kpi-card { background: #ffffffb8; padding: 16px; }
+[aria-label="Tài chính Marketing"] .kpi-card__value { font-size: 28px; }
+.glass-card { box-shadow: var(--glass-shadow); backdrop-filter: none; }
+.panel-header { padding: 20px 22px; border-bottom: 1px solid var(--border-subtle); gap: 12px; flex-wrap: wrap; }
+.panel-title { font-size: 16px; font-weight: 650; text-transform: none; letter-spacing: -.2px; }
+.main-content { grid-template-columns: minmax(0,1fr) 275px; gap: 20px; }
+.table-filters { background: #fafbf8; padding: 14px 20px; }
+.form-input { background: #fff; border-radius: 7px; min-height: 39px; }
+.record-tabs { gap: 6px; background: #edf2eb; padding: 4px; border-radius: 9px; }
+.record-tab { border-radius: 6px; padding: 8px 12px; white-space: nowrap; }
+.record-tab--active { color: var(--forest); background: #fff; box-shadow: 0 1px 5px #18362f12; }
+.data-table th { background: #f1f5ef; color: var(--text-muted); font-size: 11px; font-weight: 650; letter-spacing: .03em; }
+.data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid #eaf0e7; font-size: 13px; }
+.data-table tbody tr:hover { background: #f4f8f1; }
+.btn, .nav-item { white-space: nowrap; }
+.btn--primary { background: var(--forest); }
+.btn--icon { border-radius: 7px; }
+.comparison-item { background: #fff; border: 1px solid var(--border-subtle); border-radius: 10px; padding: 18px; }
+.comparison-item strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.settings-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.settings-page .settings-sources, .settings-page .settings-notes { padding: 24px; }
+.settings-page .panel-header { padding: 0 0 16px; margin-bottom: 16px; }
+.budget-intelligence { margin-top: 0; }
+.decision-summary { padding: 0 20px; }
+.decision-summary > div { background: #f5f6ef; border-radius: 9px; }
+.decision-reasons { margin: 16px 20px; background: #edf3e8; }
+.budget-charts, .budget-notes, .budget-view__issues { margin: 16px 20px; }
+.modal { border-radius: 16px; box-shadow: 0 24px 80px #102e3426; }
+.modal-overlay { background: #0d29296b; backdrop-filter: blur(3px); }
+:is(button,a,input,select,summary,[tabindex]):focus-visible { outline: 3px solid #9f7934; outline-offset: 3px; }
+@media (min-width: 1100px) {
+  body { padding-left: 232px; }
+  .header { position: fixed; inset: 0 auto 0 0; width: 232px; height: 100dvh; padding: 28px 18px; display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 30px; z-index: 50; }
+  .header__brand { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .header__title h1 { font-size: 17px; }
+  .header__controls { order: 3; margin-top: auto; display: flex; flex-direction: column; gap: 18px; width: 100%; }
+  .header__search { width: 100%; min-width: 0; display: flex; padding: 10px; }
+  .header__search input { width: 100%; min-width: 0; font-size: 12px; }
+  .header__status { flex-wrap: wrap; gap: 12px; }
+  .main-tabs-container { display: flex; flex-direction: column; width: 100%; padding: 0; }
+  .main-tab { width: 100%; text-align: left; padding: 13px 14px; }
+  .dashboard { max-width: 1640px; }
+  .mobile-bottom-nav { display: none; }
+}
+@media (max-width: 1099px) {
+  .main-content { grid-template-columns: minmax(0,1fr); }
+  .header { padding: 16px; }
+  .dashboard { padding: 22px; }
+}
+@media (max-width: 600px) {
+  .dashboard { padding: 16px 12px 90px; gap: 18px; }
+  .kpi-row { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+  .kpi-card { padding: 14px; flex-direction: column; gap: 10px; }
+  .kpi-card__value { font-size: 28px; }
+  .kpi-card__label { font-size: 12px; }
+  [aria-label="Tài chính Marketing"] { padding: 12px; }
+  [aria-label="Tài chính Marketing"] .kpi-row { grid-template-columns: minmax(0,1fr); }
+  .panel-header { padding: 16px; }
+  .table-filters { padding: 12px; }
+  .settings-grid { grid-template-columns: minmax(0,1fr); }
+  .settings-page .settings-sources { padding: 16px; }
+  .record-tabs { max-width: 100%; overflow-x: auto; }
+  .mobile-bottom-nav { background: #fff; border-top: 1px solid var(--border-subtle); }
+  .nav-item--active { color: var(--forest); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
