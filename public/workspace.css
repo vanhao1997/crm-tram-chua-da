@@ -49,6 +49,10 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 .kpi-card:hover { transform: none; box-shadow: 0 4px 16px #173e340b; border-color: #a5bbae; }
 .kpi-card__icon { width: 34px; height: 34px; border-radius: 8px; background: #eef4ee; color: var(--forest); }
 .kpi-card__icon svg { width: 18px; height: 18px; }
+.kpi-card__icon--blue, .kpi-card__icon--amber, .kpi-card__icon--green, .kpi-card__icon--emerald { background: #eef4ee !important; color: var(--forest) !important; }
+.action-btn--call, .action-btn--zalo { background: #f0f5ef !important; color: var(--forest) !important; border-color: #cbd9ca !important; }
+.action-btn--call:hover, .action-btn--zalo:hover { background: var(--champagne) !important; color: var(--forest) !important; }
+.btn--icon img { width: 17px; height: 17px; opacity: .78; }
 .kpi-card__content { gap: 12px; min-width: 0; }
 .kpi-card__label { text-transform: none; font-size: 13px; font-weight: 600; letter-spacing: 0; }
 .kpi-card__value { font-size: clamp(26px, 2.8vw, 38px); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
