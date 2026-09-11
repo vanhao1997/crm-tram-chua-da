@@ -92,7 +92,7 @@ body .kpi-card small { color: var(--text-muted); font-size: 12px !important; lin
 .record-tab { border-radius: 6px; padding: 8px 12px; white-space: nowrap; }
 .record-tab--active { color: var(--forest); background: #fff; box-shadow: 0 1px 5px #18362f12; }
 .data-table th { background: #f1f5ef; color: var(--text-muted); font-size: 11px; font-weight: 650; letter-spacing: .03em; }
-.data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid #eaf0e7; font-size: 14px; }
+body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid #eaf0e7; font-size: 14px; }
 .data-table tbody tr:hover { background: #f4f8f1; }
 .btn, .nav-item { white-space: nowrap; }
 .btn--primary { background: var(--forest); }
@@ -107,6 +107,7 @@ body .kpi-card small { color: var(--text-muted); font-size: 12px !important; lin
 .marketing-page #mktKpiRow .kpi-card { min-height: 124px; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) { background: #f8faf5; border-color: #cbd9ca; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) { background: var(--forest); color: #fff; border-color: var(--forest); }
+.marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__value { color: #fff; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__label,
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) small { color: #d8e7dc; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(6) { background: #f4edda; border-color: #e2d3ad; }
