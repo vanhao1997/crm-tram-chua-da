@@ -60,6 +60,13 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
 [aria-label="Tài chính Marketing"] .kpi-card { background: #ffffffb8; padding: 16px; }
 [aria-label="Tài chính Marketing"] .kpi-card__value { font-size: 28px; }
 .glass-card { box-shadow: var(--glass-shadow); backdrop-filter: none; }
+.charts-row { gap: 20px; }
+.chart-container, .comparison-section, .budget-intelligence, .settings-page .glass-card { border: 1px solid var(--border-subtle); box-shadow: var(--glass-shadow); }
+.chart-container h2, .comparison-section h2 { color: var(--text-primary); }
+.overdue-panel { border-left: 3px solid var(--accent-amber); }
+.appointment-table-wrap, .table-wrap { border: 1px solid var(--border-subtle); border-radius: 10px; }
+.settings-page .settings-grid { gap: 20px; }
+.settings-page .settings-card__value, .settings-page code { color: var(--forest); font-variant-numeric: tabular-nums; }
 .panel-header { padding: 20px 22px; border-bottom: 1px solid var(--border-subtle); gap: 12px; flex-wrap: wrap; }
 .panel-title { font-size: 16px; font-weight: 650; text-transform: none; letter-spacing: -.2px; }
 .main-content { grid-template-columns: minmax(0,1fr) 275px; gap: 20px; }
@@ -123,6 +130,7 @@ body { background: radial-gradient(ellipse at 100% 0, #e5eee1 0, transparent 45%
   [aria-label="Tài chính Marketing"] { padding: 12px; }
   [aria-label="Tài chính Marketing"] .kpi-row { grid-template-columns: minmax(0,1fr); }
   .panel-header { padding: 16px; }
+  .charts-row { gap: 14px; }
   .table-filters { padding: 12px; }
   .settings-grid { grid-template-columns: minmax(0,1fr); }
   .settings-page .settings-sources { padding: 16px; }
