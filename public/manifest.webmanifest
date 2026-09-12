@@ -1,0 +1,14 @@
+{
+  "id": "/index.html",
+  "name": "Trạm Chữa Da BSN",
+  "short_name": "BSN CRM",
+  "lang": "vi",
+  "start_url": "/index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f4ee",
+  "theme_color": "#123e34",
+  "icons": [
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
