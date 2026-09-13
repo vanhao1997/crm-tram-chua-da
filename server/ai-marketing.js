@@ -24,6 +24,14 @@ export function validateAiResponse(data) {
   return data.signals.every(s => s && ['positive', 'negative', 'warning', 'info'].includes(s.type) && typeof s.title === 'string' && Array.isArray(s.evidence));
 }
 
+export function normalizeAiResponse(data) {
+  if (!data || typeof data !== 'object') return null;
+  const action = { increase:'increase', hold:'hold', decrease:'decrease', insufficient_data:'insufficient_data', tăng:'increase', giảm:'decrease', giữ:'hold' }[String(data.action || '').trim().toLowerCase()] || 'insufficient_data';
+  const confidence = { high:'high', medium:'medium', low:'low', cao:'high', 'trung bình':'medium', thấp:'low' }[String(data.confidence || '').trim().toLowerCase()] || 'low';
+  return { summary: String(data.summary || data.recommendation || data.analysis || 'Chưa đủ dữ liệu để kết luận.'), action, percent: action === 'increase' ? 10 : action === 'decrease' ? -10 : action === 'hold' ? 0 : null, confidence,
+    signals: Array.isArray(data.signals) ? data.signals.map(s => ({ type: ['positive','negative','warning','info'].includes(s?.type) ? s.type : 'info', title: String(s?.title || s?.name || 'Tín hiệu'), evidence: Array.isArray(s?.evidence) ? s.evidence.map(String) : [], impact: String(s?.impact || '') })) : [], reasons: Array.isArray(data.reasons) ? data.reasons.map(String) : [], checksBeforeChange: Array.isArray(data.checksBeforeChange) ? data.checksBeforeChange.map(String) : [], dataLimitations: Array.isArray(data.dataLimitations) ? data.dataLimitations.map(String) : [], sourcePeriod: String(data.sourcePeriod || ''), generatedAt: String(data.generatedAt || new Date().toISOString()) };
+}
+
 function promptFor(payload) {
   return `Analyze aggregate marketing metrics only. Never invent missing values or call actual spend approved budget. Respect deterministic recommendation and cutoff D-2. Return JSON only with keys summary, action, percent, confidence, signals, reasons, checksBeforeChange, dataLimitations, sourcePeriod, generatedAt. Action must be increase/hold/decrease/insufficient_data; percent only 10,0,-10,null. Payload: ${JSON.stringify(payload)}`;
 }
@@ -44,7 +52,8 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
     if (response.status < 500) throw Object.assign(new Error('AI provider rejected request'), { code: 'AI_PROVIDER_ERROR', status: 502 });
     if (attempt === 1) throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_ERROR', status: 502 });
   }
-  let parsed; try { const json = await response.json(); parsed = JSON.parse(json?.choices?.[0]?.message?.content || ''); } catch { throw Object.assign(new Error('AI returned invalid JSON'), { code: 'AI_INVALID_RESPONSE', status: 502 }); }
+  let parsed; try { const json = await response.json(); const content = json?.choices?.[0]?.message?.content; parsed = typeof content === 'object' ? content : JSON.parse(String(content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')); } catch { throw Object.assign(new Error('AI returned invalid JSON'), { code: 'AI_INVALID_RESPONSE', status: 502 }); }
+  parsed = normalizeAiResponse(parsed);
   if (!validateAiResponse(parsed)) throw Object.assign(new Error('AI returned invalid analysis schema'), { code: 'AI_INVALID_RESPONSE', status: 502 });
   const guard = payload?.guardrails || {};
   if (guard.deterministicAction === 'insufficient_data' || guard.stale === true || Number(guard.historicalSamples) < 3 || Number(guard.criticalWarnings) > 0) {
