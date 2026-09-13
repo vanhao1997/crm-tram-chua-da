@@ -118,7 +118,8 @@ export function buildAggregatePayload(model = {}, crm = {}) {
       roas: safe(sample.efficiency?.roas), costPerArrived: safe(sample.efficiency?.costPerArrived),
       bookingRate: safe(sample.efficiency?.leadToBooked), arrivalRate: safe(sample.efficiency?.bookedToArrived),
     })));
-  return { period: { monthKey: model.monthKey || null, cutoffDate: model.cutoffKey || null, phase: model.currentPhase || null },
+  const currentPhaseRecord = (model.phases || []).find(p => p.phase === model.currentPhase) || activePhase;
+  return { period: { monthKey: model.monthKey || null, startDate: model.selectedRange?.start || null, endDate: model.selectedRange?.end || null, cutoffDate: model.cutoffKey || null, phase: model.currentPhase || null, phaseStartDate: currentPhaseRecord.start || null, phaseEndDate: currentPhaseRecord.end || null },
     current: { ads:safe(current.ads), managementFee:safe(current.managementFee), totalCost:safe(current.cost), revenue:safe(current.revenue), roas:safe(eff.roas), costPerData:safe(eff.costPerData), costPerArrived:safe(eff.costPerArrived), data:safe(current.data), booked:safe(current.booked), arrived:safe(current.arrived), bookingRate:safe(eff.leadToBooked), arrivalRate:safe(eff.bookedToArrived), completeDays:safe(current.completeDays), expectedDays:safe(current.expectedDays) },
     historical: { sampleMonths: historical.months || 0, phaseBaselines: (model.phases || []).map(p => ({ phase: p.phase, roasMedian: safe(p.baseline?.roasMedian), costPerArrivedMedian: safe(p.baseline?.cpaMedian), bookingRateMedian: safe(p.baseline?.bookingRateMedian), arrivalRateMedian: safe(p.baseline?.arrivalRateMedian), dailyAdsMedian: safe(p.baseline?.dailyAdsMedian) })) }, daily: daily.slice(0, 62),
     crm: aggregateCrm,
