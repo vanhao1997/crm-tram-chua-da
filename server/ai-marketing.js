@@ -54,9 +54,12 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
   if (String(config.aiEnabled).toLowerCase() !== 'true' || !config.aiApiKey) throw Object.assign(new Error('AI is not configured'), { code: 'AI_NOT_CONFIGURED', status: 503 });
   const base = String(config.aiBaseUrl).replace(/\/$/, '');
   const body = JSON.stringify({ model: config.aiModel, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'You are a cautious marketing analyst.' }, { role: 'user', content: promptFor(payload) }] });
+  const deadline = Date.now() + Math.max(1000, Number(config.aiTimeoutMs) || 20_000);
   let response;
   for (let attempt = 0; attempt < 2; attempt++) {
-    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), config.aiTimeoutMs);
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 });
+    const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), remaining);
     try { response = await fetchImpl(`${base}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.aiApiKey}` }, body, signal: controller.signal }); }
     catch (error) { if (attempt === 1) throw Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 }); continue; }
     finally { clearTimeout(timer); }
