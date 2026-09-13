@@ -19,9 +19,9 @@ export function validateAiInput(body) {
 export function validateAiResponse(data) {
   if (!data || typeof data !== 'object' || !ACTIONS.has(data.action) || !['high', 'medium', 'low'].includes(data.confidence) || typeof data.summary !== 'string') return false;
   if (data.percent !== null && ![10, 0, -10].includes(data.percent)) return false;
-  if (!Array.isArray(data.signals) || !Array.isArray(data.reasons) || !Array.isArray(data.checksBeforeChange) || !Array.isArray(data.dataLimitations)) return false;
+  if (!Array.isArray(data.signals) || !Array.isArray(data.reasons) || !Array.isArray(data.checksBeforeChange) || !Array.isArray(data.dataLimitations) || !Array.isArray(data.nextSteps)) return false;
   if (data.action === 'insufficient_data' && data.percent !== null) return false;
-  return data.signals.every(s => s && ['positive', 'negative', 'warning', 'info'].includes(s.type) && typeof s.title === 'string' && Array.isArray(s.evidence));
+  const forbidden = /\\b(?:\\+?84|0)\\d{8,10}\\b|\\b(?:name|phone|normalizedPhone|note|customer)\\b/i;\n  if ([data.summary, ...data.reasons, ...data.checksBeforeChange, ...data.dataLimitations].some(v => forbidden.test(String(v)))) return false;\n  if (!data.nextSteps.every(step => step && typeof step.action === 'string' && typeof step.owner === 'string' && typeof step.deadline === 'string' && typeof step.reason === 'string')) return false;\n  return data.signals.every(s => s && ['positive', 'negative', 'warning', 'info'].includes(s.type) && typeof s.title === 'string' && Array.isArray(s.evidence));
 }
 
 export function normalizeAiResponse(data) {
