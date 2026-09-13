@@ -6,6 +6,7 @@ import express from 'express';
 import { SOURCE_NAMES, validateSourceName } from './config.js';
 import { SheetsServiceError } from './sheets-service.js';
 import { applyNetworkSecurity } from './network.js';
+import { analyzeMarketing } from './ai-marketing.js';
 
 function publicError(error) {
     if (error instanceof SheetsServiceError) {
@@ -56,6 +57,12 @@ export function createApp({ service, config, logger = console, sendTelegram = te
     app.get('/api/telegram/settings', (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.json({ botConfigured: Boolean(config.telegramBotToken), defaultChatId: config.telegramChatId || '' });
+    });
+
+    app.post('/api/marketing/ai-analysis', express.json({ limit: '64kb' }), async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try { const analysis = await analyzeMarketing(req.body, config); return res.json({ ok: true, analysis }); }
+        catch (error) { return res.status(error.status || 502).json({ ok: false, error: error.message, code: error.code || 'AI_PROVIDER_ERROR' }); }
     });
 
     app.post('/api/telegram/send-record', express.json({ limit: '16kb' }), async (req, res) => {

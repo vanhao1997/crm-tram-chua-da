@@ -1,0 +1,27 @@
+export function buildAggregatePayload(model = {}, raw = []) {
+  const safe = v => v == null || Number.isFinite(Number(v)) ? v : null;
+  const current = model.current || {};
+  const eff = current.efficiency || {};
+  const historical = model.historical || {};
+  const daily = (model.phases || []).flatMap(p => (p.days || []).map(d => ({
+    date: d.dateKey || null, phase: p.phase || null,
+    ads: safe(d.marketing_cost), managementFee: safe(d.ad_management_fee), totalCost: safe(d.cost),
+    revenue: safe(d.revenue), data: safe(d.dataTotal), booked: safe(d.bookedTotal), arrived: safe(d.arrivedTotal),
+    completeness: d.dataCompleteness?.complete ?? null,
+    issues: (d.dataCompleteness?.issues || []).map(i => i.code || i.message).slice(0, 8)
+  })));
+  const issues = model.recommendation?.issues || [];
+  return { period: { monthKey: model.monthKey || null, cutoffDate: model.cutoffKey || null, phase: model.currentPhase || null },
+    current: { ads:safe(current.ads), managementFee:safe(current.managementFee), totalCost:safe(current.cost), revenue:safe(current.revenue), roas:safe(eff.roas), costPerData:safe(eff.costPerData), costPerArrived:safe(eff.costPerArrived), data:safe(current.data), booked:safe(current.booked), arrived:safe(current.arrived), bookingRate:safe(eff.bookingRate), arrivalRate:safe(eff.arrivalRate), completeDays:safe(current.completeDays), expectedDays:safe(current.expectedDays) },
+    historical: { sampleMonths: historical.months || 0 }, daily: daily.slice(0, 62),
+    guardrails: { deterministicAction: model.recommendation?.action || 'insufficient_data', stale: Boolean(model.stale), historicalSamples: historical.months || 0, criticalWarnings: issues.filter(i => i?.severity === 'critical').length },
+    budgetRule:{ maxAdjustmentPercent:10, cutoffRule:'D-2' } };
+}
+export function initAiMarketingPanel({ modelProvider, targetId='aiMarketingSignals' } = {}) {
+  const root=document.getElementById(targetId); if(!root) return;
+  let busy=false;
+  const key=()=>`bsn-ai:${location.pathname}:${modelProvider?.()?.monthKey||'current'}`;
+  const render=(state='empty', data=null, error='')=>{ root.innerHTML=`<div class="ai-signals__head"><div><p class="eyebrow">AI MARKETING SIGNALS</p><h2 class="panel-title">Phân tích tín hiệu Marketing</h2><p class="panel-subtitle">AI chỉ đọc số liệu tổng hợp, không thay đổi ngân sách.</p></div><button class="btn btn--secondary" data-ai-run ${busy?'disabled':''}>${busy?'Đang phân tích…':'Phân tích kỳ này'}</button></div>${state==='error'?`<p class="ai-state ai-state--error">${error}</p>`:state==='empty'?'<p class="ai-state">Chưa phân tích kỳ này.</p>':`<div class="ai-result"><div class="ai-result__summary"><strong>${data.summary||'—'}</strong><span class="decision-badge decision-badge--${data.action||'insufficient_data'}">${({increase:'Tăng 10%',decrease:'Giảm 10%',hold:'Giữ nguyên',insufficient_data:'Chưa đủ dữ liệu'})[data.action]||'Chưa đủ dữ liệu'}</span></div><p>Độ tin cậy: ${data.confidence||'—'} · ${data.sourcePeriod||''}</p><ul>${(data.signals||[]).map(s=>`<li><strong>${s.title||'Tín hiệu'}</strong><br>${(s.evidence||[]).join(' · ')}<br><small>${s.impact||''}</small></li>`).join('')}</ul>${data.checksBeforeChange?.length?`<p><b>Cần kiểm tra:</b> ${data.checksBeforeChange.join(' · ')}</p>`:''}</div>`}<button class="ai-clear" data-ai-clear ${data?'':'hidden'}>Xóa phân tích phiên này</button>`; root.querySelector('[data-ai-run]')?.addEventListener('click', run); root.querySelector('[data-ai-clear]')?.addEventListener('click',()=>{sessionStorage.removeItem(key()); render();});};
+  async function run(){ if(busy)return; busy=true; render('empty'); try { const payload=buildAggregatePayload(modelProvider?.()||{}); const res=await fetch('/api/marketing/ai-analysis',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({periodKey:payload.period.monthKey,payload})}); if(!res.ok) throw new Error((await res.json().catch(()=>({}))).error||'Không thể phân tích AI'); const out=await res.json(); sessionStorage.setItem(key(),JSON.stringify(out.analysis)); render('result',out.analysis); } catch(e){render('error',null,e.message);} finally{busy=false;} }
+  try { const cached=sessionStorage.getItem(key()); render(cached?'result':'empty',cached?JSON.parse(cached):null); } catch { render(); }
+}

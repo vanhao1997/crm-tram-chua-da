@@ -39,6 +39,9 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const trustedProxyCidrs = splitList(env.TRUSTED_PROXY_CIDRS);
     const telegramBotToken = String(env.TELEGRAM_BOT_TOKEN || '').trim();
     const telegramChatId = String(env.TELEGRAM_CHAT_ID || '').trim();
+    const aiBaseUrl = String(env.AI_BASE_URL || 'https://9router.vibecodingsolution.ovh/v1').trim();
+    const aiApiKey = String(env.AI_API_KEY || '').trim();
+    const aiModel = String(env.AI_MODEL || 'cx/gpt-5.6-sol').trim();
 
     if (production && !credentialFile && !credentialJson) {
         throw new Error('GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_SERVICE_ACCOUNT_JSON is required in production');
@@ -105,6 +108,9 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
         retryCount: numberEnv(env.SHEETS_RETRY_COUNT, 2, 0),
         telegramBotToken,
         telegramChatId,
+        aiBaseUrl, aiApiKey, aiModel,
+        aiTimeoutMs: numberEnv(env.AI_TIMEOUT_MS, 20_000, 1),
+        aiEnabled: String(env.AI_ENABLED || 'false').trim(),
         trustedProxyCidrs,
         allowedClientCidrs,
         sources

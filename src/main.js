@@ -17,6 +17,7 @@ import {
 } from './core/api/sheets-api.js';
 import { getOverdueAppointments, renderOverdueList } from './features/appointments/appointments.js';
 import { renderBudgetView } from './features/dashboard/budget-view.js';
+import { initAiMarketingPanel } from './features/dashboard/ai-marketing.js';
 import { readTelegramGroup } from './features/dashboard/telegram-settings.js';
 import { dateKey } from './core/analytics/budget-intelligence.js';
 import { initAppShell, restoreScroll } from './features/dashboard/app-shell.js';
@@ -765,6 +766,7 @@ function renderBudgetIntelligence(raw) {
     model.sourceFetchedAt = state.marketingMeta?.fetchedAt;
     state.lastBudgetModel = model;
     renderBudgetView(model, { onMonthChange: month => { state.budgetMonth = month; renderBudgetIntelligence(raw); } });
+    initAiMarketingPanel({ modelProvider: () => state.lastBudgetModel });
 }
 function officialMetric(raw, metadata, key) {
     const value = metadata?.[key] ?? raw?.[key];
