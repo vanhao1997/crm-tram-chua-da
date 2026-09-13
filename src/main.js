@@ -1161,10 +1161,21 @@ function escapeHtml(value) {
 function init() {
     initDom();
     setupEvents();
+    prepareMobileLayout();
     syncFilterTabs();
     document.body.classList.add('light-theme');
     connectSheet();
     initAppShell({ refresh: loadData, lastSuccess: () => state.lastRefresh?.getTime() || 0, isBusy: () => state.loading || Boolean(state.telegramPending) });
+}
+
+function prepareMobileLayout() {
+    if (!window.matchMedia?.('(max-width: 767px)').matches) return;
+    const dashboard = document.getElementById('dashboard');
+    const content = dashboard?.querySelector('.main-content');
+    if (!dashboard || !content || content.dataset.mobilePrepared) return;
+    content.dataset.mobilePrepared = 'true';
+    [...content.children].forEach(child => dashboard.appendChild(child));
+    content.remove();
 }
 
 document.addEventListener('DOMContentLoaded', init);
