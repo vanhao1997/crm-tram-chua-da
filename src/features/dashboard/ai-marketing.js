@@ -1,8 +1,9 @@
 export function buildAggregatePayload(model = {}, raw = []) {
   const safe = v => v == null || Number.isFinite(Number(v)) ? v : null;
-  const current = model.current || {};
+  const activePhase = (model.phases || []).find(p => p.phase === model.currentPhase) || model.phases?.[0] || {};
+  const current = activePhase.current || model.current || {};
   const eff = current.efficiency || {};
-  const historical = model.historical || {};
+  const historical = activePhase.baseline || model.historical || {};
   const daily = (model.phases || []).flatMap(p => (p.days || []).map(d => ({
     date: d.dateKey || null, phase: p.phase || null,
     ads: safe(d.marketing_cost), managementFee: safe(d.ad_management_fee), totalCost: safe(d.cost),
