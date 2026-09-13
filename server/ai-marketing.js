@@ -3,6 +3,9 @@ const ACTIONS = new Set(['increase', 'hold', 'decrease', 'insufficient_data']);
 
 export function validateAiInput(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw Object.assign(new Error('Invalid AI payload'), { code: 'AI_INVALID_INPUT', status: 400 });
+  if (typeof body.periodKey !== 'string' || !body.periodKey.trim() || !body.payload || typeof body.payload !== 'object' || Array.isArray(body.payload)) {
+    throw Object.assign(new Error('Invalid AI payload'), { code: 'AI_INVALID_INPUT', status: 400 });
+  }
   const serialized = JSON.stringify(body);
   if (Buffer.byteLength(serialized, 'utf8') > 65536) throw Object.assign(new Error('AI payload too large'), { code: 'AI_PAYLOAD_TOO_LARGE', status: 413 });
   const walk = (value) => {

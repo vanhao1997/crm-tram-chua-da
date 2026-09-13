@@ -30,7 +30,16 @@ export function initAiMarketingPanel({ modelProvider, crmProvider, targetId = 'a
     run.addEventListener('click', analyze);
     add(root, 'p', `Quy tắc hệ thống: ${labels[payload.guardrails.deterministicAction]} · Lịch sử: ${payload.historical.sampleMonths} mẫu hợp lệ`);
     if (payload.guardrails.stale) add(root, 'p', 'Dữ liệu cũ: cần tải lại trước khi quyết định ngân sách.', 'ai-state');
-    if (error) add(root, 'p', error, 'ai-state ai-state--error');
+    if (error) {
+      add(root, 'p', error, 'ai-state ai-state--error');
+      const fallback = add(root, 'section', null, 'ai-fallback');
+      add(fallback, 'h3', 'Phân tích công thức vẫn khả dụng');
+      add(fallback, 'p', `AI chưa phản hồi. Quyết định tham chiếu hiện tại vẫn là “${labels[payload.guardrails.deterministicAction] || 'Chưa đủ dữ liệu'}”; không thay đổi ngân sách tự động.`);
+      const checks = add(fallback, 'ul');
+      add(checks, 'li', `Đã dùng ${payload.historical.sampleMonths || 0} mẫu lịch sử hợp lệ và dữ liệu đến ngày chốt.`);
+      add(checks, 'li', 'Kiểm tra API key, model và trạng thái provider trong Coolify trước khi thử lại.');
+      add(checks, 'li', 'Chỉ điều chỉnh ngân sách sau khi đối chiếu ROAS, chi phí/khách tới và cảnh báo dữ liệu.');
+    }
     if (!result) add(root, 'p', 'Chưa có phân tích cho dữ liệu hiện tại.', 'ai-state');
     else {
       add(root, 'h3', labels[result.action] || 'Chưa đủ dữ liệu');

@@ -25,6 +25,11 @@ test('provider 4xx is not retried and does not leak response content', async () 
   await assert.rejects(analyzeMarketing(request, config, async () => { calls++; return { ok: false, status: 401 }; }), { code: 'AI_PROVIDER_ERROR' });
   assert.equal(calls, 1);
 });
+test('empty requests are rejected before contacting provider', async () => {
+  let calls = 0;
+  await assert.rejects(analyzeMarketing({}, config, async () => { calls++; }), { code: 'AI_INVALID_INPUT' });
+  assert.equal(calls, 0);
+});
 test('network timeout retries at most once', async () => {
   let calls = 0;
   await assert.rejects(analyzeMarketing(request, config, async () => { calls++; throw new Error('private provider details'); }), { code: 'AI_TIMEOUT' });
