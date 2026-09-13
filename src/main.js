@@ -766,7 +766,7 @@ function renderBudgetIntelligence(raw) {
     model.sourceFetchedAt = state.marketingMeta?.fetchedAt;
     state.lastBudgetModel = model;
     renderBudgetView(model, { onMonthChange: month => { state.budgetMonth = month; renderBudgetIntelligence(raw); } });
-    initAiMarketingPanel({ modelProvider: () => state.lastBudgetModel });
+    initAiMarketingPanel({ modelProvider: () => state.lastBudgetModel, crmProvider: () => state.budgetCrm || {} });
 }
 function officialMetric(raw, metadata, key) {
     const value = metadata?.[key] ?? raw?.[key];
