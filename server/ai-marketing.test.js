@@ -35,6 +35,9 @@ test('network timeout retries at most once', async () => {
   await assert.rejects(analyzeMarketing(request, config, async () => { calls++; throw new Error('private provider details'); }), { code: 'AI_TIMEOUT' });
   assert.equal(calls, 2);
 });
+test('slow provider body is bounded by the total timeout', async () => {
+  await assert.rejects(analyzeMarketing(request, { ...config, aiTimeoutMs: 10 }, async () => ({ ok: true, json: async () => new Promise(() => {}) })), { code: 'AI_TIMEOUT' });
+});
 test('valid response keeps concrete next steps', async () => {
   const result = await analyzeMarketing(request, config, provider(valid));
   assert.deepEqual(result.nextSteps, valid.nextSteps);

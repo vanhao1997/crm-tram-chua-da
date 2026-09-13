@@ -71,7 +71,18 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
     if (response.status < 500) throw Object.assign(new Error('AI provider rejected request'), { code: 'AI_PROVIDER_ERROR', status: 502 });
     if (attempt === 1) throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_ERROR', status: 502 });
   }
-  let parsed; try { const json = await response.json(); const content = json?.choices?.[0]?.message?.content; parsed = typeof content === 'object' ? content : JSON.parse(String(content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')); } catch { throw Object.assign(new Error('AI returned invalid JSON'), { code: 'AI_INVALID_RESPONSE', status: 502 }); }
+  let parsed;
+  try {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new Error('timeout');
+    const responseTimer = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), remaining));
+    const json = await Promise.race([response.json(), responseTimer]);
+    const content = json?.choices?.[0]?.message?.content;
+    parsed = typeof content === 'object' ? content : JSON.parse(String(content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+  } catch (error) {
+    if (error?.message === 'timeout') throw Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 });
+    throw Object.assign(new Error('AI returned invalid JSON'), { code: 'AI_INVALID_RESPONSE', status: 502 });
+  }
   parsed = normalizeAiResponse(parsed);
   if (!validateAiResponse(parsed)) throw Object.assign(new Error('AI returned invalid analysis schema'), { code: 'AI_INVALID_RESPONSE', status: 502 });
   const guard = payload?.guardrails || {};
