@@ -18,15 +18,20 @@ export function validateAiInput(body) {
 
 export function validateAiResponse(data) {
   if (!data || typeof data !== 'object' || !ACTIONS.has(data.action) || !['high', 'medium', 'low'].includes(data.confidence) || typeof data.summary !== 'string') return false;
-  if (data.percent !== null && ![10, 0, -10].includes(data.percent)) return false;
+  if (data.percent !== { increase: 10, hold: 0, decrease: -10, insufficient_data: null }[data.action]) return false;
   if (!Array.isArray(data.signals) || !Array.isArray(data.reasons) || !Array.isArray(data.checksBeforeChange) || !Array.isArray(data.dataLimitations) || !Array.isArray(data.nextSteps)) return false;
-  if (data.action === 'insufficient_data' && data.percent !== null) return false;
+  const strings = values => values.every(v => typeof v === 'string' && v.length <= 3000);
+  if (![data.reasons, data.checksBeforeChange, data.dataLimitations].every(strings)) return false;
   if (!data.nextSteps.every(step => step && typeof step.action === 'string' && typeof step.owner === 'string' && typeof step.deadline === 'string' && typeof step.reason === 'string')) return false;
-  return data.signals.every(s => s && ['positive', 'negative', 'warning', 'info'].includes(s.type) && typeof s.title === 'string' && Array.isArray(s.evidence));
+  return data.signals.every(s => s && ['positive', 'negative', 'warning', 'info'].includes(s.type) && typeof s.title === 'string' && typeof s.impact === 'string' && Array.isArray(s.evidence) && strings(s.evidence));
 }
 
 export function normalizeAiResponse(data) {
   if (!data || typeof data !== 'object') return null;
+  // Normalize labels only; never fabricate missing content or repair an unsafe percentage.
+  const mappedAction = { tăng: 'increase', giảm: 'decrease', giữ: 'hold' }[data.action] || data.action;
+  const mappedConfidence = { cao: 'high', 'trung bình': 'medium', thấp: 'low' }[data.confidence] || data.confidence;
+  if (!validateAiResponse({ ...data, action: mappedAction, confidence: mappedConfidence })) return null;
   const action = { increase:'increase', hold:'hold', decrease:'decrease', insufficient_data:'insufficient_data', tăng:'increase', giảm:'decrease', giữ:'hold' }[String(data.action || '').trim().toLowerCase()] || 'insufficient_data';
   const confidence = { high:'high', medium:'medium', low:'low', cao:'high', 'trung bình':'medium', thấp:'low' }[String(data.confidence || '').trim().toLowerCase()] || 'low';
   return { summary: String(data.summary || data.recommendation || data.analysis || 'Chưa đủ dữ liệu để kết luận.'), action, percent: action === 'increase' ? 10 : action === 'decrease' ? -10 : action === 'hold' ? 0 : null, confidence,
@@ -34,7 +39,14 @@ export function normalizeAiResponse(data) {
 }
 
 function promptFor(payload) {
-  return `Analyze aggregate marketing and CRM metrics only. Never invent missing values or call actual spend approved budget. Respect deterministic recommendation and cutoff D-2. Return JSON only with keys summary, action, percent, confidence, signals, nextSteps, reasons, checksBeforeChange, dataLimitations, sourcePeriod, generatedAt. Provide at most 5 concrete nextSteps with owner/action/deadline/reason. Action must be increase/hold/decrease/insufficient_data; percent only 10,0,-10,null. Payload: ${JSON.stringify(payload)}`;
+  return `Respond in Vietnamese. Analyze only the supplied aggregate metrics. Missing values are unknown, never zero.
+Current metrics describe the active phase; CRM describes its explicitly stated date range. Do not compare different windows as equivalent.
+Historical windows are matched day offsets from earlier months, not necessarily complete months. Cite the phase, month and supplied value for every quantitative claim. Discuss dispersion and conflicting months, not just the median. Do not infer recurring seasonality from fewer than three valid matched windows.
+CRM event counts are not an attributed acquisition cohort. Do not add CRM revenue to Marketing revenue or infer causal conversion from unrelated event counts.
+Respect deterministic recommendation, data quality, stale status and cutoff D-2. Never call actual spend approved budget. If deterministic action is insufficient_data, explain gaps and propose data verification steps only. Never suggest an increase or decrease in the narrative in that case.
+Rank at most five nextSteps by urgency. Each must have action, owner (role, not a person's name), deadline (relative to review, without inventing calendar facts), and reason citing supplied evidence. Avoid generic suggestions unsupported by data. Distinguish hypotheses from observations; do not promise outcomes.
+Return JSON only with keys summary, action, percent, confidence, signals, nextSteps, reasons, checksBeforeChange, dataLimitations, sourcePeriod, generatedAt. Signal keys: type (positive/negative/warning/info), title, evidence (array of strings), impact. Action must be increase/hold/decrease/insufficient_data; corresponding percent must be 10/0/-10/null. Confidence must be high/medium/low. reasons, checksBeforeChange and dataLimitations are arrays of strings.
+Payload: ${JSON.stringify(payload)}`;
 }
 
 export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl = fetch) {
@@ -58,6 +70,9 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
   if (!validateAiResponse(parsed)) throw Object.assign(new Error('AI returned invalid analysis schema'), { code: 'AI_INVALID_RESPONSE', status: 502 });
   const guard = payload?.guardrails || {};
   if (guard.deterministicAction === 'insufficient_data' || guard.stale === true || Number(guard.historicalSamples) < 3 || Number(guard.criticalWarnings) > 0) {
+    if (parsed.action === 'increase' || parsed.action === 'decrease') {
+      throw Object.assign(new Error('AI recommendation conflicts with data quality constraints'), { code: 'AI_INVALID_RESPONSE', status: 502 });
+    }
     parsed.action = 'insufficient_data'; parsed.percent = null;
     parsed.warnings = [...(parsed.warnings || []), 'Deterministic guardrail prevents budget adjustment.'];
   }
