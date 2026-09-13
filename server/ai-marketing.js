@@ -52,11 +52,21 @@ Return JSON only with keys summary, action, percent, confidence, signals, nextSt
 Payload: ${JSON.stringify(payload)}`;
 }
 
+function requiresDataVerification(guard = {}) {
+  if (!guard || typeof guard !== 'object' || Array.isArray(guard)) return true;
+  return !ACTIONS.has(guard.deterministicAction)
+    || guard.deterministicAction === 'insufficient_data'
+    || guard.stale !== false
+    || !Number.isInteger(guard.historicalSamples) || guard.historicalSamples < 3
+    || !Number.isInteger(guard.criticalWarnings) || guard.criticalWarnings !== 0;
+}
+
 export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl = fetch) {
   validateAiInput({ payload, periodKey });
   if (String(config.aiEnabled).toLowerCase() !== 'true' || !config.aiApiKey) throw Object.assign(new Error('AI is not configured'), { code: 'AI_NOT_CONFIGURED', status: 503 });
   const base = String(config.aiBaseUrl).replace(/\/$/, '');
-  const body = JSON.stringify({ model: config.aiModel, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'You are a cautious marketing analyst.' }, { role: 'user', content: promptFor(payload) }] });
+  const verificationOnly = requiresDataVerification(payload.guardrails);
+  const body = JSON.stringify({ model: config.aiModel, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: `You are a cautious marketing analyst.${verificationOnly ? ' Server validation requires action insufficient_data and percent null. Only explain missing or unreliable evidence and data verification steps; do not recommend a spending adjustment.' : ''}` }, { role: 'user', content: promptFor(payload) }] });
   const deadline = Date.now() + Math.max(1000, Number(config.aiTimeoutMs) || 20_000);
   let response, responseController;
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -96,13 +106,9 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
   }
   parsed = normalizeAiResponse(parsed);
   if (!validateAiResponse(parsed)) throw Object.assign(new Error('AI returned invalid analysis schema'), { code: 'AI_INVALID_RESPONSE', status: 502 });
-  const guard = payload?.guardrails || {};
-  if (guard.deterministicAction === 'insufficient_data' || guard.stale === true || Number(guard.historicalSamples) < 3 || Number(guard.criticalWarnings) > 0) {
-    if (parsed.action === 'increase' || parsed.action === 'decrease') {
-      throw Object.assign(new Error('AI recommendation conflicts with data quality constraints'), { code: 'AI_INVALID_RESPONSE', status: 502 });
-    }
-    parsed.action = 'insufficient_data'; parsed.percent = null;
-    parsed.warnings = [...(parsed.warnings || []), 'Deterministic guardrail prevents budget adjustment.'];
+  if (verificationOnly && parsed.action !== 'insufficient_data') {
+    // Reject the whole response instead of relabeling an incompatible narrative.
+    throw Object.assign(new Error('AI recommendation conflicts with data quality constraints'), { code: 'AI_INVALID_RESPONSE', status: 502 });
   }
   return parsed;
 }

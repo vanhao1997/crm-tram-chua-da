@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { analyzeMarketing, normalizeAiResponse } from './ai-marketing.js';
 
 const config = { aiEnabled: true, aiApiKey: 'test-only', aiBaseUrl: 'https://example.invalid/v1', aiModel: 'test', aiTimeoutMs: 20 };
-const request = { periodKey: '2026-09', payload: { guardrails: { deterministicAction: 'hold', historicalSamples: 3 } } };
+const request = { periodKey: '2026-09', payload: { guardrails: { deterministicAction: 'hold', historicalSamples: 3, stale: false, criticalWarnings: 0 } } };
 const valid = { summary: 'Review the available evidence.', action: 'hold', percent: 0, confidence: 'low',
   signals: [], nextSteps: [{ action: 'Verify data', owner: 'Manager', deadline: 'Before adjustment', reason: 'Missing revenue' }],
   reasons: [], checksBeforeChange: [], dataLimitations: [] };
@@ -19,6 +19,32 @@ test('normalization cannot invent a valid response or silently cap unsafe percen
 test('unsafe budget response is rejected in full, including its contradictory narrative', async () => {
   await assert.rejects(analyzeMarketing({ ...request, payload: { guardrails: { deterministicAction: 'insufficient_data' } } },
     config, provider({ ...valid, action: 'increase', percent: 10 })), { code: 'AI_INVALID_RESPONSE' });
+});
+
+test('missing or malformed guardrails never permit actionable analysis', async () => {
+  const safeGuard = request.payload.guardrails;
+  const guards = [undefined, null, [], {},
+    ...Object.keys(safeGuard).map(key => Object.fromEntries(Object.entries(safeGuard).filter(([field]) => field !== key))),
+    { ...safeGuard, historicalSamples: '3' }, { ...safeGuard, historicalSamples: 2 },
+    { ...safeGuard, stale: true }, { ...safeGuard, criticalWarnings: -1 },
+    { ...safeGuard, criticalWarnings: 1 }, { ...safeGuard, deterministicAction: 'unknown' }];
+  for (const guardrails of guards) {
+    for (const [action, percent] of [['increase', 10], ['decrease', -10], ['hold', 0]]) {
+      await assert.rejects(analyzeMarketing({ ...request, payload: { guardrails } }, config,
+        provider({ ...valid, action, percent })), { code: 'AI_INVALID_RESPONSE' });
+    }
+  }
+});
+
+test('verification-only prompt and result preserve missing-data explanation', async () => {
+  const explanation = { ...valid, action: 'insufficient_data', percent: null, summary: 'Verify missing baseline.' };
+  const result = await analyzeMarketing({ ...request, payload: {} }, config, async (_url, options) => {
+    const sent = JSON.parse(options.body);
+    assert.match(sent.messages[0].content, /requires action insufficient_data/);
+    return provider(explanation)();
+  });
+  assert.equal(result.action, 'insufficient_data');
+  assert.equal(result.summary, explanation.summary);
 });
 test('provider 4xx is not retried and does not leak response content', async () => {
   let calls = 0;
