@@ -200,8 +200,8 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
   .kpi-card__value { font-size: 32px !important; }
   .main-content { display: contents; }
   .dashboard:has(> .main-content) > .kpi-row { order: 1; }
-  .dashboard:has(> .main-content) > [aria-label="Tài chính Marketing"] { order: 3; }
-  .dashboard:has(> .main-content) > .main-content > .appointments-panel { order: 2; }
+  .dashboard:has(> .main-content) > [aria-label="Tài chính Marketing"] { order: 2; }
+  .dashboard:has(> .main-content) > .main-content > .appointments-panel { order: 3; }
   .dashboard:has(> .main-content) > .main-content > .overdue-panel { order: 4; }
   .dashboard:has(> .main-content) > .charts-row { order: 5; }
   .dashboard:has(> .main-content) > .main-content > * { min-width: 0; }
