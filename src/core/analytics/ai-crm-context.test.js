@@ -31,4 +31,7 @@ test('AI payload uses domain conversion field names and explicit null for missin
     assert.equal(payload.current.bookingRate, 0.5);
     assert.equal(payload.current.arrivalRate, 0.25);
     assert.equal(payload.current.ads, null);
+    assert.equal(payload.period.startDate, '2026-09-01');
+    assert.equal(payload.period.endDate, '2026-09-05');
+    assert.equal(payload.period.phaseStartDate, null);
 });
