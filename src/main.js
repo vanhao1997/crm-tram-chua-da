@@ -19,6 +19,7 @@ import { getOverdueAppointments, renderOverdueList } from './features/appointmen
 import { renderBudgetView } from './features/dashboard/budget-view.js';
 import { readTelegramGroup } from './features/dashboard/telegram-settings.js';
 import { dateKey } from './core/analytics/budget-intelligence.js';
+import { initAppShell, restoreScroll } from './features/dashboard/app-shell.js';
 import {
     renderKPICards,
     renderFunnelChart,
@@ -291,6 +292,7 @@ async function loadData() {
     } finally {
         hideLoading();
         if (loaded) syncFilterTabs();
+        if (loaded) restoreScroll();
     }
 }
 
@@ -414,6 +416,30 @@ function renderRecordTable() {
         if (text) text.textContent = 'Không có bản ghi trong khoảng đang xem';
     }
     if (count) count.textContent = `${records.length.toLocaleString('vi-VN')} bản ghi`;
+    renderMobileRecords();
+}
+
+function renderMobileRecords() {
+    const wrapper = document.getElementById('appointmentTableWrapper');
+    if (!wrapper) return;
+    let container = document.getElementById('mobileRecords');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'mobileRecords';
+        container.className = 'mobile-records';
+        wrapper.after(container);
+    }
+    const records = state.tableRecords || [];
+    const type = state.activeRecordType || 'appointments';
+    container.innerHTML = records.slice(0, 20).map((record, index) => {
+        const date = type === 'customers' ? record.latestDate : type === 'appointments' ? record.aptDate : record.date;
+        const when = type === 'appointments' && hasConfirmedTime(record) ? `${record.time} · ` : '';
+        return `<article class="mobile-record-card" data-mobile-index="${index}">
+          <header><h3>${escapeHtml(record.name || 'Chưa có tên')}</h3><span class="badge">${escapeHtml(getDisplayStatus(record))}</span></header>
+          <div class="mobile-record-meta"><strong>${when}${escapeHtml(formatDateFull(toDate(date)))}</strong><span>${escapeHtml(record.service || 'Chưa xác định dịch vụ')}</span>${record.phone ? `<span>${escapeHtml(formatPhone(normalizePhone(record.phone) || record.phone))}</span>` : '<span class="missing-value">Chưa có số điện thoại</span>'}</div>
+          <div class="mobile-record-actions">${renderCopyAction(index, type, 'Copy thông tin')}${renderTelegramAction(index, type)}</div>
+        </article>`;
+    }).join('') + (records.length > 20 ? '<button class="btn mobile-more" type="button" disabled>Hiển thị 20 bản ghi đầu</button>' : '');
 }
 
 function setTableTitle(label) {
@@ -1138,7 +1164,7 @@ function init() {
     syncFilterTabs();
     document.body.classList.add('light-theme');
     connectSheet();
-    if (els.autoRefreshToggle?.checked) startAutoRefresh();
+    initAppShell({ refresh: loadData, lastSuccess: () => state.lastRefresh?.getTime() || 0, isBusy: () => state.loading || Boolean(state.telegramPending) });
 }
 
 document.addEventListener('DOMContentLoaded', init);

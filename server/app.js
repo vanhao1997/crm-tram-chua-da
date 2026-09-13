@@ -25,6 +25,8 @@ export function createApp({ service, config, logger = console, sendTelegram = te
         allowedClientCidrs: config.allowedClientCidrs
     });
 
+    app.get('/api/version', (req, res) => { res.set('Cache-Control', 'no-store, no-cache, must-revalidate'); res.json({ version: config.appVersion || 'dev' }); });
+
     app.get('/api/health/live', (req, res) => {
         res.json({ ok: true, status: 'live', readonly: true });
     });
@@ -128,3 +130,4 @@ export function createApp({ service, config, logger = console, sendTelegram = te
 
     return app;
 }
+

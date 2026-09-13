@@ -1,4 +1,5 @@
 import { readTelegramGroup, saveTelegramGroup } from './features/dashboard/telegram-settings.js';
+import { initAppShell, restoreScroll, appVersion } from './features/dashboard/app-shell.js';
 
 const byId = id => document.getElementById(id);
 const input = byId('telegramGroupId');
@@ -53,3 +54,10 @@ fetch('/api/telegram/settings').then(async r => {
     byId('telegramStatus').textContent = 'Không xác định';
     byId('telegramDefaultGroup').textContent = 'Không tải được cấu hình mặc định. Kiểm tra API server.';
 });
+
+document.querySelector('.settings-grid').insertAdjacentHTML('beforeend', '<article class="comparison-item"><span>Phiên bản ứng dụng</span><strong id="appVersion"></strong><small>Thông báo xuất hiện khi có phiên bản mới</small></article><article class="comparison-item"><span>Lần kiểm tra API</span><strong id="settingsLastCheck"></strong><small>Thời gian trên thiết bị này</small></article>');
+document.getElementById('appVersion').textContent = appVersion === 'unknown' ? 'Bản phát triển' : appVersion.slice(0, 12);
+document.getElementById('settingsLastCheck').textContent = new Date().toLocaleString('vi-VN');
+document.getElementById('telegramGroupHint').append(' Cấu hình riêng cho trình duyệt hoặc webapp này; Safari và Home Screen có thể không dùng chung.');
+initAppShell();
+restoreScroll();

@@ -154,7 +154,7 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
   .dashboard { padding: 22px; }
 }
 @media (max-width: 600px) {
-  html, body { overflow-x: clip; }
+  html, body { overflow-x: hidden; }
   body .filter-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); width: 100%; overflow: visible; gap: 6px; padding: 0; }
   body .filter-tabs .filter-tab { min-width: 0; min-height: 44px; padding: 8px 3px; font-size: 12px; text-align: center; }
   body .header { position: static; }
@@ -190,5 +190,43 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
   .modal__body { padding: 18px 14px; }
   .mobile-bottom-nav { background: #fff; border-top: 1px solid var(--border-subtle); }
   .nav-item--active { color: var(--forest); }
+}
+@media (max-width: 767px) {
+  :root { --mobile-gutter: 12px; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  .dashboard { padding-left: var(--mobile-gutter); padding-right: var(--mobile-gutter); padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+  button, .btn, .filter-tab, .record-tab, select, input { min-height: 44px; }
+  input, select, textarea { font-size: 16px; }
+  .kpi-card__value { font-size: 32px !important; }
+  .main-content { display: contents; }
+  .dashboard:has(> .main-content) > .kpi-row { order: 1; }
+  .dashboard:has(> .main-content) > [aria-label="Tài chính Marketing"] { order: 3; }
+  .dashboard:has(> .main-content) > .main-content > .appointments-panel { order: 2; }
+  .dashboard:has(> .main-content) > .main-content > .overdue-panel { order: 4; }
+  .dashboard:has(> .main-content) > .charts-row { order: 5; }
+  .dashboard:has(> .main-content) > .main-content > * { min-width: 0; }
+  .table-filters { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  #tableFilters:not(.is-expanded) select { display: none; }
+  #mobileFilterToggle { min-height: 44px; }
+  #appointmentTableWrapper { display: none; }
+  .mobile-records { display: grid; gap: 10px; }
+  .mobile-record-card { padding: 14px; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--bg-card); box-shadow: var(--glass-shadow); min-width: 0; }
+  .mobile-record-card h3 { margin: 0; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; }
+  .mobile-record-meta { display: grid; gap: 5px; margin-top: 8px; color: var(--text-secondary); font-size: 14px; line-height: 1.4; }
+  .mobile-record-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .mobile-record-actions > * { min-width: 44px; min-height: 44px; }
+  .mobile-more { width: 100%; }
+  .budget-view__head { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .budget-view__controls { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: stretch; }
+  .budget-view__controls select, .budget-view__controls button { width: 100%; }
+  .budget-charts { grid-template-columns: 1fr; }
+  .phase-table-wrap { overflow-x: visible; }
+  .phase-table { min-width: 0; }
+  .phase-table thead { display: none; }
+  .phase-table tr { display: block; padding: 12px 0; border-bottom: 1px solid var(--border-subtle); }
+  .phase-table td { display: flex; justify-content: space-between; gap: 12px; white-space: normal; padding: 6px 2px; }
+  .phase-table td::before { content: attr(data-label); font-weight: 700; color: var(--text-muted); }
+  .modal { width: calc(100vw - 20px); max-width: none; max-height: calc(100dvh - 16px); }
+  .modal__body { overflow-y: auto; min-height: 0; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
