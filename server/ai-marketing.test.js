@@ -84,3 +84,11 @@ test('valid response keeps concrete next steps', async () => {
   const result = await analyzeMarketing(request, config, provider(valid));
   assert.deepEqual(result.nextSteps, valid.nextSteps);
 });
+test('accepts provider structured content parts', async () => {
+  const result = await analyzeMarketing(request, config, async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: [{ type: 'text', text: JSON.stringify(valid) }] } }] })
+  }));
+  assert.equal(result.action, 'hold');
+  assert.deepEqual(result.nextSteps, valid.nextSteps);
+});
