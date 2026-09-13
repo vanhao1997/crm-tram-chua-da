@@ -58,30 +58,41 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
   const base = String(config.aiBaseUrl).replace(/\/$/, '');
   const body = JSON.stringify({ model: config.aiModel, temperature: 0, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'You are a cautious marketing analyst.' }, { role: 'user', content: promptFor(payload) }] });
   const deadline = Date.now() + Math.max(1000, Number(config.aiTimeoutMs) || 20_000);
-  let response;
+  let response, responseController;
   for (let attempt = 0; attempt < 2; attempt++) {
     const remaining = deadline - Date.now();
     if (remaining <= 0) throw Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 });
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), remaining);
+    responseController = controller;
     try { response = await fetchImpl(`${base}/chat/completions`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.aiApiKey}` }, body, signal: controller.signal }); }
     catch (error) { if (attempt === 1) throw Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 }); continue; }
     finally { clearTimeout(timer); }
     if (response.ok) break;
+    controller.abort();
     if (response.status === 429) throw Object.assign(new Error('AI rate limited'), { code: 'AI_RATE_LIMITED', status: 429 });
     if (response.status < 500) throw Object.assign(new Error('AI provider rejected request'), { code: 'AI_PROVIDER_ERROR', status: 502 });
     if (attempt === 1) throw Object.assign(new Error('AI provider unavailable'), { code: 'AI_PROVIDER_ERROR', status: 502 });
   }
-  let parsed;
+  let parsed, bodyTimer;
+  const timeoutError = Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 });
   try {
     const remaining = deadline - Date.now();
-    if (remaining <= 0) throw new Error('timeout');
-    const responseTimer = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), remaining));
+    if (remaining <= 0) throw timeoutError;
+    const responseTimer = new Promise((_, reject) => {
+      bodyTimer = setTimeout(() => {
+        reject(timeoutError);
+        responseController.abort();
+      }, remaining);
+    });
     const json = await Promise.race([response.json(), responseTimer]);
     const content = json?.choices?.[0]?.message?.content;
     parsed = typeof content === 'object' ? content : JSON.parse(String(content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
   } catch (error) {
-    if (error?.message === 'timeout') throw Object.assign(new Error('AI provider timeout or network failure'), { code: 'AI_TIMEOUT', status: 504 });
+    responseController.abort();
+    if (error === timeoutError) throw timeoutError;
     throw Object.assign(new Error('AI returned invalid JSON'), { code: 'AI_INVALID_RESPONSE', status: 502 });
+  } finally {
+    clearTimeout(bodyTimer);
   }
   parsed = normalizeAiResponse(parsed);
   if (!validateAiResponse(parsed)) throw Object.assign(new Error('AI returned invalid analysis schema'), { code: 'AI_INVALID_RESPONSE', status: 502 });

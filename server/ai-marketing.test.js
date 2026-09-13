@@ -36,7 +36,23 @@ test('network timeout retries at most once', async () => {
   assert.equal(calls, 2);
 });
 test('slow provider body is bounded by the total timeout', async () => {
-  await assert.rejects(analyzeMarketing(request, { ...config, aiTimeoutMs: 10 }, async () => ({ ok: true, json: async () => new Promise(() => {}) })), { code: 'AI_TIMEOUT' });
+  let signal;
+  await assert.rejects(analyzeMarketing(request, config, async (_url, options) => {
+    signal = options.signal;
+    return { ok: true, json: async () => new Promise(() => {}) };
+  }), { code: 'AI_TIMEOUT' });
+  assert.equal(signal.aborted, true);
+});
+
+test('completed responses clear their deadline timer', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let signal;
+  await analyzeMarketing(request, config, async (_url, options) => {
+    signal = options.signal;
+    return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify(valid) } }] }) };
+  });
+  t.mock.timers.tick(2000);
+  assert.equal(signal.aborted, false);
 });
 test('valid response keeps concrete next steps', async () => {
   const result = await analyzeMarketing(request, config, provider(valid));
