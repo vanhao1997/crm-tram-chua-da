@@ -96,7 +96,13 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
     });
     const json = await Promise.race([response.json(), responseTimer]);
     const content = json?.choices?.[0]?.message?.content;
-    parsed = typeof content === 'object' ? content : JSON.parse(String(content || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
+    // Providers may return structured content as an array of text parts.
+    const textContent = Array.isArray(content)
+      ? content.map(part => typeof part === 'string' ? part : (part?.text || '')).join('')
+      : content;
+    parsed = textContent && typeof textContent === 'object'
+      ? textContent
+      : JSON.parse(String(textContent || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
   } catch (error) {
     responseController.abort();
     if (error === timeoutError) throw timeoutError;
