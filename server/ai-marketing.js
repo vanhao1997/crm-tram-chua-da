@@ -61,8 +61,9 @@ function requiresDataVerification(guard = {}) {
     || !Number.isInteger(guard.criticalWarnings) || guard.criticalWarnings !== 0;
 }
 
-export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl = fetch) {
-  validateAiInput({ payload, periodKey });
+export async function analyzeMarketing(input, config, fetchImpl = fetch) {
+  validateAiInput(input);
+  const { payload, periodKey } = input;
   if (String(config.aiEnabled).toLowerCase() !== 'true' || !config.aiApiKey) throw Object.assign(new Error('AI is not configured'), { code: 'AI_NOT_CONFIGURED', status: 503 });
   const base = String(config.aiBaseUrl).replace(/\/$/, '');
   const verificationOnly = requiresDataVerification(payload.guardrails);
@@ -116,5 +117,6 @@ export async function analyzeMarketing({ payload, periodKey }, config, fetchImpl
     // Reject the whole response instead of relabeling an incompatible narrative.
     throw Object.assign(new Error('AI recommendation conflicts with data quality constraints'), { code: 'AI_INVALID_RESPONSE', status: 502 });
   }
-  return parsed;
+  // Provider cannot choose the reporting period or timestamp shown to operators.
+  return { ...parsed, sourcePeriod: periodKey, generatedAt: new Date().toISOString() };
 }

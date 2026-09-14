@@ -25,6 +25,7 @@ test('normalization preserves missing values and detects invalid amounts', () =>
     assert.equal(aggregatePhase([]).revenue, null);
     assert.equal(aggregatePhase([day('2026-09-01')]).efficiency.roas, 4);
     assert.equal(aggregatePhase([day('2026-09-01')]).efficiency.costPerArrived, 52.5);
+    assert.equal(aggregatePhase([day('2026-09-01')]).managementFee, 5);
 });
 test('increase capped at ten percent with matched historical days and no future leakage', () => {
     const m = model([...historical(), ...month('09', { revenue: 600 }), day('2026-09-08', { revenue: 999999 }), day('2026-10-01', { revenue: 999999 })], { adjustmentPercent: 50 });
@@ -34,6 +35,8 @@ test('increase capped at ten percent with matched historical days and no future 
     assert.equal(m.phases[0].current.revenue, 4200);
     assert.equal(m.phases[0].baseline.months, 3);
     assert.equal(m.phases[0].current.expectedDays, 7);
+    assert.equal(m.phases[0].baseline.samples[0].startDate, '2026-06-01');
+    assert.equal(m.phases[0].baseline.samples[0].endDate, '2026-06-07');
 });
 test('missing revenue, calendar gaps and duplicate dates block recommendations', () => {
     for (const current of [month('09',{revenue:null}),month('09').slice(1),[...month('09'),day('2026-09-01')]]) {

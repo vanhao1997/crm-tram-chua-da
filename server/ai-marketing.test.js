@@ -54,6 +54,7 @@ test('provider 4xx is not retried and does not leak response content', async () 
 test('empty requests are rejected before contacting provider', async () => {
   let calls = 0;
   await assert.rejects(analyzeMarketing({}, config, async () => { calls++; }), { code: 'AI_INVALID_INPUT' });
+  await assert.rejects(analyzeMarketing(undefined, config, async () => { calls++; }), { code: 'AI_INVALID_INPUT' });
   assert.equal(calls, 0);
 });
 test('network timeout retries at most once', async () => {
@@ -83,6 +84,8 @@ test('completed responses clear their deadline timer', async (t) => {
 test('valid response keeps concrete next steps', async () => {
   const result = await analyzeMarketing(request, config, provider(valid));
   assert.deepEqual(result.nextSteps, valid.nextSteps);
+  assert.equal(result.sourcePeriod, request.periodKey);
+  assert.notEqual(result.generatedAt, valid.generatedAt);
 });
 test('accepts provider structured content parts', async () => {
   const result = await analyzeMarketing(request, config, async () => ({

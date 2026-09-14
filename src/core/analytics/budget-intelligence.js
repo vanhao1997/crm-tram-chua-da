@@ -58,7 +58,7 @@ export function aggregatePhase(records = [], { expectedDays = records.length } =
     const rows = records.map(r => r.dataCompleteness ? r : normalizeMarketingRecord(r));
     const counts = new Map(); rows.forEach(r => counts.set(r.dateKey, (counts.get(r.dateKey) || 0) + 1));
     const unique = rows.filter(r => r.dateKey && counts.get(r.dateKey) === 1);
-    const totals = Object.fromEntries(Object.entries({ ads: 'marketing_cost', cost: 'cost', revenue: 'revenue', data: 'dataTotal', booked: 'bookedTotal', arrived: 'arrivedTotal' }).map(([k, f]) => [k, sum(unique.map(r => r[f]))]));
+    const totals = Object.fromEntries(Object.entries({ ads: 'marketing_cost', managementFee: 'ad_management_fee', cost: 'cost', revenue: 'revenue', data: 'dataTotal', booked: 'bookedTotal', arrived: 'arrivedTotal' }).map(([k, f]) => [k, sum(unique.map(r => r[f]))]));
     const completeDays = unique.filter(r => r.dataCompleteness.complete).length;
     return { ...totals, days: unique.length, expectedDays, completeDays, complete: expectedDays > 0 && completeDays === expectedDays, efficiency: calculateEfficiency(totals) };
 }
@@ -70,7 +70,7 @@ export function aggregateHistoricalPhases(records, { monthKey, startDay, endDay 
         if (endDay > monthEnd(month)) return null;
         const rows = records.filter(r => r.monthKey === month && Number(r.dateKey.slice(8)) >= startDay && Number(r.dateKey.slice(8)) <= endDay);
         const aggregate = aggregatePhase(rows, { expectedDays: endDay - startDay + 1 });
-        return { monthKey: month, ...aggregate };
+        return { monthKey: month, startDate: keyAt(month, startDay), endDate: keyAt(month, endDay), ...aggregate };
     }).filter(m => m?.complete && m.ads > 0 && m.efficiency.roas !== null && m.efficiency.costPerArrived !== null && m.efficiency.bookedToArrived !== null && m.efficiency.leadToBooked !== null);
     return { months: samples.length, samples, candidates: candidates.length,
         roasMedian: median(samples.map(m => m.efficiency.roas)), cpaMedian: median(samples.map(m => m.efficiency.costPerArrived)),
