@@ -405,9 +405,7 @@ button { cursor: pointer; }
 }
 
 @media (max-width: 760px) {
-  body { padding-bottom: calc(74px + env(safe-area-inset-bottom)); }
   .header { padding: 16px 14px; }
-  .main-tabs { display: none; }
   .dashboard { gap: 16px; padding: 16px 12px; }
   .page-context { align-items: stretch; flex-direction: column; }
   .data-status { flex: none; width: 100%; }
@@ -419,16 +417,21 @@ button { cursor: pointer; }
   .integrity-grid, .metric-grid--four, .metric-grid--three { grid-template-columns: minmax(0, 1fr); }
   .metric-card { min-height: 112px; }
   .metric-card strong { font-size: 32px; }
+}
+
+@media (max-width: 1099px) {
+  body { padding-bottom: calc(74px + env(safe-area-inset-bottom, 0px)); }
+  .main-tabs { display: none; }
   .mobile-bottom-nav {
     background: #fff;
     border-top: 1px solid var(--border-subtle);
-    bottom: 0;
     display: flex;
-    left: 0;
-    padding-bottom: env(safe-area-inset-bottom);
+    inset: auto 0 0;
+    min-height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
     position: fixed;
-    right: 0;
-    z-index: 30;
+    width: 100%;
+    z-index: 50;
   }
   .nav-item {
     align-items: center;
