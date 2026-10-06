@@ -21,9 +21,9 @@
       <span><strong>Trạm Chữa Da BSN</strong><small>Không gian điều hành</small></span>
     </a>
     <nav class="main-tabs" aria-label="Điều hướng tổng quan">
-      <a class="main-tab main-tab--active" href="#overview">Tổng quan</a>
+      <a class="main-tab main-tab--active" href="#finance">Tài chính</a>
+      <a class="main-tab" href="#crm">CRM</a>
       <a class="main-tab" href="#appointments">Lịch hẹn</a>
-      <a class="main-tab" href="#finance">Tài chính</a>
       <a class="main-tab" href="#integrity">Cảnh báo</a>
     </nav>
     <div class="header-actions">
@@ -71,8 +71,23 @@
       </div>
     </section>
 
-    <section class="panel" aria-labelledby="crmTitle">
-      <div class="panel-head"><p class="eyebrow">CRM</p><h2 id="crmTitle">Số liệu khách hàng</h2></div>
+    <section class="panel" id="finance" aria-labelledby="financeTitle">
+      <div class="panel-head"><p class="eyebrow">Marketing</p><h2 id="financeTitle">Theo dõi tài chính</h2></div>
+      <div class="metric-grid metric-grid--three">
+        <article class="metric-card"><span>Tổng nạp</span><strong id="mktReceived">-</strong><small>Tiền nạp trong kỳ</small></article>
+        <article class="metric-card"><span>Tổng chi phí</span><strong id="mktCost">-</strong><small id="mktCostNote">Ads + phí quản lý</small></article>
+        <article class="metric-card"><span>Nạp trừ chi</span><strong id="mktBalance">-</strong><small>Không phải số dư ví Ads</small></article>
+      </div>
+      <div class="metric-grid metric-grid--four">
+        <article class="metric-card"><span>Tin nhắn</span><strong id="mktMessages">-</strong></article>
+        <article class="metric-card"><span>ROAS</span><strong id="mktRoas">-</strong></article>
+        <article class="metric-card"><span>Chi phí / data</span><strong id="mktCostPerData">-</strong></article>
+        <article class="metric-card"><span>Chi phí / khách tới</span><strong id="mktCostPerArrived">-</strong></article>
+      </div>
+    </section>
+
+    <section class="panel" id="crm" aria-labelledby="crmTitle">
+      <div class="panel-head"><p class="eyebrow">CRM</p><h2 id="crmTitle">Theo dõi CRM</h2></div>
       <div class="metric-grid metric-grid--four">
         <article class="metric-card"><span>Tổng lead</span><strong id="crmLeads">-</strong><small>Ngày nhận lead, số phát sinh đến hôm nay</small></article>
         <article class="metric-card"><span>Lịch hẹn</span><strong id="crmAppointments">-</strong><div class="metric-breakdown"><span>Đã qua trong kỳ</span><strong id="crmPastAppointments">-</strong></div><small id="crmAppointmentNote">Theo ngày hẹn, gồm lịch tương lai trong kỳ</small></article>
@@ -97,21 +112,6 @@
       </div>
     </section>
 
-    <section class="panel" id="finance" aria-labelledby="financeTitle">
-      <div class="panel-head"><p class="eyebrow">Marketing</p><h2 id="financeTitle">Tài chính và chuyển đổi</h2></div>
-      <div class="metric-grid metric-grid--three">
-        <article class="metric-card"><span>Tổng nạp</span><strong id="mktReceived">-</strong><small>Tiền nạp trong kỳ</small></article>
-        <article class="metric-card"><span>Tổng chi phí</span><strong id="mktCost">-</strong><small id="mktCostNote">Ads + phí quản lý</small></article>
-        <article class="metric-card"><span>Nạp trừ chi</span><strong id="mktBalance">-</strong><small>Không phải số dư ví Ads</small></article>
-      </div>
-      <div class="metric-grid metric-grid--four">
-        <article class="metric-card"><span>Tin nhắn</span><strong id="mktMessages">-</strong></article>
-        <article class="metric-card"><span>ROAS</span><strong id="mktRoas">-</strong></article>
-        <article class="metric-card"><span>Chi phí / data</span><strong id="mktCostPerData">-</strong></article>
-        <article class="metric-card"><span>Chi phí / khách tới</span><strong id="mktCostPerArrived">-</strong></article>
-      </div>
-    </section>
-
     <section class="integrity-grid" id="integrity" aria-label="Cảnh báo dữ liệu">
       <article class="panel">
         <div class="panel-head"><p class="eyebrow">Đối soát</p><h2>Cảnh báo dữ liệu</h2><p id="issueSummary">Chưa có dữ liệu đối soát</p></div>
@@ -121,9 +121,9 @@
   </main>
 
   <nav class="mobile-bottom-nav" aria-label="Điều hướng nhanh">
-    <a class="nav-item nav-item--active" href="#overview"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#crm" /></svg><span>Tổng quan</span></a>
+    <a class="nav-item nav-item--active" href="#finance"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#marketing" /></svg><span>Tài chính</span></a>
+    <a class="nav-item" href="#crm"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#crm" /></svg><span>CRM</span></a>
     <a class="nav-item" href="#appointments"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#crm" /></svg><span>Lịch hẹn</span></a>
-    <a class="nav-item" href="#finance"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#marketing" /></svg><span>Tài chính</span></a>
     <a class="nav-item" href="#integrity"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#data" /></svg><span>Cảnh báo</span></a>
   </nav>
 
