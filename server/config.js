@@ -19,6 +19,7 @@ export function quoteSheetName(name) {
 }
 
 function numberEnv(value, fallback, minimum = 0) {
+    if (value == null || String(value).trim() === '') return fallback;
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed >= minimum ? parsed : fallback;
 }
@@ -39,9 +40,6 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const trustedProxyCidrs = splitList(env.TRUSTED_PROXY_CIDRS);
     const telegramBotToken = String(env.TELEGRAM_BOT_TOKEN || '').trim();
     const telegramChatId = String(env.TELEGRAM_CHAT_ID || '').trim();
-    const aiBaseUrl = String(env.AI_BASE_URL || 'https://9router.vibecodingsolution.ovh/v1').trim();
-    const aiApiKey = String(env.AI_API_KEY || '').trim();
-    const aiModel = String(env.AI_MODEL || 'cx/gpt-5.6-sol').trim();
 
     if (production && !credentialFile && !credentialJson) {
         throw new Error('GOOGLE_SERVICE_ACCOUNT_FILE or GOOGLE_SERVICE_ACCOUNT_JSON is required in production');
@@ -56,7 +54,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
     const port = numberEnv(env.PORT || env.API_PORT, production ? 3000 : 3001, 1);
     const host = env.HOST || env.API_HOST || (production ? '0.0.0.0' : '127.0.0.1');
     const tabs = {
-        leads: env.CRM_LEADS_TAB || 'DATA NGUỒN MKT HẢO',
+        leads: env.CRM_LEADS_TAB || 'DATA NGUỒN MKT',
         booked: env.CRM_BOOKED_TAB || 'KHÁCH ĐẶT HẸN',
         arrived: env.CRM_ARRIVED_TAB || 'KHÁCH ĐÃ ĐẾN',
         marketing: env.MARKETING_TAB || '2026'
@@ -68,6 +66,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
             group: 'crm',
             spreadsheetId: crmSheetId,
             tab: tabs.leads,
+            sheetId: numberEnv(env.CRM_LEADS_GID, crmSheetId === DEFAULT_CRM_SHEET_ID ? 915093349 : null),
             range: `${quoteSheetName(tabs.leads)}!A:Z`
         },
         booked: {
@@ -75,6 +74,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
             group: 'crm',
             spreadsheetId: crmSheetId,
             tab: tabs.booked,
+            sheetId: numberEnv(env.CRM_BOOKED_GID, crmSheetId === DEFAULT_CRM_SHEET_ID ? 2007161241 : null),
             range: `${quoteSheetName(tabs.booked)}!A:Z`
         },
         arrived: {
@@ -82,6 +82,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
             group: 'crm',
             spreadsheetId: crmSheetId,
             tab: tabs.arrived,
+            sheetId: numberEnv(env.CRM_ARRIVED_GID, crmSheetId === DEFAULT_CRM_SHEET_ID ? 1566321838 : null),
             range: `${quoteSheetName(tabs.arrived)}!A:Z`
         },
         marketing: {
@@ -89,6 +90,7 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
             group: 'marketing',
             spreadsheetId: marketingSheetId,
             tab: tabs.marketing,
+            sheetId: numberEnv(env.MARKETING_GID, marketingSheetId === DEFAULT_MARKETING_SHEET_ID ? 1227076939 : null),
             range: `${quoteSheetName(tabs.marketing)}!A:Z`
         }
     };
@@ -106,11 +108,12 @@ export function loadConfig(env = process.env, cwd = process.cwd()) {
         cacheMs: numberEnv(env.SHEETS_CACHE_MS, 60_000, 0),
         timeoutMs: numberEnv(env.SHEETS_TIMEOUT_MS, 15_000, 1),
         retryCount: numberEnv(env.SHEETS_RETRY_COUNT, 2, 0),
+        maxStaleMs: numberEnv(env.SHEETS_MAX_STALE_MS, 15 * 60_000, 1),
+        identityColumns: env.CRM_IDENTITY_COLUMNS || 'FS:FX',
+        reconcileIntervalMs: numberEnv(env.RECONCILE_INTERVAL_MS, 5 * 60_000, 0),
+        appVersion: env.APP_VERSION && env.APP_VERSION !== 'dev' ? env.APP_VERSION : env.SOURCE_COMMIT || 'dev',
         telegramBotToken,
         telegramChatId,
-        aiBaseUrl, aiApiKey, aiModel,
-        aiTimeoutMs: numberEnv(env.AI_TIMEOUT_MS, 20_000, 1),
-        aiEnabled: String(env.AI_ENABLED || 'false').trim(),
         trustedProxyCidrs,
         allowedClientCidrs,
         sources

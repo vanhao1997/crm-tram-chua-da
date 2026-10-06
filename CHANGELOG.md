@@ -1,5 +1,21 @@
 # Changelog
 
+## [2026-10-06]
+### Fixed
+- Resolve CRM sources by numeric Google tab ID after tab renaming.
+- Calculate Marketing customer metrics from the same fresh CRM snapshot, with explicit source discrepancy warnings.
+- Complete missing appointment events from confirmed leads without changing Sheets or inferring arrivals or payments.
+- Use lead date B, appointment date K, visit date K with B fallback, and numeric W/V revenue consistently.
+- Recalculate selected-period financial totals and daily-only subtotals; label received minus cost separately from Ads wallet balance.
+- Expire stale source snapshots after 15 minutes and reconcile sources on refresh and every five minutes.
+- Block budget recommendations when source data is unavailable or current-month visits are not recorded.
+
+### Removed
+- Browser and server AI analysis integration, provider route, configuration, and credentials in Coolify.
+
+### Deferred
+- Native Sheet formula repair and persisted record UUIDs require write access. This release keeps Sheets read-only and retains existing public access.
+
 ## [2026-04-16]
 ### Added
 - Tính năng Global Search theo \`name\` và \`phone\`.

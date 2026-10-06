@@ -3,10 +3,10 @@
  * Reads public Google Sheets via the Visualization API (gviz)
  */
 
-import { normalizeMarketingRecord } from '../analytics/budget-intelligence.js';
+import { dateKey, normalizeMarketingRecord } from '../analytics/budget-intelligence.js';
 
 const SHEET_TABS = {
-    LEADS: 'DATA NGUỒN MKT HẢO',
+    LEADS: 'DATA NGUỒN MKT',
     BOOKED: 'KHÁCH ĐẶT HẸN',
     ARRIVED: 'KHÁCH ĐÃ ĐẾN'
 };
@@ -54,6 +54,8 @@ async function fetchInternalTab(sheetId, tabName) {
     }
     const table = { rows: payload.values.map(row => ({ c: row.map(v => ({ v })) })) };
     table.metadata = payload.metadata || {};
+    table.identities = Array.isArray(payload.identities) ? payload.identities : [];
+    table.source = source;
     return table;
 }
 
@@ -73,9 +75,11 @@ function parseCellValue(cell) {
  * Parse date from gviz date format: "Date(year, month, day)"
  */
 function checkedDate(year, month, day, hour = 0, minute = 0) {
-    const value = new Date(year, month, day, hour, minute);
-    return value.getFullYear() === year && value.getMonth() === month && value.getDate() === day
-        && value.getHours() === hour && value.getMinutes() === minute ? value : null;
+    const value = new Date(Date.UTC(year, month, day, hour, minute));
+    if (value.getUTCFullYear() !== year || value.getUTCMonth() !== month || value.getUTCDate() !== day
+        || value.getUTCHours() !== hour || value.getUTCMinutes() !== minute) return null;
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return new Date(`${key}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000+07:00`);
 }
 
 function parseGvizDate(cell) {
@@ -125,7 +129,7 @@ function parseRows(table, includeRevenue = false) {
     const rows = table.rows || [];
     const results = [];
 
-    for (const row of rows) {
+    for (const [rowIndex, row] of rows.entries()) {
         const cells = row.c || [];
         const name = parseCellValue(cells[COL.NAME]);
         const phone = parseCellValue(cells[COL.PHONE]);
@@ -171,8 +175,28 @@ function parseRows(table, includeRevenue = false) {
             time: parseCellValue(cells[COL.TIME]) || '',
             aptDate: parseGvizDate(cells[COL.APT_DATE]),
             staff: parseCellValue(cells[COL.STAFF]) || '',
-            note: combinedNotes
+            note: combinedNotes,
+            sourceRow: rowIndex + 1
         };
+        const identity = table.identities?.[rowIndex];
+        if (identity && typeof identity === 'object') {
+            const { source: identitySource, sourceRow, ...identityFields } = identity;
+            Object.assign(record, identityFields);
+            if (sourceRow) record.sourceRow = sourceRow;
+            record.sourceIdentity = { ...identity };
+            record.provenance = {
+                source: identitySource || table.source,
+                sourceRow: sourceRow || record.sourceRow,
+                derived: Boolean(identity.derived),
+                persisted: identity.persisted !== false
+            };
+        } else {
+            const fallbackId = `row:${table.source || 'sheet'}:${record.sourceRow}`;
+            record.recordId = fallbackId;
+            record.persisted = false;
+            record.sourceIdentity = { recordId: fallbackId, source: table.source, sourceRow: record.sourceRow, persisted: false, derived: false };
+            record.provenance = { source: table.source, sourceRow: record.sourceRow, derived: false, persisted: false };
+        }
 
         if (includeRevenue) {
             // Historical rows use V; later rows use W with weekday text in V.
@@ -185,6 +209,44 @@ function parseRows(table, includeRevenue = false) {
     }
 
     return results;
+}
+
+function uniqueByKey(values, keyFn) {
+    const seen = new Set();
+    const out = [];
+    for (const value of values) {
+        const key = keyFn(value);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(value);
+    }
+    return out;
+}
+
+function aggregateMetadata(tables) {
+    const sourceMetadata = Object.fromEntries(Object.entries(tables).map(([source, table]) => [source, table.metadata || {}]));
+    const entries = Object.values(sourceMetadata);
+    const warnings = [...new Set(entries.flatMap(meta => Array.isArray(meta.warnings) ? meta.warnings : []))];
+    const issues = uniqueByKey(
+        entries.flatMap(meta => Array.isArray(meta.integrity?.issues) ? meta.integrity.issues : []),
+        issue => JSON.stringify([issue.code, issue.source, issue.dateKey, issue.row, issue.message])
+    );
+    const fetchedTimes = entries.map(meta => Date.parse(meta.fetchedAt)).filter(Number.isFinite);
+    const fetchedAt = fetchedTimes.length ? new Date(Math.min(...fetchedTimes)).toISOString() : undefined;
+    const snapshotIds = [...new Set(entries.map(meta => meta.snapshotId).filter(Boolean))];
+    return {
+        ...(entries[0] || {}),
+        sourceMetadata,
+        fetchedAt,
+        snapshotId: snapshotIds.length === 1 ? snapshotIds[0] : snapshotIds.join(','),
+        stale: entries.some(meta => meta.stale === true || meta.status === 'stale' || meta.status === 'expired'),
+        warnings,
+        integrity: issues.length ? {
+            checkedAt: entries.find(meta => meta.integrity?.checkedAt)?.integrity.checkedAt,
+            ok: !issues.some(issue => issue.severity === 'critical'),
+            issues
+        } : entries.find(meta => meta.integrity)?.integrity
+    };
 }
 
 /**
@@ -210,7 +272,12 @@ export async function fetchAllData(sheetId) {
     const booked = parseRows(bookedTable);
     const arrived = parseRows(arrivedTable, true);
 
-    return { leads, booked, arrived, metadata: leadsTable.metadata || bookedTable.metadata || arrivedTable.metadata || {} };
+    return {
+        leads,
+        booked,
+        arrived,
+        metadata: aggregateMetadata({ leads: leadsTable, booked: bookedTable, arrived: arrivedTable })
+    };
 }
 
 /**
@@ -235,27 +302,31 @@ export function normalizeStatus(status) {
  * Format currency VNĐ
  */
 export function formatCurrency(amount) {
-    if (!amount || isNaN(amount)) return '0';
-    if (amount >= 1e9) return (amount / 1e9).toFixed(1) + 'B';
-    if (amount >= 1e6) return (amount / 1e6).toFixed(1) + 'M';
-    if (amount >= 1e3) return (amount / 1e3).toFixed(0) + 'K';
-    return amount.toLocaleString('vi-VN');
+    if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount))) return '0';
+    const value = Number(amount);
+    const abs = Math.abs(value);
+    if (abs >= 1e9) return (value / 1e9).toFixed(1) + 'B';
+    if (abs >= 1e6) return (value / 1e6).toFixed(1) + 'M';
+    if (abs >= 1e3) return (value / 1e3).toFixed(0) + 'K';
+    return value.toLocaleString('vi-VN', { maximumFractionDigits: 0 });
 }
 
 /**
  * Format date to DD/MM
  */
 export function formatDateShort(date) {
-    if (!date) return '--';
-    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+    const key = dateKey(date);
+    if (!key) return '--';
+    return `${key.slice(8, 10)}/${key.slice(5, 7)}`;
 }
 
 /**
  * Format date to DD/MM/YYYY
  */
 export function formatDateFull(date) {
-    if (!date) return '--';
-    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+    const key = dateKey(date);
+    if (!key) return '--';
+    return `${key.slice(8, 10)}/${key.slice(5, 7)}/${key.slice(0, 4)}`;
 }
 
 /**
@@ -276,35 +347,14 @@ function parseMarketingRows(table) {
     const rows = table.rows || [];
     const cellValue = cell => (cell && typeof cell === 'object' && 'v' in cell) ? cell.v : cell;
     const results = [];
-    let globalBalance = null;
-    let globalReceived = null;
 
-    for (const [index, row] of rows.entries()) {
+    for (const row of rows) {
         const cells = row.c || [];
 
         const dateStrObj = cells[0];
-        if (!dateStrObj || !cellValue(dateStrObj)) {
-            // Attempt to capture global metrics from top rows (e.g. row index 0 to 5)
-            if (index < 5 && cells[1] && cells[2]) {
-                const b = parseCurrencyStr(cellValue(cells[1]));
-                const rec = parseCurrencyStr(cellValue(cells[2]));
-                if (b > 0 || rec > 0) {
-                    if (rec > globalReceived) { // Pick the absolute biggest received (global total row)
-                        globalBalance = b || globalBalance;
-                        globalReceived = rec || globalReceived;
-                    }
-                }
-            }
-            continue;
-        }
+        if (!dateStrObj || !cellValue(dateStrObj)) continue;
 
         const dateStr = String(cellValue(dateStrObj)).trim();
-        if (dateStr.toUpperCase() === 'TỔNG' && index < 5) {
-            globalBalance = parseCurrencyStr(cellValue(cells[1]));
-            globalReceived = parseCurrencyStr(cellValue(cells[2]));
-            continue;
-        }
-
         // Skip aggregate rows (TỔNG, THÁNG...)
         if (dateStr.toUpperCase().includes('TỔNG') || dateStr.toUpperCase().includes('THÁNG') || dateStr === '') continue;
 
@@ -331,8 +381,6 @@ function parseMarketingRows(table) {
         });
     }
 
-    results.globalBalance = globalBalance;
-    results.globalReceived = globalReceived;
     return results;
 }
 
@@ -343,8 +391,6 @@ export async function fetchMarketingData(sheetId) {
     const table = await fetchMarketingTab(sheetId);
     const rows = parseMarketingRows(table);
     const normalized = rows.map(row => normalizeMarketingRecord(row));
-    normalized.globalBalance = rows.globalBalance;
-    normalized.globalReceived = rows.globalReceived;
     normalized.metadata = table.metadata || {};
     return normalized;
 }

@@ -23,6 +23,43 @@ const keyAt = (month, day) => `${month}-${String(day).padStart(2, '0')}`;
 const sum = values => { const numbers = values.map(numeric).filter(v => v !== null); return numbers.length ? numbers.reduce((a, b) => a + b, 0) : null; };
 const median = values => { const a = values.filter(v => v !== null && Number.isFinite(v)).sort((a, b) => a - b); return !a.length ? null : a.length % 2 ? a[(a.length - 1) / 2] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2; };
 const issue = (code, message, severity = 'warning', key) => ({ code, message, severity, ...(key ? { dateKey: key } : {}) });
+const severityOf = value => ['critical', 'warning', 'info'].includes(String(value || '').toLowerCase()) ? String(value).toLowerCase() : 'critical';
+const issueList = value => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (Array.isArray(value.issues)) return value.issues;
+    if (Array.isArray(value.errors)) return value.errors.map(error => ({ ...error, severity: error.severity || 'critical' }));
+    if (value.code || value.message || value.reason || value.severity || value.ok === false || value.status === 'error') return [value];
+    return [];
+};
+const normalizeSourceIssue = value => {
+    if (!value) return null;
+    if (typeof value === 'string') return issue('SOURCE_INTEGRITY', value, 'critical');
+    const key = dateKey(value.dateKey || value.date || value.businessDate);
+    const normalized = issue(
+        String(value.code || 'SOURCE_INTEGRITY'),
+        String(value.message || value.reason || value.code || 'Lỗi toàn vẹn dữ liệu nguồn.'),
+        severityOf(value.severity || value.level || (value.critical === false ? 'warning' : undefined)),
+        key
+    );
+    const monthKey = value.monthKey || value.month || key?.slice(0, 7);
+    return { ...value, ...normalized, ...(monthKey ? { monthKey: String(monthKey).slice(0, 7) } : {}) };
+};
+const collectSourceIssues = options => [
+    ...issueList(options.sourceIssues),
+    ...issueList(options.metadata?.integrity),
+    ...issueList(options.sourceMetadata?.integrity),
+    ...issueList(options.marketingMetadata?.integrity)
+].map(normalizeSourceIssue).filter(Boolean);
+const issueAffectsWindow = (sourceIssue, { monthKey, start, end }) => {
+    if (sourceIssue.dateKey) return sourceIssue.dateKey >= start && sourceIssue.dateKey <= end;
+    if (sourceIssue.monthKey) return sourceIssue.monthKey === monthKey;
+    return true;
+};
+const applyCompletenessGuard = (current, issues) => {
+    const critical = issues.some(i => i.severity === 'critical');
+    return critical ? { ...current, complete: false, sourceComplete: false } : { ...current, sourceComplete: current.complete };
+};
 
 export function normalizeMarketingRecord(record, referenceDate = new Date()) {
     const key = dateKey(record.dateKey || record.date);
@@ -80,12 +117,13 @@ export function aggregateHistoricalPhases(records, { monthKey, startDay, endDay 
 }
 
 export function buildBudgetRecommendation(current, baseline, { adjustmentPercent = 10, issues = [], stale = false } = {}) {
-    const reasons = [], warnings = issues.filter(i => i.severity !== 'info').map(i => i.message);
+    const reasons = [], warnings = issues.filter(i => i.severity !== 'info').map(i => i.message), criticalIssues = issues.filter(i => i.severity === 'critical');
     let action = 'insufficient_data';
     const e = current.efficiency;
     if (stale) reasons.push('Dữ liệu cũ: xem lại sau khi tải thành công, chưa dùng để điều chỉnh chi.');
     else if (!current.expectedDays) reasons.push('Giai đoạn chưa có ngày chốt trong khoảng đang xem.');
-    else if (!current.complete || issues.some(i => i.severity === 'critical')) reasons.push(`Dữ liệu đầy đủ ${current.completeDays}/${current.expectedDays} ngày; cần kiểm tra cảnh báo trước khi đề xuất.`);
+    else if (criticalIssues.length) reasons.push(`Có ${criticalIssues.length} lỗi dữ liệu nghiêm trọng; cần đối soát trước khi đề xuất ngân sách.`);
+    else if (!current.complete) reasons.push(`Dữ liệu đầy đủ ${current.completeDays}/${current.expectedDays} ngày; cần kiểm tra cảnh báo trước khi đề xuất.`);
     else if (!(current.ads > 0)) reasons.push('Không có chi Ads dương để tính mức điều chỉnh.');
     else if (baseline.months < 3) reasons.push(`Chỉ có ${baseline.months}/3 tháng lịch sử đủ dữ liệu cùng giai đoạn.`);
     else if (current.days < 3) { action = 'hold'; reasons.push('Mới có 1–2 ngày đủ dữ liệu; giữ và đánh giá lại sau 3 ngày.'); }
@@ -112,6 +150,8 @@ export function buildBudgetDecisionModel(records = [], options = {}) {
     const referenceDate = options.referenceDate || new Date(), today = dateKey(referenceDate), cutoff = cutoffDate(referenceDate, options.cutoffDays ?? 2), cutoffKey = dateKey(cutoff);
     const monthKey = /^\d{4}-(0[1-9]|1[0-2])$/.test(options.monthKey || '') ? options.monthKey : today.slice(0, 7);
     const rows = records.map(r => normalizeMarketingRecord(r, referenceDate));
+    const sourceIssues = collectSourceIssues(options);
+    const hasCrmState = Object.prototype.hasOwnProperty.call(options, 'crmAvailable') || Object.prototype.hasOwnProperty.call(options, 'crmStale') || Array.isArray(options.crmRecords);
     const rangeStart = dateKey(options.rangeStart) || `${monthKey}-01`, rangeEnd = dateKey(options.rangeEnd) || keyAt(monthKey, monthEnd(monthKey));
     const eligible = rows.filter(r => r.dateKey && r.dateKey <= cutoffKey);
     const phases = PHASES.map((phase, index) => {
@@ -119,23 +159,24 @@ export function buildBudgetDecisionModel(records = [], options = {}) {
         const start = [lower, rangeStart].sort().at(-1), end = [upper, rangeEnd, cutoffKey].sort()[0];
         const expectedDays = start <= end ? Math.round((dayDate(end) - dayDate(start)) / ONE_DAY) + 1 : 0;
         const days = eligible.filter(r => r.dateKey >= start && r.dateKey <= end);
-        const current = aggregatePhase(days, { expectedDays });
-        const issues = days.flatMap(r => r.dataCompleteness.issues);
+        const rawCurrent = aggregatePhase(days, { expectedDays });
+        const issues = [...days.flatMap(r => r.dataCompleteness.issues), ...sourceIssues.filter(i => issueAffectsWindow(i, { monthKey, start, end }))];
         const seen = new Set(); for (const row of days) { if (seen.has(row.dateKey)) issues.push(issue('DUPLICATE_DAY', 'Ngày trùng: loại khỏi tổng dùng để quyết định', 'critical', row.dateKey)); seen.add(row.dateKey); }
         if (expectedDays > seen.size) issues.push(issue('MISSING_DAY', `Thiếu ${expectedDays - seen.size} ngày trong khoảng chốt`, 'critical'));
         const baseline = aggregateHistoricalPhases(eligible, { monthKey, startDay: expectedDays ? Number(start.slice(8)) : index * 10 + 1, endDay: expectedDays ? Number(end.slice(8)) : Math.min((index + 1) * 10, monthEnd(monthKey)) });
-        if (current.complete && baseline.months >= 3) {
-            if (baseline.dailyAdsMedian > 0 && current.ads / expectedDays > baseline.dailyAdsMedian * 1.3) issues.push(issue('ADS_SPIKE', 'Chi Ads/ngày cao hơn median lịch sử trên 30%.'));
-            for (const [field, base] of [['data', 'dailyDataMedian'], ['booked', 'dailyBookedMedian'], ['arrived', 'dailyArrivedMedian']]) if (current[field] === 0 && baseline[base] > 0) issues.push(issue('ZERO_FUNNEL', `${field} về 0 so với lịch sử có phát sinh.`));
+        if (rawCurrent.complete && baseline.months >= 3 && !issues.some(i => i.severity === 'critical')) {
+            if (baseline.dailyAdsMedian > 0 && rawCurrent.ads / expectedDays > baseline.dailyAdsMedian * 1.3) issues.push(issue('ADS_SPIKE', 'Chi Ads/ngày cao hơn median lịch sử trên 30%.'));
+            for (const [field, base] of [['data', 'dailyDataMedian'], ['booked', 'dailyBookedMedian'], ['arrived', 'dailyArrivedMedian']]) if (rawCurrent[field] === 0 && baseline[base] > 0) issues.push(issue('ZERO_FUNNEL', `${field} về 0 so với lịch sử có phát sinh.`));
         }
+        if (hasCrmState && (!options.crmAvailable || options.crmStale)) issues.push(issue(options.crmStale ? 'CRM_STALE' : 'CRM_UNAVAILABLE', options.crmStale ? 'Snapshot CRM đã cũ; chưa dùng để ra quyết định ngân sách.' : 'Chưa đối chiếu CRM; chưa đủ tin cậy để ra quyết định ngân sách.', 'critical'));
         if (options.crmAvailable && !options.crmStale) {
             const crm = (options.crmRecords || []).filter(r => { const key = dateKey(r.aptDate || r.date); return key && key >= start && key <= end; });
             const known = crm.filter(r => numeric(r.revenue) !== null);
             const crmRevenue = sum(known.map(r => r.revenue));
-            if (crmRevenue !== null && current.revenue !== null && Math.abs(crmRevenue - current.revenue) > 1) issues.push(issue('SOURCE_DIFFERENCE', 'Doanh thu CRM và Marketing khác nhau trong cửa sổ ngày này; chưa có quy tắc quy nguồn, không tự bù số.'));
+            if (crmRevenue !== null && rawCurrent.revenue !== null && Math.abs(crmRevenue - rawCurrent.revenue) > 1) issues.push(issue('SOURCE_DIFFERENCE', 'Doanh thu CRM và Marketing khác nhau trong cửa sổ ngày này; chưa có quy tắc quy nguồn, không tự bù số.'));
             if (known.some(r => numeric(r.revenue) > 0 && !seen.has(dateKey(r.aptDate || r.date)))) issues.push(issue('CRM_WITHOUT_MARKETING', 'Có doanh thu CRM ở ngày chưa có dòng Marketing.'));
         }
-        if (!options.crmAvailable || options.crmStale) issues.push(issue('CRM_UNAVAILABLE', 'Chưa đối chiếu CRM hoặc snapshot CRM đã cũ.', 'info'));
+        const current = applyCompletenessGuard(rawCurrent, issues);
         const rec = buildBudgetRecommendation(current, baseline, { ...options, issues });
         return { phase, start, end, current, baseline, ...rec, days };
     });

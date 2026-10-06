@@ -5,7 +5,8 @@
  */
 
 import { normalizeStatus, formatDateShort, formatDateFull } from '../../core/api/sheets-api.js';
-import { formatPhone, hasConfirmedTime, sortAppointments, toDate } from '../dashboard/ui-helpers.js';
+import { formatPhone, hasConfirmedTime, normalizePhone, sortAppointments, toDate } from '../dashboard/ui-helpers.js';
+import { dateKey } from '../../core/analytics/budget-intelligence.js';
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -22,7 +23,8 @@ function phone(value) {
 }
 
 function isSamePhone(a, b) {
-    return phone(a).replace(/^0/, '') === phone(b).replace(/^0/, '');
+    const left = normalizePhone(a), right = normalizePhone(b);
+    return Boolean(left && right && left === right);
 }
 
 export let sortAscending = false;
@@ -57,18 +59,20 @@ export function renderAppointmentTable(data = [], filter = 'all') {
     `).join('');
 }
 
-export function getOverdueAppointments(booked = [], arrived = []) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+export function getOverdueAppointments(booked = [], arrived = [], reference = new Date()) {
+    const today = dateKey(reference);
     return (booked || [])
         .filter(item => {
-            const aptDate = toDate(item?.aptDate);
-            if (!aptDate) return false;
-            aptDate.setHours(0, 0, 0, 0);
-            if (aptDate >= today) return false;
+            const aptDay = dateKey(item?.aptDate);
+            if (!aptDay || aptDay >= today) return false;
             const status = normalizeStatus(item?.status);
-            if (status === 'cancelled' || status === 'arrived') return false;
-            return !(arrived || []).some(arrivedItem => isSamePhone(item?.phone, arrivedItem?.phone));
+            if (['cancelled', 'arrived', 'rescheduled'].includes(status)) return false;
+            return !(arrived || []).some(visit => {
+                if (item.appointmentId && visit.appointmentId === item.appointmentId) return true;
+                const visitDay = dateKey(visit.aptDate || visit.date);
+                if (!isSamePhone(item.phone, visit.phone) || !visitDay || visitDay < aptDay) return false;
+                return visitDay === aptDay || (dateKey(item.date) && dateKey(item.date) === dateKey(visit.date));
+            });
         })
         .sort((a, b) => (toDate(b.aptDate)?.getTime() || 0) - (toDate(a.aptDate)?.getTime() || 0));
 }

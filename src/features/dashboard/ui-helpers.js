@@ -1,8 +1,19 @@
+import { dateKey } from '../../core/analytics/budget-intelligence.js';
+
 /**
  * Pure UI helpers shared by the CRM and Marketing pages.
  * These functions deliberately do not infer business status or merge records
  * without a valid, normalized phone number.
  */
+
+const ONE_DAY = 86400000;
+const businessBoundary = (key, end = false) => key ? new Date(`${key}T${end ? '23:59:59.999' : '00:00:00.000'}+07:00`) : null;
+const shiftDayKey = (key, days) => new Date(new Date(`${key}T12:00:00Z`).getTime() + days * ONE_DAY).toISOString().slice(0, 10);
+const monthEnd = month => new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).getUTCDate();
+const shiftMonth = (month, offset) => {
+    const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 + offset, 1));
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+};
 
 export function toDate(value) {
     if (!value) return null;
@@ -14,7 +25,7 @@ export function toDate(value) {
 export function normalizePhone(value) {
     if (value === null || value === undefined) return null;
     let digits = String(value).replace(/\D/g, '');
-    if (digits.startsWith('84')) digits = `0${digits.slice(2)}`;
+    if (digits.startsWith('84') && digits.length >= 11) digits = `0${digits.slice(2)}`;
     if (digits.length === 9) digits = `0${digits}`;
     if (!/^0\d{9,10}$/.test(digits)) return null;
     return digits;
@@ -33,45 +44,48 @@ export function formatPhone(value) {
 }
 
 export function dateOnly(value) {
-    const date = toDate(value);
-    if (!date) return null;
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return businessBoundary(dateKey(value));
 }
 
 export function monthRange(reference = new Date()) {
+    const month = dateKey(reference)?.slice(0, 7);
+    if (!month) return { start: null, end: null };
     return {
-        start: new Date(reference.getFullYear(), reference.getMonth(), 1),
-        end: new Date(reference.getFullYear(), reference.getMonth() + 1, 0, 23, 59, 59, 999)
+        start: businessBoundary(`${month}-01`),
+        end: businessBoundary(`${month}-${String(monthEnd(month)).padStart(2, '0')}`, true)
     };
 }
 
 export function isSameDay(a, b = new Date()) {
-    const left = dateOnly(a);
-    const right = dateOnly(b);
-    return Boolean(left && right && left.getTime() === right.getTime());
+    const left = dateKey(a);
+    const right = dateKey(b);
+    return Boolean(left && right && left === right);
 }
 
 export function getDateRange(filter, customStart, customEnd, reference = new Date()) {
-    const today = dateOnly(reference);
-    if (!today) return { start: null, end: null };
+    const todayKey = dateKey(reference);
+    const today = businessBoundary(todayKey);
+    if (!todayKey || !today) return { start: null, end: null };
     if (filter === 'all') return { start: null, end: null };
-    if (filter === 'today') return { start: today, end: new Date(today.getTime() + 86400000 - 1) };
+    if (filter === 'today') return { start: today, end: businessBoundary(todayKey, true) };
     if (filter === 'week') {
-        const mondayOffset = (today.getDay() + 6) % 7;
-        const start = new Date(today);
-        start.setDate(start.getDate() - mondayOffset);
-        return { start, end: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6, 23, 59, 59, 999) };
+        const mondayOffset = (new Date(`${todayKey}T12:00:00Z`).getUTCDay() + 6) % 7;
+        const startKey = shiftDayKey(todayKey, -mondayOffset);
+        return { start: businessBoundary(startKey), end: businessBoundary(shiftDayKey(startKey, 6), true) };
     }
     if (filter === 'month') return monthRange(reference);
     if (filter === 'lastmonth') {
+        const previous = shiftMonth(todayKey.slice(0, 7), -1);
         return {
-            start: new Date(reference.getFullYear(), reference.getMonth() - 1, 1),
-            end: new Date(reference.getFullYear(), reference.getMonth(), 0, 23, 59, 59, 999)
+            start: businessBoundary(`${previous}-01`),
+            end: businessBoundary(`${previous}-${String(monthEnd(previous)).padStart(2, '0')}`, true)
         };
     }
     if (filter === 'custom') {
-        const start = customStart ? new Date(`${customStart}T00:00:00`) : null;
-        const end = customEnd ? new Date(`${customEnd}T23:59:59.999`) : null;
+        const startKey = customStart ? dateKey(customStart) : null;
+        const endKey = customEnd ? dateKey(customEnd) : null;
+        const start = startKey ? businessBoundary(startKey) : null;
+        const end = endKey ? businessBoundary(endKey, true) : null;
         return { start, end };
     }
     if (filter === 'upcoming') return { start: today, end: null };
@@ -79,7 +93,7 @@ export function getDateRange(filter, customStart, customEnd, reference = new Dat
 }
 
 export function inDateFilter(value, filter, customStart, customEnd, reference = new Date()) {
-    const date = toDate(value);
+    const date = dateOnly(value);
     if (!date) return filter === 'all';
     const { start, end } = getDateRange(filter, customStart, customEnd, reference);
     if (filter === 'upcoming') return date >= start;
@@ -89,17 +103,14 @@ export function inDateFilter(value, filter, customStart, customEnd, reference = 
 }
 
 function appointmentTime(record) {
-    const date = toDate(record?.aptDate || record?.date);
-    if (!date) return null;
+    const key = dateKey(record?.aptDate || record?.date);
+    if (!key) return null;
     const rawTime = String(record?.time || '').trim();
     const match = rawTime.match(/^(\d{1,2})\s*[:hH]\s*(\d{1,2})$/);
-    const result = new Date(date);
     if (match && hasConfirmedTime(record)) {
-        result.setHours(Number(match[1]), Number(match[2]), 0, 0);
-    } else {
-        result.setHours(23, 59, 59, 999);
+        return new Date(`${key}T${String(Number(match[1])).padStart(2, '0')}:${String(Number(match[2])).padStart(2, '0')}:00.000+07:00`);
     }
-    return result;
+    return businessBoundary(key, true);
 }
 
 export function hasConfirmedTime(record) {
@@ -108,28 +119,28 @@ export function hasConfirmedTime(record) {
 }
 
 export function isUpcomingAppointment(record, reference = new Date()) {
-    const date = dateOnly(record?.aptDate || record?.date);
-    const today = dateOnly(reference);
-    if (!date || !today) return false;
-    if (!hasConfirmedTime(record)) return date >= today;
+    const key = dateKey(record?.aptDate || record?.date);
+    const todayKey = dateKey(reference);
+    if (!key || !todayKey) return false;
+    if (!hasConfirmedTime(record)) return key >= todayKey;
     return appointmentTime(record) >= reference;
 }
 
 export function sortAppointments(records, reference = new Date()) {
     const now = reference.getTime();
-    const todayStart = new Date(reference.getFullYear(), reference.getMonth(), reference.getDate()).getTime();
+    const todayKey = dateKey(reference);
     return [...(records || [])].sort((a, b) => {
-        const aDate = toDate(a?.aptDate || a?.date);
-        const bDate = toDate(b?.aptDate || b?.date);
-        if (!aDate && !bDate) return 0;
-        if (!aDate) return 1;
-        if (!bDate) return -1;
-        const aTime = appointmentTime(a)?.getTime() ?? aDate.getTime();
-        const bTime = appointmentTime(b)?.getTime() ?? bDate.getTime();
-        const aToday = dateOnly(aDate)?.getTime() === todayStart;
-        const bToday = dateOnly(bDate)?.getTime() === todayStart;
-        const aFuture = aToday ? aTime >= now : aDate.getTime() > todayStart;
-        const bFuture = bToday ? bTime >= now : bDate.getTime() > todayStart;
+        const aKey = dateKey(a?.aptDate || a?.date);
+        const bKey = dateKey(b?.aptDate || b?.date);
+        if (!aKey && !bKey) return 0;
+        if (!aKey) return 1;
+        if (!bKey) return -1;
+        const aTime = appointmentTime(a)?.getTime() ?? businessBoundary(aKey)?.getTime() ?? 0;
+        const bTime = appointmentTime(b)?.getTime() ?? businessBoundary(bKey)?.getTime() ?? 0;
+        const aToday = aKey === todayKey;
+        const bToday = bKey === todayKey;
+        const aFuture = aToday ? aTime >= now : aKey > todayKey;
+        const bFuture = bToday ? bTime >= now : bKey > todayKey;
         if (aFuture !== bFuture) return aFuture ? -1 : 1;
         if (aFuture) return aTime - bTime;
         return bTime - aTime;
@@ -137,6 +148,10 @@ export function sortAppointments(records, reference = new Date()) {
 }
 
 export function latestRecordDate(record) {
+    return toDate(record?.aptDate || record?.date);
+}
+
+export function eventDate(record) {
     return toDate(record?.aptDate || record?.date);
 }
 
@@ -170,7 +185,7 @@ export function deriveCustomers(data) {
                 };
                 groups.set(key, customer);
             }
-            const date = toDate(record?.[dateField] || record?.aptDate || record?.date);
+            const date = source === 'arrived' ? eventDate(record) : toDate(record?.[dateField] || record?.aptDate || record?.date);
             const event = { ...record, source, date };
             customer.records.push(event);
             customer.sources.add(source);

@@ -3,16 +3,89 @@ import { formatTelegramPhone } from './telegram-message.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
-import { SOURCE_NAMES, validateSourceName } from './config.js';
+import { SOURCE_NAMES, validateSourceName, quoteSheetName } from './config.js';
 import { SheetsServiceError } from './sheets-service.js';
 import { applyNetworkSecurity } from './network.js';
-import { analyzeMarketing } from './ai-marketing.js';
 
 function publicError(error) {
     if (error instanceof SheetsServiceError) {
         return { error: error.message, code: error.code };
     }
     return { error: 'Request failed', code: 'REQUEST_FAILED' };
+}
+
+function isObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function sourceIdentity(config, source, metadata = {}) {
+    const definition = config.sources?.[source] || {};
+    return {
+        source,
+        group: metadata.group ?? definition.group ?? null,
+        spreadsheetId: metadata.spreadsheetId ?? definition.spreadsheetId ?? null,
+        sheetTab: metadata.sheetTab ?? definition.tab ?? null,
+        sheetId: metadata.sheetId ?? definition.sheetId ?? null,
+        range: metadata.sheetTab ? `${quoteSheetName(metadata.sheetTab)}!A:Z` : definition.range ?? null
+    };
+}
+
+function withSourceIdentity(config, source, metadata = {}) {
+    return {
+        ...metadata,
+        sourceIdentity: sourceIdentity(config, source, metadata)
+    };
+}
+
+function sourceStatusMap(status = {}, config = {}) {
+    const rawSources = isObject(status.sources) ? status.sources : {};
+    const rawSourceStatus = isObject(status.sourceStatus) ? status.sourceStatus : {};
+    const freshness = isObject(status.freshness) ? status.freshness : {};
+
+    return Object.fromEntries(SOURCE_NAMES.map(source => {
+        const definition = config.sources?.[source] || {};
+        const entry = isObject(rawSources[source])
+            ? rawSources[source]
+            : (isObject(rawSourceStatus[source]) ? rawSourceStatus[source] : {});
+        const group = entry.group ?? definition.group ?? null;
+        const groupFreshness = isObject(freshness[group]) ? freshness[group] : {};
+        const statusText = entry.status ?? groupFreshness.status ?? null;
+        const snapshotId = entry.snapshotId
+            ?? (group === 'marketing' ? status.marketingSnapshotId : null)
+            ?? (group === 'crm' ? status.crmSnapshotId : null)
+            ?? null;
+
+        return [source, {
+            source,
+            group,
+            status: statusText,
+            stale: typeof entry.stale === 'boolean' ? entry.stale : (statusText === 'stale' || statusText === 'expired' || status.stale === true),
+            expired: typeof entry.expired === 'boolean' ? entry.expired : (statusText === 'expired' || status.expired === true),
+            available: typeof entry.available === 'boolean'
+                ? entry.available
+                : (statusText ? !['unavailable', 'expired'].includes(String(statusText).toLowerCase()) : (typeof status.available === 'boolean' ? status.available : null)),
+            fetchedAt: entry.fetchedAt ?? entry.lastSuccessfulFetchAt ?? groupFreshness.fetchedAt ?? null,
+            snapshotId,
+            warnings: Array.isArray(entry.warnings) ? entry.warnings : [],
+            lastError: entry.lastError ?? groupFreshness.lastError ?? null
+        }];
+    }));
+}
+
+function unavailableStatus(value) {
+    if (!isObject(value)) return false;
+    if (value.configured === false || value.available === false || value.unavailable === true || value.expired === true) return true;
+    if (value.credentialsValid === false || value.credentialValid === false || value.invalidCredentials === true) return true;
+    if (['unavailable', 'expired', 'invalid_credentials'].includes(String(value.status || '').toLowerCase())) return true;
+    if (['SHEETS_PERMISSION_DENIED', 'GOOGLE_CREDENTIALS_INVALID', 'GOOGLE_AUTH_FAILED'].includes(String(value.code || ''))) return true;
+    return false;
+}
+
+function healthSnapshot(service, config) {
+    const serviceStatus = service.getStatus?.() || { configured: true };
+    const sources = sourceStatusMap(serviceStatus, config);
+    const ready = !unavailableStatus(serviceStatus) && !Object.values(sources).some(unavailableStatus);
+    return { serviceStatus, sources, ready };
 }
 
 export function createApp({ service, config, logger = console, sendTelegram = telegramRequest }) {
@@ -33,36 +106,31 @@ export function createApp({ service, config, logger = console, sendTelegram = te
     });
 
     app.get('/api/health/ready', (req, res) => {
-        const status = service.getStatus?.() || { configured: true };
-        const ready = status.configured !== false;
+        const { serviceStatus, sources, ready } = healthSnapshot(service, config);
         res.status(ready ? 200 : 503).json({
+            ...serviceStatus,
             ok: ready,
             status: ready ? 'ready' : 'not_ready',
             readonly: true,
-            ...status
+            sources
         });
     });
 
     app.get('/api/health', (req, res) => {
-        const status = service.getStatus?.() || { configured: true };
+        const { serviceStatus, sources } = healthSnapshot(service, config);
         res.json({
+            ...serviceStatus,
             ok: true,
             provider: 'google-sheets-api',
             readonly: true,
             telegramConfigured: Boolean(config.telegramBotToken && config.telegramChatId),
-            ...status
+            sources
         });
     });
 
     app.get('/api/telegram/settings', (req, res) => {
         res.set('Cache-Control', 'no-store');
         res.json({ botConfigured: Boolean(config.telegramBotToken), defaultChatId: config.telegramChatId || '' });
-    });
-
-    app.post('/api/marketing/ai-analysis', express.json({ limit: '64kb' }), async (req, res) => {
-        res.set('Cache-Control', 'no-store');
-        try { const analysis = await analyzeMarketing(req.body, config); return res.json({ ok: true, analysis }); }
-        catch (error) { return res.status(error.status || 502).json({ ok: false, error: error.message, code: error.code || 'AI_PROVIDER_ERROR' }); }
     });
 
     app.post('/api/telegram/send-record', express.json({ limit: '16kb' }), async (req, res) => {
@@ -81,6 +149,22 @@ export function createApp({ service, config, logger = console, sendTelegram = te
             if (!ok || payload.ok !== true) return res.status(502).json({ error: 'Telegram không gửi được tin nhắn', code: 'TELEGRAM_SEND_FAILED' });
             return res.json({ ok: true, sentAt: new Date().toISOString() });
         } catch { return res.status(502).json({ error: 'Không kết nối được Telegram', code: 'TELEGRAM_NETWORK_FAILED' }); }
+    });
+
+    app.get('/api/integrity', async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        if (typeof service.getIntegrity !== 'function') {
+            return res.status(501).json({ error: 'Integrity report unavailable', code: 'INTEGRITY_NOT_IMPLEMENTED' });
+        }
+
+        try {
+            const result = await service.getIntegrity();
+            return res.json(isObject(result) ? result : { result });
+        } catch (error) {
+            logger.error?.('Integrity request failed', error.code || 'UNKNOWN');
+            const body = publicError(error);
+            return res.status(error.status && error.status >= 400 ? error.status : 502).json(body);
+        }
     });
 
     app.get('/api/sheets', async (req, res) => {
@@ -108,7 +192,8 @@ export function createApp({ service, config, logger = console, sendTelegram = te
             res.set('Cache-Control', 'no-store');
             return res.json({
                 values: result.values,
-                metadata: result.metadata
+                identities: Array.isArray(result.identities) ? result.identities : [],
+                metadata: withSourceIdentity(config, source, result.metadata)
             });
         } catch (error) {
             logger.error?.('Sheets request failed', error.code || 'UNKNOWN');

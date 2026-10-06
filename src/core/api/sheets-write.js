@@ -46,7 +46,7 @@ async function postToSheet(action, payload) {
 }
 
 /**
- * Add a new lead to the "DATA NGUỒN MKT HẢO" sheet tab
+ * Add a new lead to the configured CRM leads sheet tab
  */
 export async function addLead({ name, phone, service, source, note }) {
     return postToSheet('addLead', { name, phone, service, source, note });

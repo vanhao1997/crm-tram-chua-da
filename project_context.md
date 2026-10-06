@@ -3,7 +3,7 @@
 
 ## 🎯 Vision
 - **Sản phẩm**: BSN CRM Dashboard
-- **Mô tả**: Dashboard quản lý lịch hẹn + doanh số + funnel chuyển đổi cho Trạm Chữa Da BSN. Đọc Live data từ Google Sheet (Gviz API).
+- **Mô tả**: Dashboard quản lý lịch hẹn + doanh số + funnel chuyển đổi cho Trạm Chữa Da BSN. Đọc live data từ Google Sheets qua backend read-only.
 - **Target users**: Chủ cơ sở spa BSN và nhân viên quản lý
 - **Status**: ✅ Live — `https://crm-bsn.vibecodingsolution.ovh`
 
@@ -15,9 +15,9 @@
 
 ## 🏗️ Tech Stack
 - **Frontend**: Vanilla JS + Vite 6.x
-- **Backend**: Không cần (Client-side thuần)
-- **Data Source**: Google Sheets (Gviz Query API - Read Only)
-- **AI Integration**: OpenAI API (`gpt-4o-mini`) — API Key lưu localStorage
+- **Backend**: Node/Express proxy đọc Google Sheets read-only, cache snapshot, kiểm tra toàn vẹn dữ liệu
+- **Data Source**: Google Sheets API v4 / endpoint nội bộ `/api/sheets`
+- **AI Integration**: Đã loại bỏ để giảm bundle và tránh phụ thuộc API AI
 - **Hosting**: Coolify v4.0.0-beta.472 trên VPS Contabo (173.249.21.125)
 - **Containerization**: Docker (node:20-alpine build → nginx:alpine serve)
 - **Domain**: `crm-bsn.vibecodingsolution.ovh` (via Cloudflare Tunnel)
@@ -34,7 +34,7 @@
 - **2026-04-16**: Dùng Inline SVG thay vì file qua \`<img>\` để tránh Vite build path issue không render được asset tĩnh ở prod chạy JS.
 - **2026-04-09**: Chọn Vite + Vanilla JS thay Next.js — Lý do: App đọc data read-only, không cần SSR/backend
 - **2026-04-09**: Dùng Google Gviz API thay vì Google Sheets API v4 — Lý do: Không cần OAuth, chỉ cần sheet public
-- **2026-04-09**: AI Analytics dùng nút bấm thủ công thay vì auto — Lý do: Tránh tốn token mỗi khi refresh
+- **2026-10-06**: Loại bỏ AI Analytics — Lý do: giảm bundle, giảm chi phí và tránh phụ thuộc API AI
 - **2026-04-09**: Bypass Coolify localhost server (ID=0) bằng cách add server mới "Contabo VPS Pro" — Lý do: Bug Beta v4 gây lỗi 500 trên Destinations
 
 ## ⚠️ Constraints & Rules
@@ -62,7 +62,7 @@ bsn-dashboard/
 ├── package.json        # Dependencies (chỉ có vite devDep)
 ├── public/logo.jpg     # Logo clinic BSN
 └── js/
-    ├── main.js          # Core logic: KPI, filters, AI analytics, tabs
+    ├── main.js          # Core logic: KPI, filters, integrity status, tabs
     ├── sheets-api.js    # Google Gviz API integration + date parsing
     ├── charts.js        # Canvas charts (Funnel, Doanh thu, Nguồn)
     └── appointments.js  # Bảng lịch hẹn + quá hẹn chưa đến

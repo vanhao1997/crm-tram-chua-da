@@ -8,29 +8,44 @@ import { normalizeStatus, formatCurrency } from '../../core/api/sheets-api.js';
 /**
  * Render KPI cards with data
  */
-export function renderKPICards(leads, booked, arrived) {
+export function renderKPICards(leads, booked, arrived, availability = {}) {
   const totalLead = leads.length;
   const totalBooked = booked.length;
   const totalArrived = arrived.length;
   let totalRevenue = 0;
-  let hasRevenue = false;
+  let hasRevenue = arrived.length === 0;
+  let missingRevenue = false;
   for (const item of arrived) {
-    if (item.revenue === null || item.revenue === undefined || item.revenue === '') continue;
-    const value = Number(String(item.revenue).replace(/[,.]/g, ''));
+    if (item.revenue === null || item.revenue === undefined || item.revenue === '') {
+      missingRevenue = true;
+      continue;
+    }
+    const value = typeof item.revenue === 'number' ? item.revenue : Number(String(item.revenue).replace(/[,.]/g, ''));
     if (Number.isFinite(value)) {
       totalRevenue += value;
       hasRevenue = true;
-    }
+    } else missingRevenue = true;
   }
 
-  animateValue('kpiTotalLeadValue', totalLead);
-  animateValue('kpiBookedValue', totalBooked);
-  animateValue('kpiArrivedValue', totalArrived);
+  renderCount('kpiTotalLeadValue', totalLead, availability.leads !== false);
+  renderCount('kpiBookedValue', totalBooked, availability.booked !== false);
+  renderCount('kpiArrivedValue', totalArrived, availability.arrived !== false);
 
   const revenueEl = document.getElementById('kpiRevenueValue');
   if (revenueEl) {
-    revenueEl.textContent = hasRevenue ? formatCurrency(totalRevenue) : '—';
+    revenueEl.textContent = availability.arrived === false || missingRevenue ? '—' : hasRevenue ? formatCurrency(totalRevenue) : '—';
+    revenueEl.title = missingRevenue ? 'Chưa nhập đủ doanh thu cho các lượt đến trong kỳ.' : 'Doanh thu đã ghi nhận trong kỳ.';
   }
+}
+
+function renderCount(elementId, value, available) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  if (!available) {
+    el.textContent = '—';
+    return;
+  }
+  animateValue(elementId, value);
 }
 
 /**
@@ -111,13 +126,17 @@ export function renderFunnelChart(leads, booked, arrived) {
 export function renderRevenueChart(arrived) {
   const container = document.getElementById('revenueChart');
   if (!container) return;
+  if (arrived.some(item => item.revenue == null || item.revenue === '')) {
+    container.innerHTML = '<div class="empty-inline">Chưa nhập đủ doanh thu các lượt đến trong kỳ.</div>';
+    return;
+  }
 
   // Group revenue by service
   const serviceRevenue = {};
   let totalRevenue = 0;
 
   for (const item of arrived) {
-    const revenue = Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0;
+    const revenue = typeof item.revenue === 'number' ? item.revenue : Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0;
     if (revenue <= 0) continue;
 
     const service = item.service || 'Khác';
@@ -234,11 +253,13 @@ export function renderRevenuePieChart(arrived) {
 
   if (window.revenuePieChartInstance) {
     window.revenuePieChartInstance.destroy();
+    window.revenuePieChartInstance = null;
   }
 
+  const missingRevenue = arrived.some(item => item.revenue == null || item.revenue === '');
   const serviceRevenue = {};
   for (const item of arrived) {
-    const revenue = Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0;
+    const revenue = typeof item.revenue === 'number' ? item.revenue : Number(String(item.revenue || 0).replace(/[,.]/g, '')) || 0;
     if (revenue <= 0) continue;
     const service = item.service || 'Khác';
     serviceRevenue[service] = (serviceRevenue[service] || 0) + revenue;
@@ -247,7 +268,7 @@ export function renderRevenuePieChart(arrived) {
   // Sort descending
   const sorted = Object.entries(serviceRevenue).sort(([, a], [, b]) => b - a);
 
-  if (!sorted.length || typeof Chart === 'undefined') {
+  if (missingRevenue || !sorted.length || typeof Chart === 'undefined') {
     const parent = ctx.parentElement;
     if (parent) {
       ctx.style.display = 'none';
@@ -257,7 +278,7 @@ export function renderRevenuePieChart(arrived) {
         empty.className = 'pie-chart-empty';
         parent.appendChild(empty);
       }
-      empty.textContent = 'Chưa có doanh thu trong kỳ.';
+      empty.textContent = missingRevenue ? 'Chưa nhập đủ doanh thu các lượt đến trong kỳ.' : 'Chưa có doanh thu trong kỳ.';
       empty.style.display = '';
     }
     return;
@@ -419,12 +440,15 @@ export function renderMarketingPieCharts(totalCost, totalRev, toiNangCo, toiMuiC
   // Chart 1: Ngân sách / Doanh Thu
   const mktBudgetContainer = document.getElementById('mktPieBudget');
   if (mktBudgetContainer) {
-    const costRatio = totalRev > 0 ? (totalCost / totalRev) * 100 : (totalCost > 0 ? 100 : 0);
-    const profitRatio = Math.max(0, 100 - costRatio);
-
-    if (totalCost === 0 && totalRev === 0) {
+    const cost = Number.isFinite(Number(totalCost)) ? Number(totalCost) : 0;
+    const revenue = totalRev === null || totalRev === undefined || totalRev === '' || !Number.isFinite(Number(totalRev)) ? null : Number(totalRev);
+    if (cost > 0 && revenue === null) {
+      mktBudgetContainer.innerHTML = `<div class="pie-chart-empty">Thiếu dữ liệu doanh thu</div>`;
+    } else if (cost === 0 && revenue === 0) {
       mktBudgetContainer.innerHTML = `<div class="pie-chart-empty">Chưa có dữ liệu</div>`;
     } else {
+      const costRatio = revenue > 0 ? (cost / revenue) * 100 : (cost > 0 ? 100 : 0);
+      const profitRatio = Math.max(0, 100 - costRatio);
       mktBudgetContainer.innerHTML = `
         <div class="pie-chart-wrapper">
           <div class="pie-chart donut" style="background: conic-gradient(var(--accent-red) 0% ${costRatio}%, var(--accent-emerald) ${costRatio}% 100%);">

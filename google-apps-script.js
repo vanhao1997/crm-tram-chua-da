@@ -14,7 +14,7 @@
 
 // ─── CONFIG ───
 // Tab names in your Google Sheet (must match exactly)
-var TAB_LEADS = 'DATA NGUỒN MKT HẢO';
+var TAB_LEADS = 'DATA NGUỒN MKT';
 var TAB_BOOKED = 'KHÁCH ĐẶT HẸN';
 var TAB_ARRIVED = 'KHÁCH ĐÃ ĐẾN';
 

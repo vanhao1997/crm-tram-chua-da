@@ -1,4 +1,7 @@
 import crypto from 'node:crypto';
+import { calendarDay, isCustomerRow, inspectCrm, parseIdentities, reconcileSources } from './integrity.js';
+import { quoteSheetName } from './config.js';
+import { completeAppointments, deriveMarketing } from './derived-data.js';
 
 const TRANSIENT_ERROR_CODES = new Set([
     'ECONNABORTED',
@@ -37,7 +40,9 @@ export function isTransientError(error) {
 function toError(error, context) {
     if (error instanceof SheetsServiceError) return error;
     const status = errorStatus(error);
-    const code = status === 403 || status === 401 ? 'SHEETS_PERMISSION_DENIED' : 'SHEETS_READ_FAILED';
+    const code = error?.code === 'SHEETS_SOURCE_MISSING' ? 'SHEETS_SOURCE_MISSING'
+        : status === 400 ? 'SHEETS_INVALID_RANGE'
+        : status === 403 || status === 401 ? 'SHEETS_PERMISSION_DENIED' : 'SHEETS_READ_FAILED';
     return new SheetsServiceError(`Google Sheets ${context} failed`, {
         code,
         status: 502,
@@ -95,6 +100,7 @@ async function retry(operation, options) {
 function cloneResult(result, stale = result.metadata.stale, extraWarnings = []) {
     return {
         values: result.values,
+        identities: result.identities,
         metadata: {
             ...result.metadata,
             stale,
@@ -112,6 +118,9 @@ function makeSourceResult(definition, values, metadata) {
             source: definition.name,
             group: definition.group,
             sheetTab: definition.tab,
+            sheetId: definition.sheetId ?? null,
+            identityAvailable: definition.identityAvailable ?? false,
+            workspaceId: crypto.createHash('sha256').update(definition.spreadsheetId).digest('hex').slice(0, 16),
             spreadsheetId: definition.spreadsheetId,
             rowCount: Array.isArray(values) ? values.length : 0,
             fetchedAt: metadata.fetchedAt,
@@ -134,6 +143,8 @@ export function createSheetsService({
     cacheMs = 60_000,
     timeoutMs = 15_000,
     retryCount = 2,
+    maxStaleMs = 15 * 60_000,
+    identityColumns = 'FS:FX',
     logger = console
 }) {
     if (!sources || !client || typeof client.batchGet !== 'function') {
@@ -150,18 +161,36 @@ export function createSheetsService({
     let lastSuccessfulFetchAt = null;
     let crmRetryAt = 0;
     let marketingRetryAt = 0;
+    let crmError = null;
+    let marketingError = null;
+    let lastIntegrity = null;
+    let lastIntegritySignature = null;
 
     const read = (context, request) => retry(
         () => client.batchGet(request),
         { context, retryCount, timeoutMs, sleep: sleepFn }
     );
 
+    const resolve = async definitions => typeof client.resolveSources === 'function'
+        ? retry(() => client.resolveSources(definitions),
+            { context: 'source identity', retryCount, timeoutMs, sleep: sleepFn }) : definitions;
+    const age = snapshot => snapshot ? Math.max(0, now() - Date.parse(snapshot.fetchedAt)) : null;
+    const withinStaleLimit = snapshot => snapshot && age(snapshot) <= maxStaleMs;
+    function requireUsable(snapshot) {
+        if (!withinStaleLimit(snapshot)) throw new SheetsServiceError('Source snapshot is too old to use', {
+            code: 'SHEETS_SNAPSHOT_EXPIRED', status: 503, transient: false
+        });
+    }
+
     async function fetchCrmSnapshot() {
-        const definitions = ['leads', 'booked', 'arrived'].map(name => sources[name]);
+        const definitions = await resolve(['leads', 'booked', 'arrived'].map(name => sources[name]));
         const fetchedAtMs = now();
         const valueRanges = await read('CRM snapshot', {
             spreadsheetId: definitions[0].spreadsheetId,
             ranges: definitions.map(definition => definition.range),
+            ...(client.resolveSources ? { identityRanges: definitions.map(definition => definition.identityAvailable === false
+                ? null : `${quoteSheetName(definition.tab)}!${identityColumns}`),
+                sourceDefinitions: definitions } : {}),
             majorDimension: 'ROWS',
             valueRenderOption: 'UNFORMATTED_VALUE',
             dateTimeRenderOption: 'FORMATTED_STRING'
@@ -188,19 +217,36 @@ export function createSheetsService({
                 valueRanges[index]?.values || [],
                 metadata
             );
+            snapshot.sources[definition.name].identities = parseIdentities(valueRanges[index]?.identityValues, snapshot.sources[definition.name].values.length);
         });
+
+        snapshot.sources.booked = completeAppointments(snapshot.sources);
+        for (const [name, result] of Object.entries(snapshot.sources)) {
+            const days = result.values.filter(isCustomerRow).map(row => calendarDay(name === 'leads' ? row[1]
+                : name === 'booked' ? row[10] : row[10] || row[1])).filter(Boolean);
+            result.metadata.latestEventDate = days.sort().at(-1) || null;
+        }
+        snapshot.integrity = inspectCrm(snapshot, metadata.fetchedAt);
+        if (snapshot.sources.booked.metadata.derivedCount) snapshot.integrity.issues.push({
+            code: 'APPOINTMENTS_DERIVED', severity: 'warning', source: 'booked', corrected: true,
+            count: snapshot.sources.booked.metadata.derivedCount,
+            message: 'Lịch hẹn xác nhận được tính từ lead; tab lịch hẹn chưa có đủ bản ghi.'
+        });
+        for (const result of Object.values(snapshot.sources)) result.metadata.integrity = snapshot.integrity;
 
         crmCache = { expiresAt: now() + cacheMs, snapshot };
         lastGoodCrm = snapshot;
         crmRetryAt = 0;
+        crmError = null;
         lastSuccessfulFetchAt = metadata.fetchedAt;
         return snapshot;
     }
 
     async function getCrmSnapshot() {
         const timestamp = now();
-        if (crmCache && timestamp < crmCache.expiresAt) return crmCache.snapshot;
+        if (crmCache && timestamp < crmCache.expiresAt && withinStaleLimit(crmCache.snapshot)) return crmCache.snapshot;
         if (lastGoodCrm && timestamp < crmRetryAt) {
+            requireUsable(lastGoodCrm);
             return {
                 ...lastGoodCrm,
                 sources: Object.fromEntries(
@@ -221,7 +267,9 @@ export function createSheetsService({
         try {
             return await crmInFlight;
         } catch (error) {
+            crmError = error.code || 'SHEETS_READ_FAILED';
             if (lastGoodCrm) {
+                requireUsable(lastGoodCrm);
                 crmRetryAt = now() + Math.max(cacheMs, 1_000);
                 logger.warn?.('CRM Sheets refresh failed; serving last-good snapshot', error.code);
                 return {
@@ -239,7 +287,7 @@ export function createSheetsService({
     }
 
     async function fetchMarketingSnapshot() {
-        const definition = sources.marketing;
+        const [definition] = await resolve([sources.marketing]);
         const fetchedAtMs = now();
         const valueRanges = await read('Marketing sheet', {
             spreadsheetId: definition.spreadsheetId,
@@ -264,14 +312,16 @@ export function createSheetsService({
         marketingCache = { expiresAt: now() + cacheMs, snapshot };
         lastGoodMarketing = snapshot;
         marketingRetryAt = 0;
+        marketingError = null;
         lastSuccessfulFetchAt = metadata.fetchedAt;
         return snapshot;
     }
 
     async function getMarketingSnapshot() {
         const timestamp = now();
-        if (marketingCache && timestamp < marketingCache.expiresAt) return marketingCache.snapshot;
+        if (marketingCache && timestamp < marketingCache.expiresAt && withinStaleLimit(marketingCache.snapshot)) return marketingCache.snapshot;
         if (lastGoodMarketing && timestamp < marketingRetryAt) {
+            requireUsable(lastGoodMarketing);
             return {
                 ...lastGoodMarketing,
                 result: cloneResult(lastGoodMarketing.result, true, ['stale_data', 'refresh_throttled'])
@@ -287,7 +337,9 @@ export function createSheetsService({
         try {
             return await marketingInFlight;
         } catch (error) {
+            marketingError = error.code || 'SHEETS_READ_FAILED';
             if (lastGoodMarketing) {
+                requireUsable(lastGoodMarketing);
                 marketingRetryAt = now() + Math.max(cacheMs, 1_000);
                 logger.warn?.('Marketing Sheets refresh failed; serving last-good snapshot', error.code);
                 return {
@@ -299,11 +351,52 @@ export function createSheetsService({
         }
     }
 
+    function reconciledMarketing(crm, marketing) {
+        const checkedAt = new Date(now()).toISOString();
+        const freshCrm = crm && !Object.values(crm.sources).some(source => source.metadata.stale);
+        const result = freshCrm ? deriveMarketing(crm, marketing, checkedAt) : cloneResult(marketing);
+        if (!freshCrm) {
+            result.values = result.values.map(row => {
+                if (!calendarDay(row[0])) return row;
+                const unavailable = [...row];
+                for (let col = 6; col <= 16; col++) unavailable[col] = null;
+                return unavailable;
+            });
+            result.metadata.calculationSource = 'crm_unavailable';
+        }
+        const integrity = reconcileSources(crm, result, checkedAt);
+        const corrected = new Map();
+        for (const issue of result.metadata.correctedIssues || []) {
+            const monthKey = issue.dateKey.slice(0, 7);
+            const key = `${issue.code}:${monthKey}`;
+            if (!corrected.has(key)) corrected.set(key, { code: issue.code, severity: issue.severity,
+                monthKey, corrected: true, count: 0, message: issue.message });
+            corrected.get(key).count++;
+        }
+        integrity.issues.push(...corrected.values());
+        const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit' })
+            .formatToParts(new Date(checkedAt));
+        const monthKey = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}`;
+        if (freshCrm && result.values.some(row => calendarDay(row[0])?.startsWith(monthKey) && row[3] > 0)
+            && (!crm.sources.arrived.metadata.latestEventDate || crm.sources.arrived.metadata.latestEventDate < `${monthKey}-01`)) {
+            integrity.issues.push({ code: 'VISITS_NOT_RECORDED_THIS_MONTH', severity: 'critical', source: 'arrived', monthKey,
+                latestEventDate: crm.sources.arrived.metadata.latestEventDate,
+                message: 'Chưa có khách đến được ghi nhận tháng này; xác nhận nhập đủ dữ liệu trước khi quyết định ngân sách.' });
+        }
+        integrity.ok = !integrity.issues.some(issue => issue.severity === 'critical');
+        delete result.metadata.correctedIssues;
+        result.metadata.integrity = integrity;
+        return result;
+    }
+
     return {
         async getSource(source) {
             if (source === 'marketing') {
-                const snapshot = await getMarketingSnapshot();
-                return snapshot.result;
+                const [marketing, crm] = await Promise.allSettled([getMarketingSnapshot(), getCrmSnapshot()]);
+                if (marketing.status !== 'fulfilled') throw marketing.reason;
+                const result = reconciledMarketing(crm.status === 'fulfilled' ? crm.value : null, marketing.value.result);
+                lastIntegrity = result.metadata.integrity;
+                return result;
             }
             if (source === 'leads' || source === 'booked' || source === 'arrived') {
                 const snapshot = await getCrmSnapshot();
@@ -315,9 +408,52 @@ export function createSheetsService({
                 transient: false
             });
         },
+        async getIntegrity() {
+            const [crm, marketing] = await Promise.allSettled([getCrmSnapshot(), getMarketingSnapshot()]);
+            const result = marketing.status === 'fulfilled' ? reconciledMarketing(
+                crm.status === 'fulfilled' ? crm.value : null, marketing.value.result).metadata.integrity
+                : reconcileSources(crm.status === 'fulfilled' ? crm.value : null, null, new Date(now()).toISOString());
+            if (marketing.status !== 'fulfilled') result.issues.push({ code: 'MARKETING_UNAVAILABLE', severity: 'critical',
+                message: 'Nguồn Marketing chưa có snapshot mới để đối soát.' });
+            result.ok = !result.issues.some(issue => issue.severity === 'critical');
+            lastIntegrity = result;
+            const signature = JSON.stringify(result.issues.map(issue => [issue.code, issue.source, issue.dateKey, issue.monthKey, issue.row, issue.count]));
+            if (signature !== lastIntegritySignature) {
+                logger.info?.('Source reconciliation changed', { ok: result.ok, issueCount: result.issues.length,
+                    crmSnapshotId: result.crmSnapshotId, marketingSnapshotId: result.marketingSnapshotId });
+                lastIntegritySignature = signature;
+            }
+            return result;
+        },
         getStatus() {
+            const freshness = (snapshot, error) => ({
+                fetchedAt: snapshot?.fetchedAt || null,
+                ageMs: age(snapshot),
+                status: !snapshot ? (error ? 'unavailable' : 'pending') : age(snapshot) > maxStaleMs ? 'expired' : error ? 'stale' : 'fresh',
+                lastError: error
+            });
+            const crm = freshness(lastGoodCrm, crmError), marketing = freshness(lastGoodMarketing, marketingError);
             return {
                 configured: true,
+                sourcesReady: ![crm, marketing].some(source => ['unavailable', 'expired', 'stale'].includes(source.status)),
+                freshness: { crm, marketing },
+                sources: Object.fromEntries([
+                    ['leads', crm],
+                    ['booked', crm],
+                    ['arrived', crm],
+                    ['marketing', marketing]
+                ].map(([source, freshness]) => [source, {
+                    source,
+                    group: sources[source]?.group || null,
+                    status: freshness.status,
+                    stale: freshness.status === 'stale' || freshness.status === 'expired',
+                    expired: freshness.status === 'expired',
+                    available: !['unavailable', 'expired'].includes(freshness.status),
+                    fetchedAt: freshness.fetchedAt,
+                    snapshotId: sources[source]?.group === 'crm' ? lastGoodCrm?.snapshotId || null : lastGoodMarketing?.snapshotId || null,
+                    warnings: freshness.lastError ? [freshness.lastError] : []
+                }])),
+                integrity: lastIntegrity && { checkedAt: lastIntegrity.checkedAt, ok: lastIntegrity.ok, issueCount: lastIntegrity.issues.length },
                 lastSuccessfulFetchAt,
                 crmSnapshotId: lastGoodCrm?.snapshotId || null,
                 marketingSnapshotId: lastGoodMarketing?.snapshotId || null,

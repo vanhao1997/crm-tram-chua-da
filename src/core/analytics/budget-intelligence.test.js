@@ -72,10 +72,26 @@ test('1-2 closed days hold, source difference blocks increase but never rewrites
     assert.equal(m.recommendation.action,'hold');
     assert.ok(m.recommendation.issues.some(i=>i.code==='SOURCE_DIFFERENCE'));
 });
+test('source integration issues block zero-filled recommendations and mark phase incomplete', () => {
+    const m=model([...historical(),...month('09',{revenue:0,data_nangco:0,hen_nangco:0,toi_nangco:0})],{
+        metadata:{integrity:{code:'SOURCE_ZERO_FILLED',message:'Sheet fetch lỗi, số 0 là fallback tạm.',severity:'critical',monthKey:'2026-09'}}
+    });
+    assert.equal(m.recommendation.action,'insufficient_data');
+    assert.equal(m.recommendation.suggestedDailyAds,null);
+    assert.equal(m.phases[0].current.complete,false);
+    assert.ok(m.recommendation.issues.some(i=>i.code==='SOURCE_ZERO_FILLED'));
+});
+test('crm stale blocks trusted cross-source budget decisions', () => {
+    const m=model([...historical(),...month('09',{revenue:600})],{crmAvailable:true,crmStale:true,crmRecords:[{aptDate:'2026-09-01',revenue:600}]});
+    assert.equal(m.recommendation.action,'insufficient_data');
+    assert.equal(m.recommendation.suggestedDailyAds,null);
+    assert.equal(m.phases[0].current.complete,false);
+    assert.ok(m.recommendation.issues.some(i=>i.code==='CRM_STALE'&&i.severity==='critical'));
+});
 test('source parser retains V/W CRM revenue and Marketing totals without adding aggregate rows', async t => {
     const cellRow = (column, value) => { const r=Array(23).fill('');r[1]='01/09/2026';r[2]='Test';r[3]='0900000000';r[10]='03/09/2026';r[column]=value;return r; };
     const daily=['01/09/2026','',0,100,5,105,10,0,0,5,0,0,2,0,0,400,'',30];
     t.mock.method(globalThis,'fetch',async url => ({ok:true,json:async()=>({values:String(url).includes('marketing')?[['TỔNG',-100,1000],['THÁNG 9'],daily]:[cellRow(21,100),cellRow(22,200),cellRow(22,'')],metadata:{stale:false}})}));
     const crm=await fetchAllData('ignored'); assert.deepEqual(crm.arrived.map(r=>r.revenue),[100,200,null]);
-    const marketing=await fetchMarketingData('ignored');assert.equal(marketing.length,1);assert.equal(marketing.globalBalance,-100);assert.equal(marketing.globalReceived,1000);assert.equal(marketing[0].dataTotal,10);assert.equal(marketing[0].monthKey,'2026-09');
+    const marketing=await fetchMarketingData('ignored');assert.equal(marketing.length,1);assert.equal(marketing.globalBalance,undefined);assert.equal(marketing.globalReceived,undefined);assert.equal(marketing[0].received,0);assert.equal(marketing[0].dataTotal,10);assert.equal(marketing[0].monthKey,'2026-09');
 });

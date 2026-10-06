@@ -16,14 +16,21 @@ export function startServer({ config = loadConfig(), logger = console } = {}) {
         cacheMs: config.cacheMs,
         timeoutMs: config.timeoutMs,
         retryCount: config.retryCount,
+        maxStaleMs: config.maxStaleMs,
+        identityColumns: config.identityColumns,
         logger
     });
     const app = createApp({ service, config, logger });
     const server = app.listen(config.port, config.host, () => {
         logger.log?.(`BSN Sheets API listening on ${config.host}:${config.port}`);
     });
+    const reconcile = () => service.getIntegrity().catch(error => logger.warn?.('Scheduled reconciliation failed', error.code || 'UNKNOWN'));
+    const timer = config.reconcileIntervalMs > 0 ? setInterval(reconcile, config.reconcileIntervalMs) : null;
+    timer?.unref();
+    reconcile();
 
     function shutdown(signal) {
+        if (timer) clearInterval(timer);
         logger.log?.(`Received ${signal}; shutting down`);
         server.close(error => {
             if (error) {

@@ -17,7 +17,6 @@ import {
 } from './core/api/sheets-api.js';
 import { getOverdueAppointments, renderOverdueList } from './features/appointments/appointments.js';
 import { renderBudgetView } from './features/dashboard/budget-view.js';
-import { initAiMarketingPanel } from './features/dashboard/ai-marketing.js';
 import { readTelegramGroup } from './features/dashboard/telegram-settings.js';
 import { dateKey } from './core/analytics/budget-intelligence.js';
 import { initAppShell, restoreScroll } from './features/dashboard/app-shell.js';
@@ -32,6 +31,7 @@ import {
 } from './features/dashboard/charts.js';
 import {
     deriveCustomers,
+    eventDate,
     formatPhone,
     getDisplayStatus,
     getDateRange,
@@ -160,13 +160,29 @@ function setDataStatus(kind, message, meta = {}) {
     if (text) text.textContent = message;
     const dot = els.dataStatusBar.querySelector('.data-status__dot');
     if (dot) dot.setAttribute('aria-label', kind);
-    if (meta.fetchedAt) els.dataStatusBar.title = `Cập nhật ${formatDateTime(meta.fetchedAt)}`;
+    const issues = metadataIssues(meta);
+    if (meta.fetchedAt || issues.length) {
+        els.dataStatusBar.title = [
+            meta.fetchedAt ? `Nguồn cập nhật ${formatDateTime(meta.fetchedAt)}` : '',
+            issues.length ? `${issues.length} cảnh báo toàn vẹn dữ liệu` : ''
+        ].filter(Boolean).join('. ');
+    }
 }
 
 function formatDateTime(value) {
     const date = toDate(value);
     if (!date) return '--';
-    return `${formatDateFull(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    const parts = new Intl.DateTimeFormat('vi-VN', {
+        timeZone: 'Asia/Ho_Chi_Minh',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+    }).formatToParts(date);
+    const part = type => parts.find(item => item.type === type)?.value || '';
+    return `${part('day')}/${part('month')}/${part('year')} ${part('hour')}:${part('minute')}`;
 }
 
 function formatPeriodLabel() {
@@ -198,12 +214,95 @@ function syncFilterTabs() {
 }
 
 function filterByDate(records, field) {
+    const getValue = typeof field === 'function' ? field : record => record?.[field];
     return (records || []).filter(record => state.currentFilter === 'upcoming' && field === 'aptDate' ? isUpcomingAppointment(record) : inDateFilter(
-        record?.[field],
+        getValue(record),
         state.currentFilter,
         state.customStart,
         state.customEnd
     ));
+}
+
+const monthLastKey = month => `${month}-${String(new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5)), 0)).getUTCDate()).padStart(2, '0')}`;
+
+function issueAffectsCurrentPeriod(issue = {}) {
+    if (state.currentFilter === 'all') return true;
+    const { start, end } = getDateRange(state.currentFilter, state.customStart, state.customEnd);
+    const startKey = dateKey(start);
+    const endKey = dateKey(end);
+    const issueKey = dateKey(issue.dateKey || issue.date || issue.businessDate);
+    if (issueKey) return (!startKey || issueKey >= startKey) && (!endKey || issueKey <= endKey);
+    const month = String(issue.monthKey || issue.month || '').slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(month)) {
+        const first = `${month}-01`;
+        const last = monthLastKey(month);
+        return (!startKey || last >= startKey) && (!endKey || first <= endKey);
+    }
+    return true;
+}
+
+function metadataIssues(metadata = {}, options = {}) {
+    const issues = Array.isArray(metadata.integrity?.issues) ? metadata.integrity.issues : [];
+    return options.currentOnly === false ? issues : issues.filter(issueAffectsCurrentPeriod);
+}
+
+function metadataDerivedCount(metadata = {}) {
+    const values = [
+        metadata.derivedCount,
+        metadata.derivedAppointmentCount,
+        metadata.integrity?.derivedCount,
+        metadata.integrity?.derivedAppointmentCount,
+        ...(metadata.sourceMetadata ? Object.values(metadata.sourceMetadata).flatMap(item => [item?.derivedCount, item?.derivedAppointmentCount]) : [])
+    ];
+    const counts = values.map(Number).filter(Number.isFinite);
+    return counts.length ? Math.max(...counts) : 0;
+}
+
+function metadataStale(metadata = {}) {
+    return Boolean(metadata.stale || metadata.status === 'stale' || metadata.status === 'expired');
+}
+
+function sourceMetadata(source) {
+    return state.dataMeta?.sourceMetadata?.[source] || state.dataMeta || {};
+}
+
+function sourceAvailable(source) {
+    const metadata = sourceMetadata(source);
+    const status = String(metadata.status || '').toLowerCase();
+    return !['unavailable', 'expired'].includes(status);
+}
+
+function statusForMetadata(metadata = {}, label = 'dữ liệu') {
+    const issues = metadataIssues(metadata);
+    const critical = issues.filter(issue => issue.severity === 'critical');
+    const derived = metadataDerivedCount(metadata);
+    const derivedMessage = derived > 0 ? ` Toàn bộ nguồn có ${derived.toLocaleString('vi-VN')} lịch hẹn suy ra từ lead Đặt Hẹn.` : '';
+    const calculatedMessage = metadata.calculationSource === 'fresh_crm_events'
+        ? ' KPI tính lại từ CRM; công thức Sheets giữ nguyên.' : '';
+    if (critical.length) {
+        return { kind: 'error', message: `${critical.map(issue => issue.message).join(' ')}${calculatedMessage}${derivedMessage}` };
+    }
+    if (metadataStale(metadata)) {
+        return { kind: 'stale', message: `Đang hiển thị ${label} gần nhất, chưa có snapshot mới.${derivedMessage}` };
+    }
+    return { kind: issues.some(issue => issue.severity === 'warning') ? 'warning' : 'success',
+        message: `${label[0]?.toLocaleUpperCase('vi-VN') || 'D'}${label.slice(1)} đã cập nhật.${calculatedMessage}${derivedMessage}` };
+}
+
+function pageMetadata() {
+    if (els.marketing) return state.marketingMeta || {};
+    return state.dataMeta || state.marketingMeta || {};
+}
+
+function updateRefreshTimestamp(metadata = {}) {
+    const sourceTime = toDate(metadata.fetchedAt);
+    state.lastRefresh = sourceTime || new Date();
+    if (els.lastRefresh) {
+        els.lastRefresh.textContent = sourceTime
+            ? new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit' }).format(sourceTime)
+            : `${String(state.lastRefresh.getHours()).padStart(2, '0')}:${String(state.lastRefresh.getMinutes()).padStart(2, '0')}`;
+        els.lastRefresh.title = sourceTime ? `Nguồn cập nhật ${formatDateTime(sourceTime)}` : 'Thời điểm tải trên trình duyệt';
+    }
 }
 
 function filterByListControls(records) {
@@ -266,15 +365,10 @@ async function loadData() {
             renderMarketingDashboard();
         }
 
-        state.lastRefresh = new Date();
-        if (els.lastRefresh) {
-            els.lastRefresh.textContent = `${String(state.lastRefresh.getHours()).padStart(2, '0')}:${String(state.lastRefresh.getMinutes()).padStart(2, '0')}`;
-        }
-        const metadata = state.dataMeta || state.marketingMeta || {};
-        const stale = Boolean(metadata.stale || metadata.status === 'stale');
-        setDataStatus(stale ? 'stale' : 'success', stale
-            ? 'Đang hiển thị dữ liệu gần nhất'
-            : 'Dữ liệu đã cập nhật', metadata);
+        const metadata = pageMetadata();
+        updateRefreshTimestamp(metadata);
+        const status = statusForMetadata(metadata, els.marketing ? 'dữ liệu Marketing' : 'dữ liệu CRM');
+        setDataStatus(status.kind, status.message, metadata);
     } catch (error) {
         state.refreshFailed = true;
         console.error('Load error:', error);
@@ -330,17 +424,21 @@ function updateStatusOptions(records) {
 function renderCrmMarketingCards() {
     const raw = state.marketingData;
     const stale = state.crmMarketingFailed || state.marketingMeta?.stale || state.marketingMeta?.status === 'stale';
+    const critical = metadataIssues(state.marketingMeta).filter(issue => issue.severity === 'critical');
+    const actualNote = `actual đến ${formatDateShort(new Date())}; lịch tương lai xem CRM`;
     setText('crmMktStatus', !raw ? 'Chưa tải được Marketing. Nhấn tải lại để thử lại.'
-        : `Nguồn: Sheet 2026 · ${formatPeriodLabel()}${stale ? ' · Dữ liệu gần nhất, chưa cập nhật được' : ''}`);
+        : `Nguồn: Sheet 2026 · ${formatPeriodLabel()} · ${actualNote}${state.marketingMeta?.fetchedAt ? ` · cập nhật ${formatDateTime(state.marketingMeta.fetchedAt)}` : ''}${stale ? ' · dữ liệu gần nhất' : ''}${critical.length ? ` · ${critical.length} lỗi cần kiểm tra` : ''}`);
     if (!raw) return;
     const rows = raw.filter(item => inDateFilter(item.date, state.currentFilter, state.customStart, state.customEnd))
-        .filter(item => toDate(item.date) && toDate(item.date) <= new Date());
+        .filter(item => isActualBusinessDay(item.date));
+    const received = sumMetric(rows, 'received');
     const cost = sumMetric(rows, 'cost');
     const revenue = sumMetric(rows, 'revenue');
+    const balance = received.hasValue && cost.hasValue ? { value: received.value - cost.value, hasValue: true } : { value: null, hasValue: false };
     const ratio = cost.hasValue && revenue.hasValue && revenue.value > 0 ? cost.value / revenue.value * 100 : null;
-    setMetric('crmMktReceived', officialMetric(raw, state.marketingMeta, 'globalReceived'));
-    setMetric('crmMktBalance', officialMetric(raw, state.marketingMeta, 'globalBalance'));
-    setMetric('crmMktCost', cost);
+    setMetric('crmMktReceived', received, currencyVnd);
+    setMetric('crmMktBalance', balance, currencyVnd);
+    setMetric('crmMktCost', cost, currencyVnd);
     setMetric('crmMktCostRatio', { hasValue: ratio !== null, value: ratio }, value => `${value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })}%`);
 }
 
@@ -349,15 +447,19 @@ function renderDashboard() {
     if (!state.data) return;
     const leads = filterByDate(state.data.leads, 'date');
     const booked = filterByDate(state.data.booked, 'aptDate');
-    const arrived = (state.data.arrived || []).filter(record => inDateFilter(record?.date || record?.aptDate, state.currentFilter, state.customStart, state.customEnd));
+    const arrived = filterByDate(state.data.arrived, eventDate);
 
-    renderKPICards(leads, booked, arrived);
+    renderKPICards(leads, booked, arrived, {
+        leads: sourceAvailable('leads'),
+        booked: sourceAvailable('booked'),
+        arrived: sourceAvailable('arrived')
+    });
     renderFunnelChart(leads, booked, arrived);
     renderRevenueChart(arrived);
     renderStatusChart(leads);
     renderRevenuePieChart(arrived);
 
-    const overdue = getOverdueAppointments(state.data.booked || [], state.data.arrived || []);
+    const overdue = getOverdueAppointments(booked, state.data.arrived || []);
     renderOverdueList(overdue);
     const allRecords = [...state.data.leads, ...state.data.booked, ...state.data.arrived];
     updateServiceOptions(allRecords);
@@ -433,11 +535,12 @@ function renderMobileRecords() {
     const records = state.tableRecords || [];
     const type = state.activeRecordType || 'appointments';
     container.innerHTML = records.slice(0, 20).map((record, index) => {
-        const date = type === 'customers' ? record.latestDate : type === 'appointments' ? record.aptDate : record.date;
+        const date = type === 'customers' ? record.latestDate : type === 'appointments' ? record.aptDate : type === 'arrived' ? eventDate(record) : record.date;
         const when = type === 'appointments' && hasConfirmedTime(record) ? `${record.time} · ` : '';
+        const derived = Boolean(record.derived || record.provenance?.derived || record.sourceIdentity?.derived);
         return `<article class="mobile-record-card" data-mobile-index="${index}">
           <header><h3>${escapeHtml(record.name || 'Chưa có tên')}</h3><span class="badge">${escapeHtml(getDisplayStatus(record))}</span></header>
-          <div class="mobile-record-meta"><strong>${when}${escapeHtml(formatDateFull(toDate(date)))}</strong><span>${escapeHtml(record.service || 'Chưa xác định dịch vụ')}</span>${record.phone ? `<span>${escapeHtml(formatPhone(normalizePhone(record.phone) || record.phone))}</span>` : '<span class="missing-value">Chưa có số điện thoại</span>'}</div>
+          <div class="mobile-record-meta"><strong>${when}${escapeHtml(formatDateFull(toDate(date)))}</strong><span>${escapeHtml(record.service || 'Chưa xác định dịch vụ')}</span>${record.phone ? `<span>${escapeHtml(formatPhone(normalizePhone(record.phone) || record.phone))}</span>` : '<span class="missing-value">Chưa có số điện thoại</span>'}${derived ? '<span>Suy ra từ lead Đặt Hẹn</span>' : ''}</div>
           <div class="mobile-record-actions">${renderCopyAction(index, type, 'Copy thông tin')}${renderTelegramAction(index, type)}</div>
         </article>`;
     }).join('') + (records.length > 20 ? '<button class="btn mobile-more" type="button" disabled>Hiển thị 20 bản ghi đầu</button>' : '');
@@ -456,6 +559,7 @@ function renderAppointmentRow(record, index) {
     const phone = normalizePhone(record.phone);
     const status = getDisplayStatus(record);
     const statusClass = normalizeStatus(record.status);
+    const derived = Boolean(record.derived || record.provenance?.derived || record.sourceIdentity?.derived);
     return `
       <tr data-record-index="${index}" data-record-type="appointments" tabindex="0">
         <td data-label="STT">${index + 1}</td>
@@ -464,7 +568,7 @@ function renderAppointmentRow(record, index) {
         <td class="td-service" data-label="Dịch vụ">${escapeHtml(record.service || 'Chưa xác định')}</td>
         <td data-label="Giờ hẹn"><span class="${hasConfirmedTime(record) ? '' : 'time-unknown'}">${hasConfirmedTime(record) ? escapeHtml(record.time) : 'Chưa xác định'}</span></td>
         <td data-label="Ngày hẹn">${formatDateFull(toDate(record.aptDate))}</td>
-        <td data-label="Trạng thái"><span class="badge badge--${statusClass}">${escapeHtml(status)}</span></td>
+        <td data-label="Trạng thái"><span class="badge badge--${statusClass}">${escapeHtml(status)}</span>${derived ? '<small class="table-subtext">Suy ra từ lead Đặt Hẹn</small>' : ''}</td>
         <td data-label="Thao tác">${renderCopyAction(index, "appointments", "Copy thông tin lịch hẹn")}</td>
         <td data-label="Telegram">${renderTelegramAction(index, "appointments")}</td>
       </tr>
@@ -547,7 +651,8 @@ async function sendTelegramRecord(record, type, button) {
 }
 
 function buildTelesaleText(record, type = 'leads') {
-    const date = type === 'customers' ? record?.latestDate : record?.aptDate || record?.date;
+    const date = type === 'customers' ? record?.latestDate : (type === 'appointments' || type === 'arrived' ? eventDate(record) : record?.date);
+    const dateLabel = type === 'appointments' ? 'Ngày hẹn' : type === 'customers' ? 'Lần tương tác gần nhất' : type === 'arrived' ? 'Ngày đến' : 'Ngày nhận';
     return [
         type === 'appointments' ? 'THÔNG TIN LỊCH HẸN BSN' : type === 'customers' ? 'THÔNG TIN KHÁCH HÀNG BSN' : 'THÔNG TIN LEAD BSN',
         `Khách hàng: ${record?.name || 'Chưa có tên'}`,
@@ -555,7 +660,7 @@ function buildTelesaleText(record, type = 'leads') {
         `Dịch vụ: ${record?.service || 'Chưa xác định'}`,
         `Nguồn: ${record?.source || 'Chưa xác định'}`,
         `Trạng thái: ${getDisplayStatus(record)}`,
-        date ? `${type === 'appointments' ? 'Ngày hẹn' : type === 'customers' ? 'Lần tương tác gần nhất' : 'Ngày nhận'}: ${formatDateFull(toDate(date))}${type === 'appointments' && hasConfirmedTime(record) ? ` lúc ${record.time}` : ''}` : '',
+        date ? `${dateLabel}: ${formatDateFull(toDate(date))}${type === 'appointments' && hasConfirmedTime(record) ? ` lúc ${record.time}` : ''}` : '',
         type === 'customers' && record?.revenue != null ? `Doanh thu: ${money(record.revenue)}` : '',
         `Nhân viên: ${record?.staff || 'Chưa xác định'}`,
         `Ghi chú: ${record?.note || 'Không có'}`
@@ -600,14 +705,17 @@ function openDetail(record, type) {
     setText('detailPhone', normalizePhone(record.phone) ? formatPhone(record.phone) : 'Chưa có');
     setText('detailService', record.service || 'Chưa xác định');
     setText('detailSource', record.source || 'Chưa xác định');
-    setText('detailDate', formatDateFull(toDate(type === 'customers' ? record.latestDate : record.aptDate || record.date)));
+    setText('detailDate', formatDateFull(toDate(type === 'customers' ? record.latestDate : eventDate(record))));
+    if (record.derived || record.provenance?.derived || record.sourceIdentity?.derived) {
+        setText('detailSource', `${record.source || 'Lead'} · suy ra từ lead Đặt Hẹn`);
+    }
     const staffField = document.getElementById('detailStaff')?.closest('.detail-item');
     if (staffField) staffField.hidden = type === 'appointments';
     const dateLabel = document.getElementById('detailDate')?.previousElementSibling;
-    if (dateLabel) dateLabel.textContent = type === 'appointments' ? 'Ngày hẹn' : type === 'customers' ? 'Lần tương tác gần nhất' : 'Ngày nhận';
+    if (dateLabel) dateLabel.textContent = type === 'appointments' ? 'Ngày hẹn' : type === 'customers' ? 'Lần tương tác gần nhất' : type === 'arrived' ? 'Ngày đến' : 'Ngày nhận';
     const timeline = document.getElementById('detailTimeline');
     if (timeline) {
-        const events = type === 'customers' ? (record.records || []) : [{ ...record, source: record.source || type, date: record.aptDate || record.date }];
+        const events = type === 'customers' ? (record.records || []) : [{ ...record, source: record.source || type, date: eventDate(record) }];
         timeline.innerHTML = events.length
             ? events.map(event => `
               <div class="timeline-item">
@@ -644,7 +752,7 @@ function bindKpiDrilldowns({ leads, booked, arrived }) {
         ['kpiTotalLead', 'Danh sách Lead', leads, 'leads'],
         ['kpiBooked', 'Danh sách lịch hẹn', booked, 'appointments'],
         ['kpiArrived', 'Danh sách khách đã đến', arrived, 'arrived'],
-        ['kpiRevenue', 'Các lượt đến có doanh thu', arrived.filter(item => Number(item?.revenue) > 0), 'arrived']
+        ['kpiRevenue', 'Các lượt đến có doanh thu', arrived.filter(item => numberOrNull(item?.revenue) > 0), 'arrived']
     ];
     mapping.forEach(([id, title, records, type]) => {
         const card = document.getElementById(id);
@@ -655,9 +763,9 @@ function bindKpiDrilldowns({ leads, booked, arrived }) {
         const open = () => {
             const source = type === 'leads' ? 'leads' : type === 'appointments' ? 'booked' : 'arrived';
             let current = (state.data?.[source] || []).filter(record => type === 'appointments' && state.currentFilter === 'upcoming' ? isUpcomingAppointment(record) : inDateFilter(
-                type === 'leads' ? record.date : type === 'appointments' ? record.aptDate : record.date || record.aptDate,
+                type === 'leads' ? record.date : type === 'appointments' ? record.aptDate : eventDate(record),
                 state.currentFilter, state.customStart, state.customEnd));
-            if (id === 'kpiRevenue') current = current.filter(record => Number(record.revenue) > 0);
+            if (id === 'kpiRevenue') current = current.filter(record => numberOrNull(record.revenue) > 0);
             openDrilldown(title, current, type);
         };
         card.addEventListener('click', open);
@@ -684,7 +792,7 @@ function openDrilldown(title, records, type) {
         <td>${escapeHtml(record.name || 'Chưa có tên')}</td>
         <td>${escapeHtml(normalizePhone(record.phone) ? formatPhone(record.phone) : 'Chưa có')}</td>
         <td>${escapeHtml(record.service || 'Chưa xác định')}</td>
-        <td>${formatDateFull(toDate(record.aptDate || record.date))}</td>
+        <td>${formatDateFull(eventDate(record))}</td>
         <td>${escapeHtml(getDisplayStatus(record))}</td>
       </tr>
     `).join('');
@@ -699,12 +807,13 @@ function renderMarketingDashboard() {
     const raw = Array.isArray(state.marketingData) ? state.marketingData : [];
     const data = raw
         .filter(item => inDateFilter(item?.date, state.currentFilter, state.customStart, state.customEnd))
-        .filter(item => toDate(item?.date) && toDate(item.date) <= new Date())
+        .filter(item => isActualBusinessDay(item?.date))
         .sort((a, b) => (toDate(b.date)?.getTime() || 0) - (toDate(a.date)?.getTime() || 0));
 
     const cost = sumMetric(data, 'cost');
     const ads = sumMetric(data, 'marketing_cost');
     const management = sumMetric(data, 'ad_management_fee');
+    const received = sumMetric(data, 'received');
     const revenue = sumMetric(data, 'revenue');
     const messages = sumMetric(data, 'messages');
     const totalData = sumMetrics(data, ['data_nangco', 'data_muichi', 'data_khac']);
@@ -714,14 +823,15 @@ function renderMarketingDashboard() {
     const costPerCustomer = totalArrived.hasValue && totalArrived.value > 0 && cost.hasValue ? cost.value / totalArrived.value : null;
     const metadata = raw.metadata || state.marketingMeta || {};
 
-    setMetric('mktTổngChiPhí', cost);
+    setMetric('mktTổngChiPhí', cost, currencyVnd);
     setMetric('mktTổngTinNhắn', messages, value => value.toLocaleString('vi-VN'));
     setMetric('mktTổngData', totalData, value => value.toLocaleString('vi-VN'));
     setMetric('mktTổngDoanhSố', revenue);
     setMetric('mktTỷLệChiPhí', { value: roas, hasValue: roas !== null }, value => `${value.toFixed(2)}x`);
     setMetric('mktTỷLệTới', { value: costPerCustomer, hasValue: costPerCustomer !== null });
-    setMetric('mktGlobalReceived', officialMetric(raw, metadata, 'globalReceived'), value => money(value));
-    setMetric('mktGlobalBalance', officialMetric(raw, metadata, 'globalBalance'), value => money(value));
+    const periodBalance = received.hasValue && cost.hasValue ? { value: received.value - cost.value, hasValue: true } : { value: null, hasValue: false };
+    setMetric('mktGlobalReceived', received, currencyVnd);
+    setMetric('mktGlobalBalance', periodBalance, currencyVnd);
     setText('mktCostBreakdown', `Ads: ${metricText(ads)} · Phí quản lý: ${metricText(management)}`);
     setText('mktCpmess', messages.hasValue && messages.value > 0 && cost.hasValue ? `Chi phí/tin: ${money(cost.value / messages.value)}` : 'Chi phí/tin: —');
     setText('mktCpData', totalData.hasValue && totalData.value > 0 && cost.hasValue ? `Chi phí/data: ${money(cost.value / totalData.value)}` : 'Chi phí/data: —');
@@ -729,8 +839,8 @@ function renderMarketingDashboard() {
     renderMarketingFunnelSafe('mktFunnelNangCo', data, ['data_nangco'], ['hen_nangco'], ['toi_nangco']);
     renderMarketingFunnelSafe('mktFunnelMuiChi', data, ['data_muichi'], ['hen_muichi'], ['toi_muichi']);
     renderMarketingFunnelSafe('mktFunnelKhac', data, ['data_khac'], ['hen_khac'], ['toi_khac']);
-    if (cost.hasValue || revenue.hasValue) {
-        renderMarketingPieCharts(cost.value || 0, revenue.value || 0, valueOf(data, 'toi_nangco'), valueOf(data, 'toi_muichi'), valueOf(data, 'toi_khac'));
+    if (cost.hasValue || revenue.hasValue || revenue.incomplete) {
+        renderMarketingPieCharts(cost.value || 0, revenue.hasValue ? revenue.value : null, valueOf(data, 'toi_nangco'), valueOf(data, 'toi_muichi'), valueOf(data, 'toi_khac'));
     } else {
         clearMarketingChartContainers();
     }
@@ -740,9 +850,11 @@ function renderMarketingDashboard() {
     renderPeriodAnalysis(raw);
     renderMarketingTable(data);
     const marketingStale = Boolean(state.refreshFailed || state.marketingMeta?.stale || state.marketingMeta?.status === 'stale');
-    setDataStatus(marketingStale ? 'stale' : 'success', marketingStale
+    const status = statusForMetadata(state.marketingMeta || {}, 'dữ liệu Marketing');
+    const actualNote = ` Marketing actual đến ${formatDateShort(new Date())}; lịch tương lai xem CRM.`;
+    setDataStatus(marketingStale && status.kind === 'success' ? 'stale' : status.kind, marketingStale && status.kind === 'success'
         ? 'Đang hiển thị dữ liệu Marketing gần nhất'
-        : 'Dữ liệu Marketing đã cập nhật', state.marketingMeta || {});
+        : `${status.message}${actualNote}`, state.marketingMeta || {});
 }
 
 function renderBudgetIntelligence(raw) {
@@ -756,6 +868,7 @@ function renderBudgetIntelligence(raw) {
         rangeStart: state.budgetMonth ? undefined : range.start,
         rangeEnd: state.budgetMonth ? undefined : range.end,
         stale: state.refreshFailed || state.marketingMeta?.stale || state.marketingMeta?.status === 'stale',
+        sourceIssues: state.marketingMeta?.integrity?.issues || [],
         crmRecords: state.budgetCrm?.arrived,
         crmAvailable: Boolean(state.budgetCrm), crmStale: state.budgetCrm?.metadata?.stale
     });
@@ -765,24 +878,22 @@ function renderBudgetIntelligence(raw) {
     }).length : null;
     model.sourceFetchedAt = state.marketingMeta?.fetchedAt;
     state.lastBudgetModel = model;
-    renderBudgetView(model, { onMonthChange: month => { state.budgetMonth = month; renderBudgetIntelligence(raw); } });
-    initAiMarketingPanel({ modelProvider: () => state.lastBudgetModel, crmProvider: () => state.budgetCrm || {} });
+    renderBudgetView(model, { sourceIssues: state.marketingMeta?.integrity?.issues || [], onMonthChange: month => { state.budgetMonth = month; renderBudgetIntelligence(raw); } });
 }
-function officialMetric(raw, metadata, key) {
-    const value = metadata?.[key] ?? raw?.[key];
-    return value != null && value !== '' && Number.isFinite(Number(value)) ? { value: Number(value), hasValue: true } : { value: null, hasValue: false };
-}
-
 function sumMetric(records, field) {
     let total = 0;
     let hasValue = false;
+    let hasMissing = false;
     for (const record of records || []) {
-        const value = Number(record?.[field]);
-        if (record?.[field] !== null && record?.[field] !== undefined && record?.[field] !== '' && Number.isFinite(value)) {
+        const value = numberOrNull(record?.[field]);
+        if (value !== null) {
             total += value;
             hasValue = true;
+        } else if (field === 'revenue') {
+            hasMissing = true;
         }
     }
+    if (field === 'revenue' && hasMissing) return { value: null, hasValue: false, incomplete: true };
     return { value: hasValue ? total : null, hasValue };
 }
 
@@ -791,8 +902,8 @@ function sumMetrics(records, fields) {
     let hasValue = false;
     for (const record of records || []) {
         for (const field of fields) {
-            const value = Number(record?.[field]);
-            if (record?.[field] !== null && record?.[field] !== undefined && record?.[field] !== '' && Number.isFinite(value)) {
+            const value = numberOrNull(record?.[field]);
+            if (value !== null) {
                 total += value;
                 hasValue = true;
             }
@@ -821,6 +932,10 @@ function countMetricText(metric) {
 
 function money(value) {
     return formatCurrency(Number(value));
+}
+
+function currencyVnd(value) {
+    return `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 0 })} ₫`;
 }
 
 function renderMarketingFunnelSafe(id, data, dataFields, bookedFields, arrivedFields) {
@@ -869,10 +984,22 @@ function renderMarketingTable(data) {
 }
 
 function numberMetric(value) {
-    const number = Number(value);
-    return value !== null && value !== undefined && value !== '' && Number.isFinite(number)
+    const number = numberOrNull(value);
+    return number !== null
         ? { value: number, hasValue: true }
         : { value: null, hasValue: false };
+}
+
+function numberOrNull(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+}
+
+function isActualBusinessDay(value) {
+    const key = dateKey(value);
+    const today = dateKey(new Date());
+    return Boolean(key && today && key <= today);
 }
 
 function renderMarketingTrends(data) {
@@ -929,19 +1056,19 @@ function renderMarketingTrends(data) {
 }
 
 function metricValue(value, transform = x => x) {
-    const number = Number(value);
-    return Number.isFinite(number) ? transform(number) : null;
+    const number = numberOrNull(value);
+    return number !== null ? transform(number) : null;
 }
 
 function sumOptional(record, fields) {
-    const values = fields.map(field => Number(record?.[field])).filter(Number.isFinite);
+    const values = fields.map(field => numberOrNull(record?.[field])).filter(value => value !== null);
     return values.length ? values.reduce((total, value) => total + value, 0) : null;
 }
 
 function renderMoMComparison(raw) {
     const container = document.getElementById('momComparison');
     if (!container) return;
-    const current = raw.filter(item => inDateFilter(item.date, 'month', '', ''));
+    const current = raw.filter(item => inDateFilter(item.date, 'month', '', '')).filter(item => isActualBusinessDay(item.date));
     const previous = raw.filter(item => inDateFilter(item.date, 'lastmonth', '', ''));
     if (!current.length && !previous.length) {
         container.innerHTML = '<div class="empty-inline">Chưa có đủ dữ liệu để so sánh.</div>';
@@ -970,15 +1097,16 @@ function renderPeriodAnalysis(raw) {
     if (!container) return;
     const heading = document.getElementById('periodAnalysisTitle');
     if (heading) heading.textContent = `Phân tích theo giai đoạn · ${formatPeriodLabel()}`;
-    const current = raw.filter(item => inDateFilter(item.date, state.currentFilter, state.customStart, state.customEnd));
+    const current = raw.filter(item => inDateFilter(item.date, state.currentFilter, state.customStart, state.customEnd))
+        .filter(item => isActualBusinessDay(item.date));
     if (!current.length) {
         container.innerHTML = `<div class="empty-inline">Chưa có dữ liệu trong ${escapeHtml(formatPeriodLabel().toLowerCase())}.</div>`;
         return;
     }
     const ranges = [
-        ['Đầu tháng', item => toDate(item.date)?.getDate() <= 10],
-        ['Giữa tháng', item => toDate(item.date)?.getDate() >= 11 && toDate(item.date)?.getDate() <= 20],
-        ['Cuối tháng', item => toDate(item.date)?.getDate() >= 21]
+        ['Đầu tháng', item => Number(dateKey(item.date)?.slice(8)) <= 10],
+        ['Giữa tháng', item => Number(dateKey(item.date)?.slice(8)) >= 11 && Number(dateKey(item.date)?.slice(8)) <= 20],
+        ['Cuối tháng', item => Number(dateKey(item.date)?.slice(8)) >= 21]
     ];
     container.innerHTML = `<div class="comparison-grid">${ranges.map(([label, predicate]) => {
         const records = current.filter(predicate);
