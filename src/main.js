@@ -56,10 +56,12 @@ function initDom() {
     'refreshBtn', 'lastRefresh', 'autoRefreshToggle', 'loadingOverlay',
     'dataStatusBar', 'activePeriodLabel', 'overviewFreshness', 'filterTabs',
     'customDatePicker', 'dateStart', 'dateEnd', 'applyCustomDateBtn',
-    'crmLeads', 'crmAppointments', 'crmArrived', 'crmRevenue',
+    'crmLeads', 'crmAppointments', 'crmPastAppointments', 'crmArrived', 'crmRevenue',
     'crmAppointmentNote', 'mktReceived', 'mktCost', 'mktCostNote',
     'mktBalance', 'mktMessages', 'mktRoas', 'mktCostPerData',
-    'mktCostPerArrived', 'issueList', 'issueSummary'
+    'mktCostPerArrived', 'issueList', 'issueSummary', 'scheduleFreshness',
+    'upcomingCount', 'pastAppointmentCount', 'upcomingSummary',
+    'pastAppointmentSummary', 'upcomingAppointments', 'pastAppointments'
   ]) {
     els[id] = document.getElementById(id);
   }
@@ -163,7 +165,7 @@ function formatRatio(value, suffix = 'x') {
 
 function clearOverview() {
   for (const id of [
-    'crmLeads', 'crmAppointments', 'crmArrived', 'crmRevenue',
+    'crmLeads', 'crmAppointments', 'crmPastAppointments', 'crmArrived', 'crmRevenue',
     'mktReceived', 'mktCost', 'mktBalance', 'mktMessages',
     'mktRoas', 'mktCostPerData', 'mktCostPerArrived'
   ]) setText(id, '—');
@@ -172,6 +174,41 @@ function clearOverview() {
   setText('overviewFreshness', 'Chưa có dữ liệu mới cho kỳ đang xem.');
   setText('issueSummary', 'Chưa có dữ liệu đối soát');
   if (els.issueList) els.issueList.innerHTML = '<li class="issue-item">Chưa có cảnh báo để hiển thị.</li>';
+  renderSchedule();
+}
+
+function renderSchedule(schedule) {
+  const available = schedule?.available === true;
+  setText('upcomingCount', available ? formatNumber(schedule.upcoming?.total) : '—');
+  setText('pastAppointmentCount', available ? formatNumber(schedule.recentPast?.total) : '—');
+  setText('scheduleFreshness', available
+    ? `Theo hôm nay, độc lập với bộ lọc số liệu.${schedule.stale ? ' Đang dùng lịch gần nhất, chưa cập nhật được nguồn mới.' : ''}`
+    : 'Chưa có nguồn CRM để xác nhận lịch hẹn.');
+  setText('upcomingSummary', 'Lịch gần nhất xếp trước; lịch chưa rõ giờ hôm nay vẫn giữ ở đây.');
+  setText('pastAppointmentSummary', available
+    ? `${formatDateKey(schedule.recentStart)} đến ${formatDateKey(schedule.recentEnd)}. Đã qua giờ hẹn không đồng nghĩa khách chưa tới.`
+    : 'Đã qua giờ hẹn không đồng nghĩa khách chưa tới.');
+  for (const [id, group, emptyMessage] of [
+    ['upcomingAppointments', schedule?.upcoming, 'Chưa có lịch hẹn sắp tới.'],
+    ['pastAppointments', schedule?.recentPast, 'Không có lịch hẹn đã qua trong 7 ngày gần nhất.']
+  ]) {
+    if (!els[id]) continue;
+    const items = Array.isArray(group?.items) ? group.items : [];
+    if (!available || !items.length) {
+      els[id].innerHTML = `<li class="appointment-empty">${available ? emptyMessage : 'Chưa tải được lịch hẹn.'}</li>`;
+      continue;
+    }
+    const renderItem = item => {
+      const kind = ['completed', 'canceled', 'rescheduled'].includes(item.kind) ? item.kind : 'scheduled';
+      const day = formatDateKey(item.date);
+      return `<li class="appointment-item"><div class="appointment-when"><strong>${escapeHtml(day.slice(0, 5))}</strong><span>${escapeHtml(day.slice(6))}</span><span>${escapeHtml(item.time || 'Chưa rõ giờ')}</span></div><div class="appointment-info"><strong class="appointment-name">${escapeHtml(item.name || 'Chưa có tên')}</strong><span class="appointment-service">${escapeHtml(item.service || 'Chưa ghi dịch vụ')}</span><div class="appointment-tags"><span class="appointment-tag appointment-tag--${kind}">${escapeHtml(item.status || 'Chưa rõ trạng thái')}</span>${item.visitRecorded ? '<span class="appointment-tag appointment-tag--completed">Có ghi nhận khách tới</span>' : ''}${item.timeConfirmed ? '' : '<span class="appointment-tag">Chưa rõ giờ</span>'}</div>${item.derived ? '<span class="appointment-provenance">Từ lead xác nhận</span>' : ''}</div></li>`;
+    };
+    const extra = items.length > 5
+      ? `<li><details class="appointment-more"><summary>Xem thêm ${formatNumber(items.length - 5)} lịch</summary><ol class="appointment-list">${items.slice(5).map(renderItem).join('')}</ol></details></li>` : '';
+    const omitted = group.omitted > 0
+      ? `<li class="appointment-more">Hiển thị ${formatNumber(items.length)} / ${formatNumber(group.total)} lịch gần nhất.</li>` : '';
+    els[id].innerHTML = items.slice(0, 5).map(renderItem).join('') + extra + omitted;
+  }
 }
 
 function statusFromOverview(overview) {
@@ -216,6 +253,7 @@ function renderOverview(overview) {
   const marketing = overview.marketing || {};
   setText('crmLeads', formatNumber(crm.leads));
   setText('crmAppointments', formatNumber(crm.appointments));
+  setText('crmPastAppointments', formatNumber(crm.pastAppointments));
   setText('crmArrived', formatNumber(crm.arrived));
   setText('crmRevenue', formatMoney(crm.revenue));
   setText('crmAppointmentNote', Number(crm.derivedAppointments) > 0
@@ -232,6 +270,7 @@ function renderOverview(overview) {
   setText('mktCostPerArrived', formatMoney(marketing.costPerArrived));
 
   renderFreshness(overview);
+  renderSchedule(overview.schedule);
   renderIssues(overview.metadata?.integrity);
   const status = statusFromOverview(overview);
   setStatus(status.kind, status.message);

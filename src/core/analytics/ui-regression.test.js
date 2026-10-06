@@ -58,6 +58,9 @@ test('overview page removes heavy detail surfaces from initial dashboard HTML', 
   assert.doesNotMatch(html, /chart\.js|appointmentBody|mktTableBody|detailModal|globalSearch|revenuePieChart/);
   assert.match(html, /id="crmLeads"/);
   assert.match(html, /id="mktBalance"/);
+  assert.match(html, /id="crmPastAppointments"/);
+  assert.match(html, /id="upcomingAppointments"/);
+  assert.match(html, /id="pastAppointments"/);
 });
 test('overview API client renders valid unavailable aggregates and rejects malformed success bodies', async t => {
   const aggregate = { period: {}, crm: {}, marketing: {}, metadata: { available: { crm: false, marketing: false } } };

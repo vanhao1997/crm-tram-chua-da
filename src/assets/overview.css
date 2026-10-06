@@ -309,6 +309,31 @@ button { cursor: pointer; }
 }
 .metric-card--strong span, .metric-card--strong small { color: #d8e7dc; }
 
+.metric-breakdown { align-items: center; border-top: 1px solid var(--border-subtle); display: flex; gap: 8px; justify-content: space-between; padding-top: 8px; }
+.metric-breakdown span { font-size: 12px; }
+.metric-breakdown strong { font-size: 21px; letter-spacing: 0; }
+.schedule-grid { display: grid; gap: 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.schedule-column { min-width: 0; }
+.schedule-head { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.schedule-head h3 { font-size: 17px; margin: 0; }
+.schedule-count { background: var(--bg-soft); border-radius: 999px; font-size: 14px; font-weight: 700; min-width: 32px; padding: 3px 10px; text-align: center; }
+.schedule-note, .schedule-caption { color: var(--text-muted); font-size: 12px; }
+.schedule-caption { margin: 6px 0 12px; }
+.appointment-list { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.appointment-item { align-items: start; background: var(--bg-soft); border: 1px solid var(--border-subtle); border-radius: 9px; display: grid; gap: 10px; grid-template-columns: 70px minmax(0, 1fr); padding: 12px; }
+.appointment-when { display: grid; font-size: 12px; gap: 3px; }
+.appointment-when strong { font-size: 14px; }
+.appointment-info { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.appointment-name { font-size: 14px; }
+.appointment-service, .appointment-provenance { color: var(--text-muted); font-size: 12px; }
+.appointment-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.appointment-tag { background: #fff; border: 1px solid var(--border-subtle); border-radius: 5px; font-size: 11px; padding: 2px 6px; }
+.appointment-tag--completed { color: var(--forest); }
+.appointment-tag--canceled, .appointment-tag--rescheduled { color: var(--accent-amber); }
+.appointment-empty { background: var(--bg-soft); border-radius: 9px; color: var(--text-muted); font-size: 13px; padding: 18px 12px; }
+.appointment-more { color: var(--text-secondary); font-size: 12px; margin-top: 8px; }
+.appointment-more summary { cursor: pointer; padding: 8px 0; }
+
 .integrity-grid { grid-template-columns: minmax(0, 1fr); }
 .issue-list {
   display: grid;
@@ -373,7 +398,7 @@ button { cursor: pointer; }
 
 @media (max-width: 1099px) {
   .header { align-items: center; grid-template-columns: 1fr; }
-  .main-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .main-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .main-tab { text-align: center; }
   .metric-grid--four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metric-grid--three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -390,6 +415,7 @@ button { cursor: pointer; }
   .filter-tab { min-width: 0; padding-inline: 6px; }
   .custom-date-picker { width: 100%; }
   .custom-date-picker input { flex: 1 1 130px; min-width: 0; }
+  .schedule-grid { grid-template-columns: minmax(0, 1fr); }
   .integrity-grid, .metric-grid--four, .metric-grid--three { grid-template-columns: minmax(0, 1fr); }
   .metric-card { min-height: 112px; }
   .metric-card strong { font-size: 32px; }

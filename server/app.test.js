@@ -125,6 +125,8 @@ test('overview endpoint returns only aggregates, validates period selectors, and
         const payload = await response.json();
         assert.equal(payload.period.key, 'custom');
         assert.equal(payload.metadata.version, 'test-release');
+        assert.ok(payload.schedule);
+        assert.equal(payload.schedule.available, true);
         assert.doesNotMatch(JSON.stringify(payload), /private source detail|values|identities/);
         snapshot = { sources: {}, integrity: { issues: [] } };
         const unavailable = await fetch(`${base}/api/overview`);

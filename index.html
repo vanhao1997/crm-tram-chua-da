@@ -22,6 +22,7 @@
     </a>
     <nav class="main-tabs" aria-label="Điều hướng tổng quan">
       <a class="main-tab main-tab--active" href="#overview">Tổng quan</a>
+      <a class="main-tab" href="#appointments">Lịch hẹn</a>
       <a class="main-tab" href="#finance">Tài chính</a>
       <a class="main-tab" href="#integrity">Cảnh báo</a>
     </nav>
@@ -74,9 +75,25 @@
       <div class="panel-head"><p class="eyebrow">CRM</p><h2 id="crmTitle">Số liệu khách hàng</h2></div>
       <div class="metric-grid metric-grid--four">
         <article class="metric-card"><span>Tổng lead</span><strong id="crmLeads">-</strong><small>Ngày nhận lead, số phát sinh đến hôm nay</small></article>
-        <article class="metric-card"><span>Lịch hẹn</span><strong id="crmAppointments">-</strong><small id="crmAppointmentNote">Theo ngày hẹn, gồm lịch tương lai trong kỳ</small></article>
+        <article class="metric-card"><span>Lịch hẹn</span><strong id="crmAppointments">-</strong><div class="metric-breakdown"><span>Đã qua trong kỳ</span><strong id="crmPastAppointments">-</strong></div><small id="crmAppointmentNote">Theo ngày hẹn, gồm lịch tương lai trong kỳ</small></article>
         <article class="metric-card"><span>Khách tới</span><strong id="crmArrived">-</strong><small>Theo ngày khách đến, số phát sinh đến hôm nay</small></article>
         <article class="metric-card metric-card--strong"><span>Doanh số CRM</span><strong id="crmRevenue">-</strong><small>Để trống nếu thiếu doanh số khách tới</small></article>
+      </div>
+    </section>
+
+    <section class="panel" id="appointments" aria-labelledby="appointmentsTitle">
+      <div class="panel-head"><p class="eyebrow">Lịch hẹn</p><h2 id="appointmentsTitle">Theo dõi lịch hẹn</h2><p class="schedule-note" id="scheduleFreshness">Lịch gần đây tính theo hôm nay, độc lập với bộ lọc số liệu.</p></div>
+      <div class="schedule-grid">
+        <article class="schedule-column" aria-labelledby="upcomingTitle">
+          <div class="schedule-head"><h3 id="upcomingTitle">Sắp tới</h3><span class="schedule-count" id="upcomingCount">—</span></div>
+          <p class="schedule-caption" id="upcomingSummary">Lịch gần nhất xếp trước</p>
+          <ol class="appointment-list" id="upcomingAppointments"><li class="appointment-empty">Đang tải lịch hẹn...</li></ol>
+        </article>
+        <article class="schedule-column" aria-labelledby="pastTitle">
+          <div class="schedule-head"><h3 id="pastTitle">Đã qua · 7 ngày gần nhất</h3><span class="schedule-count" id="pastAppointmentCount">—</span></div>
+          <p class="schedule-caption" id="pastAppointmentSummary">Đã qua giờ hẹn không đồng nghĩa khách chưa tới</p>
+          <ol class="appointment-list" id="pastAppointments"><li class="appointment-empty">Đang tải lịch hẹn...</li></ol>
+        </article>
       </div>
     </section>
 
@@ -105,6 +122,7 @@
 
   <nav class="mobile-bottom-nav" aria-label="Điều hướng nhanh">
     <a class="nav-item nav-item--active" href="#overview"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#crm" /></svg><span>Tổng quan</span></a>
+    <a class="nav-item" href="#appointments"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#crm" /></svg><span>Lịch hẹn</span></a>
     <a class="nav-item" href="#finance"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#marketing" /></svg><span>Tài chính</span></a>
     <a class="nav-item" href="#integrity"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#data" /></svg><span>Cảnh báo</span></a>
   </nav>

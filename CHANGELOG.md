@@ -1,5 +1,13 @@
 # Changelog
 
+## [2026-10-06 Appointment Overview]
+### Added
+- Add selected-period past-appointment count inside the appointment KPI.
+- Show upcoming appointments and appointments elapsed in the latest seven Vietnam calendar days.
+- Render compact cards from the existing overview request, with five visible items and expandable remaining items (20 per list maximum).
+- Preserve recorded status and identify confirmed-lead events without inferring no-shows; match visits only by event identity or exact phone/day.
+- Exclude phone numbers and private notes from appointment summaries and label stale/unavailable schedules.
+
 ## [2026-10-06 Overview]
 ### Changed
 - Replace the CRM and Marketing detail screens with one aggregate overview.

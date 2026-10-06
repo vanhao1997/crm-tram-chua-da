@@ -104,3 +104,40 @@ test('invalid custom filters do not fetch, and denied storage does not break fil
   assert.equal(requests, 1);
   assert.equal(ui.element('crmLeads').textContent, '15');
 });
+
+test('appointment cards escape source text, collapse extra items and show past KPI without inferring no-shows', () => {
+  const ui = harness(async () => aggregate(15));
+  const item = { name: '<img src=x onerror=alert(1)>', service: '<script>bad()</script>',
+    date: '2026-10-06', time: 'chưa báo', status: 'Đặt Hẹn', kind: 'scheduled', derived: true };
+  const payload = {
+    ...aggregate(15), crm: { ...aggregate(15).crm, pastAppointments: 3 },
+    schedule: { available: true, stale: true, recentStart: '2026-09-30', recentEnd: '2026-10-06',
+      upcoming: { total: 26, omitted: 20, items: Array(6).fill(item) },
+      recentPast: { total: 1, omitted: 0, items: [{ ...item, visitRecorded: true, kind: 'completed' }] } }
+  };
+  ui.run(`renderOverview(${JSON.stringify(payload)})`);
+  assert.equal(ui.element('crmPastAppointments').textContent, '3');
+  const html = ui.element('upcomingAppointments').innerHTML;
+  assert.doesNotMatch(html, /<img|<script/);
+  assert.match(html, /&lt;img/);
+  assert.match(html, /Xem thêm 1 lịch/);
+  assert.match(html, /Hiển thị 6 \/ 26/);
+  assert.match(ui.element('scheduleFreshness').textContent, /lịch gần nhất/);
+  assert.match(ui.element('pastAppointmentSummary').textContent, /không đồng nghĩa khách chưa tới/);
+  assert.match(ui.element('pastAppointments').innerHTML, /Có ghi nhận khách tới/);
+  assert.match(ui.element('pastAppointments').innerHTML, /Đặt Hẹn/);
+  ui.run('clearOverview()');
+  assert.equal(ui.element('crmPastAppointments').textContent, '—');
+  assert.equal(ui.element('upcomingCount').textContent, '—');
+  assert.doesNotMatch(ui.element('upcomingAppointments').innerHTML, /onerror/);
+});
+
+test('empty and unavailable appointment lists have distinct states', () => {
+  const ui = harness(async () => aggregate(15));
+  ui.run(`renderSchedule(${JSON.stringify({ available: true, upcoming: { total: 0, items: [] }, recentPast: { total: 0, items: [] } })})`);
+  assert.equal(ui.element('upcomingCount').textContent, '0');
+  assert.match(ui.element('upcomingAppointments').innerHTML, /Chưa có lịch hẹn sắp tới/);
+  ui.run('renderSchedule({ available: false })');
+  assert.equal(ui.element('upcomingCount').textContent, '—');
+  assert.match(ui.element('upcomingAppointments').innerHTML, /Chưa tải được lịch hẹn/);
+});

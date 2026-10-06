@@ -27,6 +27,7 @@
 - [x] Giữ bộ lọc kỳ: hôm nay, tuần này, tháng này, tháng trước, tất cả và tùy chọn.
 - [x] Gỡ bảng chi tiết, tìm kiếm khách, modal, action từng khách, Chart.js và phân tích AI khỏi luồng tải chính.
 - [x] Giao diện gọi một endpoint tổng hợp `/api/overview` thay vì tải nhiều nguồn thô.
+- [x] Thêm thẻ lịch sắp tới, lịch đã qua 7 ngày gần nhất và KPI đã qua trong kỳ; mỗi danh sách tối đa 20 lịch, không có số điện thoại/ghi chú.
 
 ## 📝 Key Decisions
 - **2026-04-16**: Áp dụng Clean Architecture chia module \`src/features\` và \`src/core/api\` dễ manage hơn.

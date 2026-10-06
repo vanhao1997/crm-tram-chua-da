@@ -171,9 +171,10 @@ export function createApp({ service, config, logger = console, sendTelegram = te
     app.get('/api/overview', async (req, res) => {
         res.set('Cache-Control', 'no-store');
         try {
-            const period = overviewPeriod(req.query, new Date(), config.timezone);
+            const reference = new Date();
+            const period = overviewPeriod(req.query, reference, config.timezone);
             if (typeof service.getOverviewSnapshot !== 'function') return res.status(501).json({ error: 'Overview unavailable', code: 'OVERVIEW_NOT_IMPLEMENTED' });
-            const result = buildOverview(await service.getOverviewSnapshot(), period);
+            const result = buildOverview(await service.getOverviewSnapshot(), period, reference);
             result.metadata.version = config.appVersion || 'dev';
             const available = result.metadata.available.crm || result.metadata.available.marketing;
             return res.status(available ? 200 : 503).json(result);

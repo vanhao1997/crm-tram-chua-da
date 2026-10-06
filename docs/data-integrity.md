@@ -20,10 +20,26 @@ identity columns are read only when present; current sources do not have them.
 Derived event fingerprints survive sorting but are not immutable record keys.
 
 The overview is a server aggregate read model. A single `/api/overview` request
-returns CRM counts, period financial totals and compact integrity/freshness
-metadata. It contains no customer names, phone numbers, source rows or record
-identities. CRM and Marketing use the same cached atomic CRM snapshot; a source
+returns CRM counts, period financial totals, compact integrity/freshness metadata
+and bounded appointment summaries. Appointment items contain only name, service,
+appointment day/time, status and derived provenance. Phone numbers, notes, source
+rows and record identities are excluded. CRM and Marketing use the same cached
+atomic CRM snapshot; a source
 failure leaves only that source's dependent aggregates unavailable.
+
+Appointment summaries use the canonical booked source (including confirmed lead
+events completed by the read-only service). The past-appointment KPI counts
+booked events in the selected period whose scheduled time has elapsed; this is
+not a no-show count. Recent past appointments cover today and the preceding six
+Vietnam calendar days, independently of the financial filter. Upcoming events
+include future dates and today before a confirmed time has elapsed. Missing or
+ambiguous times remain upcoming today and become past on the next calendar day.
+Canceled, rescheduled and completed events are excluded only from upcoming;
+recent past events retain their recorded status. Matching a visit requires an
+appointment ID, or the same normalized valid phone and exact visit day; an older
+visit never marks a newer appointment completed. Each list returns the nearest
+20 records, its full count and omitted count. The UI refreshes every five minutes
+using the existing 60-second source cache and 15-minute stale limit.
 
 Sources use numeric Google sheet IDs, resolving their current titles before a
 read. Renaming a tab therefore does not change its source identity. Sheet names
@@ -85,7 +101,9 @@ and source data remain revalidated. Future source migrations remain deferred.
 - Old snapshots expire; health reports source freshness separately from liveness.
 - Numeric source identities survive tab renaming; clients cannot select foreign sources.
 - AI provider code, routes, credentials and browser calls are removed.
-- Overview pages request only aggregate data, with no Chart.js or customer-detail rendering.
+- Overview pages request aggregate data and bounded appointment cards, with no Chart.js or full customer-detail rendering.
+- Recent appointment windows and time classification use Vietnam calendar days; past does not mean no-show.
+- Appointment cards preserve source status, escape text and omit phones and private notes.
 - Overview totals match event dates and daily finance independently of the browser timezone.
 - Missing/stale source status remains visible after overview simplification.
 

@@ -43,9 +43,9 @@ test('overview periods use Vietnam calendar boundaries and validate custom range
     }
 });
 
-test('overview preserves event dates and money, excludes future actuals and subtotal rows, and returns no customer detail', () => {
-    const result = buildOverview(snapshot(), period);
-    assert.deepEqual(result.crm, { leads: 1, appointments: 2, arrived: 1, revenue: 1234.5, derivedAppointments: 1 });
+test('overview preserves event dates and money, excludes future actuals and subtotals, and limits appointment details', () => {
+    const result = buildOverview(snapshot(), period, reference);
+    assert.deepEqual(result.crm, { leads: 1, appointments: 2, pastAppointments: 1, arrived: 1, revenue: 1234.5, derivedAppointments: 1 });
     assert.equal(result.marketing.received, 500);
     assert.equal(result.marketing.cost, 315.5);
     assert.equal(result.marketing.balance, 184.5);
@@ -54,7 +54,10 @@ test('overview preserves event dates and money, excludes future actuals and subt
     assert.equal(result.marketing.roas, 1234.5 / 300.5);
     assert.equal(result.metadata.integrity.ok, true);
     assert.deepEqual(result.metadata.integrity.issues.map(issue => [issue.code, issue.count]), [['APPOINTMENTS_DERIVED', 1], ['SHEET_METRICS_RECALCULATED', 6]]);
-    assert.doesNotMatch(JSON.stringify(result), /Private customer|0901234567|sourceRow|identities|values|Old missing revenue/);
+    assert.equal(result.schedule.recentPast.total, 1);
+    assert.equal(result.schedule.upcoming.total, 1);
+    assert.doesNotMatch(JSON.stringify(result), /0901234567|sourceRow|identities|values|Old missing revenue/);
+    assert.doesNotMatch(JSON.stringify({ crm: result.crm, marketing: result.marketing }), /Private customer/);
 });
 
 test('missing revenue hides totals while recorded zero remains zero and legacy V remains valid', () => {

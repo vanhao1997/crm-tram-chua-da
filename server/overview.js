@@ -1,4 +1,5 @@
 import { calendarDay, isCustomerRow } from './integrity.js';
+import { appointmentSummary } from './appointment-summary.js';
 
 const PERIODS = ['today', 'week', 'month', 'lastmonth', 'all', 'custom'];
 const SOURCE_NAMES = ['leads', 'booked', 'arrived', 'marketing'];
@@ -87,7 +88,7 @@ function selectedIssues(issues, period) {
     return [...grouped.values()];
 }
 
-export function buildOverview(snapshot, period) {
+export function buildOverview(snapshot, period, reference = new Date()) {
     const sources = snapshot.sources || {};
     const sourceStatus = Object.fromEntries(SOURCE_NAMES.map(name => [name, {
         available: Boolean(sources[name]), stale: sources[name]?.metadata?.stale === true,
@@ -103,9 +104,11 @@ export function buildOverview(snapshot, period) {
         revenue += amount;
     }
     const derivedAppointments = (sources.booked?.values || []).reduce((count, row, index) => count + (sources.booked.identities?.[index]?.derived && inWindow(calendarDay(row[10]), period) ? 1 : 0), 0);
+    const schedule = appointmentSummary(sources, period, reference);
     const crm = {
         leads: crmAvailable ? leads.length : null,
         appointments: crmAvailable ? appointments.length : null,
+        pastAppointments: schedule.pastInPeriod,
         arrived: crmAvailable ? visits.length : null,
         revenue: crmAvailable ? revenue : null,
         derivedAppointments: crmAvailable ? derivedAppointments : null
@@ -138,7 +141,7 @@ export function buildOverview(snapshot, period) {
     }
     const filtered = selectedIssues(issues, period);
     const times = Object.values(sourceStatus).map(source => Date.parse(source.fetchedAt)).filter(Number.isFinite);
-    return { period, crm, marketing, metadata: {
+    return { period, crm, marketing, schedule, metadata: {
         fetchedAt: times.length ? new Date(Math.min(...times)).toISOString() : null,
         stale: Object.values(sourceStatus).some(source => source.stale),
         partial: !crmAvailable || !sourceStatus.marketing.available,
