@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026-10-06 Overview]
+### Changed
+- Replace the CRM and Marketing detail screens with one aggregate overview.
+- Load one compact overview response instead of all customer and Marketing rows.
+- Remove Chart.js, detail tables, record actions, comparison charts and budget analysis from overview loading.
+- Compute period totals on the server while preserving Vietnam dates, future booking counts, missing revenue and source freshness warnings.
+- Cache fingerprinted JS/CSS assets for repeat visits and revalidate HTML after deployments.
+- Load a 144px WebP brandmark instead of the original 2048px JPEG.
+
 ## [2026-10-06]
 ### Fixed
 - Resolve CRM sources by numeric Google tab ID after tab renaming.

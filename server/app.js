@@ -6,6 +6,7 @@ import express from 'express';
 import { SOURCE_NAMES, validateSourceName, quoteSheetName } from './config.js';
 import { SheetsServiceError } from './sheets-service.js';
 import { applyNetworkSecurity } from './network.js';
+import { buildOverview, overviewPeriod } from './overview.js';
 
 function publicError(error) {
     if (error instanceof SheetsServiceError) {
@@ -167,6 +168,22 @@ export function createApp({ service, config, logger = console, sendTelegram = te
         }
     });
 
+    app.get('/api/overview', async (req, res) => {
+        res.set('Cache-Control', 'no-store');
+        try {
+            const period = overviewPeriod(req.query, new Date(), config.timezone);
+            if (typeof service.getOverviewSnapshot !== 'function') return res.status(501).json({ error: 'Overview unavailable', code: 'OVERVIEW_NOT_IMPLEMENTED' });
+            const result = buildOverview(await service.getOverviewSnapshot(), period);
+            result.metadata.version = config.appVersion || 'dev';
+            const available = result.metadata.available.crm || result.metadata.available.marketing;
+            return res.status(available ? 200 : 503).json(result);
+        } catch (error) {
+            logger.error?.('Overview request failed', error.code || 'UNKNOWN');
+            if (error.code === 'INVALID_OVERVIEW_PERIOD') return res.status(400).json({ error: error.message, code: error.code });
+            return res.status(502).json(publicError(error));
+        }
+    });
+
     app.get('/api/sheets', async (req, res) => {
         const query = req.query || {};
         const queryKeys = Object.keys(query);
@@ -205,7 +222,14 @@ export function createApp({ service, config, logger = console, sendTelegram = te
     if (config.serveStatic && fs.existsSync(config.staticDir)) {
         app.use(express.static(config.staticDir, {
             index: 'index.html',
-            redirect: false
+            redirect: false,
+            setHeaders(res, filePath) {
+                if (path.dirname(filePath) === path.join(config.staticDir, 'assets') && /-[\w-]{8,}\.(js|css)$/.test(path.basename(filePath))) {
+                    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+                } else if (/\.html$|version\.json$/.test(filePath)) {
+                    res.set('Cache-Control', 'no-cache');
+                }
+            }
         }));
         app.get(/^\/(?!api(?:\/|$)).*/, (req, res) => {
             const indexPath = path.join(config.staticDir, 'index.html');

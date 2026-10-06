@@ -351,7 +351,7 @@ export function createSheetsService({
         }
     }
 
-    function reconciledMarketing(crm, marketing) {
+    function reconciledMarketing(crm, marketing, { dailyIssues = false } = {}) {
         const checkedAt = new Date(now()).toISOString();
         const freshCrm = crm && !Object.values(crm.sources).some(source => source.metadata.stale);
         const result = freshCrm ? deriveMarketing(crm, marketing, checkedAt) : cloneResult(marketing);
@@ -373,7 +373,7 @@ export function createSheetsService({
                 monthKey, corrected: true, count: 0, message: issue.message });
             corrected.get(key).count++;
         }
-        integrity.issues.push(...corrected.values());
+        integrity.issues.push(...(dailyIssues ? result.metadata.correctedIssues || [] : corrected.values()));
         const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit' })
             .formatToParts(new Date(checkedAt));
         const monthKey = `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}`;
@@ -390,6 +390,17 @@ export function createSheetsService({
     }
 
     return {
+        async getOverviewSnapshot() {
+            const [crm, marketing] = await Promise.allSettled([getCrmSnapshot(), getMarketingSnapshot()]);
+            const crmSnapshot = crm.status === 'fulfilled' ? crm.value : null;
+            const marketingResult = marketing.status === 'fulfilled' ? reconciledMarketing(crmSnapshot, marketing.value.result, { dailyIssues: true }) : null;
+            const integrity = marketingResult?.metadata.integrity || reconcileSources(crmSnapshot, null, new Date(now()).toISOString());
+            lastIntegrity = integrity;
+            return { sources: {
+                ...(crmSnapshot?.sources || {}),
+                ...(marketingResult ? { marketing: marketingResult } : {})
+            }, integrity };
+        },
         async getSource(source) {
             if (source === 'marketing') {
                 const [marketing, crm] = await Promise.allSettled([getMarketingSnapshot(), getCrmSnapshot()]);

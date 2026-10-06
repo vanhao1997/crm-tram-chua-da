@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { dateKey } from './budget-intelligence.js';
 import { deriveCustomers, getDateRange, hasConfirmedTime, inDateFilter, isUpcomingAppointment, normalizePhone, sortAppointments } from '../../features/dashboard/ui-helpers.js';
 import { chart } from '../../features/dashboard/budget-view.js';
 import { fetchAllData, formatDateFull, formatDateShort } from '../api/sheets-api.js';
+import { fetchOverview } from '../api/overview-api.js';
 import { renderRevenueChart, renderRevenuePieChart } from '../../features/dashboard/charts.js';
 
 test('revenue charts hide incomplete totals and preserve numeric decimals', t => {
@@ -50,6 +52,20 @@ test('revenue charts hide incomplete totals and preserve numeric decimals', t =>
 });
 test('frontend entrypoint parses (unit suites alone do not bundle it)', () => {
   execFileSync(process.execPath, ['--check', 'src/main.js']);
+});
+test('overview page removes heavy detail surfaces from initial dashboard HTML', () => {
+  const html = readFileSync('index.html', 'utf8');
+  assert.doesNotMatch(html, /chart\.js|appointmentBody|mktTableBody|detailModal|globalSearch|revenuePieChart/);
+  assert.match(html, /id="crmLeads"/);
+  assert.match(html, /id="mktBalance"/);
+});
+test('overview API client renders valid unavailable aggregates and rejects malformed success bodies', async t => {
+  const aggregate = { period: {}, crm: {}, marketing: {}, metadata: { available: { crm: false, marketing: false } } };
+  t.mock.method(globalThis, 'fetch', async () => ({ ok: false, status: 503, json: async () => aggregate }));
+  assert.equal((await fetchOverview()).metadata.httpStatus, 503);
+  t.mock.restoreAll();
+  t.mock.method(globalThis, 'fetch', async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }));
+  await assert.rejects(fetchOverview(), /không hợp lệ/);
 });
 test('invalid calendar input cannot roll into another month', async t => {
   const row = date => { const r = Array(23).fill(''); r[1] = date; r[2] = 'Test'; r[10] = date; return r; };

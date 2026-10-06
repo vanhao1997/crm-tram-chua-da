@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { createApp } from './app.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 async function withServer(app, callback) {
     const server = app.listen(0, '127.0.0.1');
@@ -99,6 +102,53 @@ test('sheets endpoint accepts only allowlisted source', async () => {
         const unknown = await fetch(`${baseUrl}/api/sheets?source=unknown`);
         assert.equal(unknown.status, 400);
     });
+});
+
+test('overview endpoint returns only aggregates, validates period selectors, and reports total outage', async () => {
+    let calls = 0;
+    let snapshot = { sources: Object.fromEntries(['leads', 'booked', 'arrived', 'marketing'].map(name => [name, {
+        values: [['header', 'private source detail']], metadata: { stale: false, fetchedAt: '2026-10-06T03:00:00Z' }
+    }])), integrity: { issues: [] } };
+    const app = createApp({
+        service: { getOverviewSnapshot: async () => { calls++; return snapshot; } },
+        config: { production: false, serveStatic: false, appVersion: 'test-release' },
+        logger: { error() {} }
+    });
+    await withServer(app, async base => {
+        for (const query of ['period=unknown', 'period=month&period=all', 'id=other', 'range=A:Z', 'period=custom&from=2026-02-30&to=2026-03-01']) {
+            assert.equal((await fetch(`${base}/api/overview?${query}`)).status, 400);
+        }
+        assert.equal(calls, 0);
+        const response = await fetch(`${base}/api/overview?period=custom&from=2026-10-01&to=2026-10-06`);
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get('Cache-Control'), 'no-store');
+        const payload = await response.json();
+        assert.equal(payload.period.key, 'custom');
+        assert.equal(payload.metadata.version, 'test-release');
+        assert.doesNotMatch(JSON.stringify(payload), /private source detail|values|identities/);
+        snapshot = { sources: {}, integrity: { issues: [] } };
+        const unavailable = await fetch(`${base}/api/overview`);
+        assert.equal(unavailable.status, 503);
+        assert.equal((await unavailable.json()).crm.leads, null);
+    });
+});
+
+test('hashed static assets cache safely while HTML is revalidated for new deployments', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bsn-overview-'));
+    try {
+        fs.mkdirSync(path.join(root, 'assets'));
+        fs.writeFileSync(path.join(root, 'index.html'), '<main>Overview</main>');
+        fs.writeFileSync(path.join(root, 'assets', 'main-1234abcd.js'), 'export {};');
+        const app = createApp({ service: {}, config: { production: false, serveStatic: true, staticDir: root } });
+        await withServer(app, async base => {
+            const html = await fetch(base);
+            const asset = await fetch(`${base}/assets/main-1234abcd.js`);
+            assert.equal(html.headers.get('Cache-Control'), 'no-cache');
+            assert.equal(asset.headers.get('Cache-Control'), 'public, max-age=31536000, immutable');
+        });
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
 });
 
 test('integrity endpoint returns service report without accepting external source selectors', async () => {

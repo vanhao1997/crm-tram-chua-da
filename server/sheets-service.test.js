@@ -114,6 +114,23 @@ test('CRM sources share one atomic batch snapshot and cache', async () => {
     assert.equal(calls, 1);
 });
 
+test('overview reads one atomic CRM batch and one marketing source, reusing snapshots for filter changes', async () => {
+    const calls = [];
+    const client = { async batchGet(request) {
+        calls.push(request.spreadsheetId);
+        return request.spreadsheetId === 'crm'
+            ? [{ values: [['header']] }, { values: [['header']] }, { values: [['header']] }]
+            : [{ values: [marketingRow('01/10/2026', { ads: 100, fee: 5, total: 105 })] }];
+    } };
+    const service = createSheetsService({ sources, client, now: fixedNowOct6, retryCount: 0, logger: { info() {} } });
+    const first = await service.getOverviewSnapshot();
+    const second = await service.getOverviewSnapshot();
+    assert.deepEqual(calls.sort(), ['crm', 'mkt']);
+    assert.equal(first.sources.leads.metadata.snapshotId, first.sources.booked.metadata.snapshotId);
+    assert.equal(first.sources.leads.metadata.snapshotId, second.sources.leads.metadata.snapshotId);
+    assert.equal(first.sources.marketing.metadata.calculationSource, 'fresh_crm_events');
+});
+
 test('CRM refresh failure returns the previous complete snapshot as stale', async () => {
     const clock = createClock();
     let calls = 0;

@@ -1,427 +1,114 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
-
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BSN Dashboard — Trạm Chữa Da BSN</title>
-  <meta name="description"
-    content="Không gian điều hành tổng hợp quản lý lịch hẹn, doanh số và chuyển đổi cho Trạm Chữa Da BSN" />
+  <title>BSN CRM - Tổng quan</title>
+  <meta name="description" content="Tổng quan số liệu CRM và tài chính Marketing cho Trạm Chữa Da BSN" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="icon" type="image/jpeg" href="/logo.jpg" />
-
-  <!-- iOS PWA settings -->
+  <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=2" />
   <meta name="apple-mobile-web-app-title" content="BSN CRM" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-
-  <link rel="stylesheet" href="/src/assets/style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<link rel="stylesheet" href="/workspace.css"><meta name="theme-color" content="#123e34" /></head>
-
+  <meta name="theme-color" content="#123e34" />
+  <link rel="stylesheet" href="/src/assets/overview.css" />
+</head>
 <body>
-  <!-- HEADER -->
-  <header class="header" id="header">
-    <div class="header__brand">
-      <img src="/logo.jpg" alt="BSN Logo" class="brand-logo" />
-      <div class="header__title">
-        <h1>Trạm Chữa Da BSN</h1>
-        <p class="header__subtitle">Không gian điều hành</p>
-      </div>
-    </div>
-    <div class="header__controls">
-      <div class="header__search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-          style="width:16px; height:16px; margin-right:8px; opacity:0.6;">
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input type="text" id="globalSearch" placeholder="Tìm tên KH, SĐT..." />
-      </div>
-      <div class="header__status">
-        <button id="refreshBtn" class="btn btn--icon" title="Refresh dữ liệu">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 4 23 10 17 10" />
-            <polyline points="1 20 1 14 7 14" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-        </button>
-        <div class="refresh-info">
-          <span class="refresh-info__label">Cập nhật:</span>
-          <span class="refresh-info__time" id="lastRefresh">--:--</span>
-        </div>
-        <div class="auto-refresh">
-          <label class="toggle">
-            <input type="checkbox" id="autoRefreshToggle" checked />
-            <span class="toggle__slider"></span>
-          </label>
-          <span class="auto-refresh__label">Auto (5 phút)</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- MAIN TAB NAVIGATION -->
-    <div class="main-tabs-container">
-      <a href="index.html" class="main-tab main-tab--active">Điều hành CRM</a>
-      <a href="marketing.html" class="main-tab">Hiệu quả Marketing</a>
-      <a href="settings.html" class="main-tab">Dữ liệu & vận hành</a>
+  <header class="header">
+    <a class="brand" href="index.html" aria-label="BSN CRM tổng quan">
+      <img src="/brandmark.webp" alt="BSN Logo" class="brand-logo" width="48" height="48" />
+      <span><strong>Trạm Chữa Da BSN</strong><small>Không gian điều hành</small></span>
+    </a>
+    <nav class="main-tabs" aria-label="Điều hướng tổng quan">
+      <a class="main-tab main-tab--active" href="#overview">Tổng quan</a>
+      <a class="main-tab" href="#finance">Tài chính</a>
+      <a class="main-tab" href="#integrity">Cảnh báo</a>
+    </nav>
+    <div class="header-actions">
+      <button id="refreshBtn" class="icon-button" type="button" title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5" /><path d="M18.2 9A7 7 0 0 0 6.4 6.4L4 8.8M5.8 15A7 7 0 0 0 17.6 17.6L20 15.2" /></svg>
+      </button>
+      <div class="refresh-info"><span>Cập nhật</span><strong id="lastRefresh">--:--</strong></div>
+      <label class="auto-refresh"><input type="checkbox" id="autoRefreshToggle" checked /><span></span><small>5 phút</small></label>
     </div>
   </header>
 
-  <!-- LOADING OVERLAY -->
-  <div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-overlay" id="loadingOverlay" aria-live="polite">
     <div class="loading-spinner"></div>
-    <p>Đang tải dữ liệu...</p>
+    <p>Đang tải tổng quan...</p>
   </div>
 
-  <!-- WELCOME SCREEN (shown when no sheet connected) -->
-  <div class="welcome" id="welcomeScreen">
-    <div class="welcome__card">
-      <div class="welcome__icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <path d="M3 9h18" />
-          <path d="M3 15h18" />
-          <path d="M9 3v18" />
-          <path d="M15 3v18" />
-        </svg>
-      </div>
-      <h2>Kết nối Google Sheet</h2>
-      <p>Paste link Google Sheet vào thanh trên cùng để bắt đầu.</p>
-      <p class="welcome__hint">Sheet phải ở chế độ <strong>"Anyone with the link can view"</strong></p>
-    </div>
-  </div>
-
-  <!-- MAIN DASHBOARD -->
-  <main class="dashboard" id="dashboard">
-    <!-- Global CRM Controls -->
-    <div class="page-context" id="pageContext">
+  <main class="dashboard" id="overview">
+    <section class="page-context">
       <div>
-        <p class="page-context__eyebrow">BSN CRM</p>
-        <h2>Điều hành lịch hẹn và khách hàng</h2>
-        <p class="page-context__period" id="activePeriodLabel">Đang xem tháng này</p>
+        <p class="eyebrow">BSN CRM</p>
+        <h1>Tổng quan vận hành</h1>
+        <p id="activePeriodLabel">Đang xem: Tháng này</p>
+        <p class="freshness-line" id="overviewFreshness">Đang tải dữ liệu mới nhất...</p>
       </div>
       <div class="data-status" id="dataStatusBar" role="status" aria-live="polite">
         <span class="data-status__dot"></span>
         <span class="data-status__text">Đang kiểm tra dữ liệu</span>
       </div>
-    </div>
-    <div class="dashboard-controls" style="display: flex; justify-content: flex-end; padding-bottom: 20px;">
+    </section>
+
+    <section class="toolbar" aria-label="Bộ lọc thời gian">
       <div class="filter-tabs" id="filterTabs">
-        <button class="filter-tab" data-filter="today">Hôm nay</button>
-        <button class="filter-tab" data-filter="week">Tuần này</button>
-        <button class="filter-tab filter-tab--active" data-filter="month">Tháng này</button>
-        <button class="filter-tab" data-filter="lastmonth">Tháng trước</button>
-        <button class="filter-tab" data-filter="upcoming">Sắp tới</button>
-        <button class="filter-tab" data-filter="all">Tất cả</button>
-        <button class="filter-tab" data-filter="custom" id="customFilterTab">Tùy chọn...</button>
+        <button class="filter-tab" data-filter="today" type="button">Hôm nay</button>
+        <button class="filter-tab" data-filter="week" type="button">Tuần này</button>
+        <button class="filter-tab filter-tab--active" data-filter="month" type="button">Tháng này</button>
+        <button class="filter-tab" data-filter="lastmonth" type="button">Tháng trước</button>
+        <button class="filter-tab" data-filter="all" type="button">Tất cả</button>
+        <button class="filter-tab" data-filter="custom" type="button">Tùy chọn</button>
       </div>
-    </div>
-    <div class="custom-date-picker" id="customDatePicker"
-      style="display:none; justify-content:flex-end; padding-bottom: 20px; gap: 10px; align-items: center; margin-top:-10px;">
-      <input type="date" id="dateStart" class="form-input" style="width:auto;" />
-      <span style="font-size:12px; font-weight:600; color:var(--text-muted)">ĐẾN</span>
-      <input type="date" id="dateEnd" class="form-input" style="width:auto;" />
-      <button class="btn btn--primary btn--small" id="applyCustomDateBtn"
-        style="padding: 6px 12px; font-size: 13px;">Lọc</button>
-    </div>
-
-    <!-- KPI ROW -->
-    <section class="kpi-row" id="kpiRow">
-      <div class="kpi-card" id="kpiTotalLead">
-        <div class="kpi-card__icon kpi-card__icon--blue">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-        </div>
-        <div class="kpi-card__content">
-          <span class="kpi-card__label">Tổng Lead</span>
-          <span class="kpi-card__value" id="kpiTotalLeadValue">--</span>
-        </div>
-      </div>
-      <div class="kpi-card" id="kpiBooked">
-        <div class="kpi-card__icon kpi-card__icon--amber">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-        </div>
-        <div class="kpi-card__content">
-          <span class="kpi-card__label">Đặt Hẹn</span>
-          <span class="kpi-card__value" id="kpiBookedValue">--</span>
-        </div>
-      </div>
-      <div class="kpi-card" id="kpiArrived">
-        <div class="kpi-card__icon kpi-card__icon--green">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-        </div>
-        <div class="kpi-card__content">
-          <span class="kpi-card__label">Đã Đến</span>
-          <span class="kpi-card__value" id="kpiArrivedValue">--</span>
-        </div>
-      </div>
-      <div class="kpi-card" id="kpiRevenue">
-        <div class="kpi-card__icon kpi-card__icon--emerald">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="1" x2="12" y2="23" />
-            <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-          </svg>
-        </div>
-        <div class="kpi-card__content">
-          <span class="kpi-card__label">Doanh Số</span>
-          <span class="kpi-card__value" id="kpiRevenueValue">--</span>
-        </div>
+      <div class="custom-date-picker" id="customDatePicker" hidden>
+        <input id="dateStart" class="form-input" type="date" aria-label="Ngày bắt đầu" />
+        <span>đến</span>
+        <input id="dateEnd" class="form-input" type="date" aria-label="Ngày kết thúc" />
+        <button class="button" id="applyCustomDateBtn" type="button">Lọc</button>
       </div>
     </section>
 
-
-    <section aria-label="Tài chính Marketing">
-      <p id="crmMktStatus" role="status">Đang tải số liệu Marketing tháng này…</p>
-      <div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-card__content"><span class="kpi-card__label">Tổng nạp trong kỳ</span><span class="kpi-card__value" id="crmMktReceived">—</span><small>Cộng cột nạp theo ngày trong kỳ chọn</small></div></div>
-        <div class="kpi-card"><div class="kpi-card__content"><span class="kpi-card__label">Nạp trừ chi trong kỳ</span><span class="kpi-card__value" id="crmMktBalance">—</span><small>Không phải số dư ví Ads</small></div></div>
-        <div class="kpi-card"><div class="kpi-card__content"><span class="kpi-card__label">Tổng chi phí MKT</span><span class="kpi-card__value" id="crmMktCost">—</span><small>Ads + phí quản lý trong kỳ chọn</small></div></div>
-        <div class="kpi-card"><div class="kpi-card__content"><span class="kpi-card__label">Chi phí / doanh thu tháng</span><span class="kpi-card__value" id="crmMktCostRatio">—</span><small>Tổng chi MKT tháng / tổng doanh thu Marketing tháng × 100%</small></div></div>
+    <section class="panel" aria-labelledby="crmTitle">
+      <div class="panel-head"><p class="eyebrow">CRM</p><h2 id="crmTitle">Số liệu khách hàng</h2></div>
+      <div class="metric-grid metric-grid--four">
+        <article class="metric-card"><span>Tổng lead</span><strong id="crmLeads">-</strong><small>Ngày nhận lead, số phát sinh đến hôm nay</small></article>
+        <article class="metric-card"><span>Lịch hẹn</span><strong id="crmAppointments">-</strong><small id="crmAppointmentNote">Theo ngày hẹn, gồm lịch tương lai trong kỳ</small></article>
+        <article class="metric-card"><span>Khách tới</span><strong id="crmArrived">-</strong><small>Theo ngày khách đến, số phát sinh đến hôm nay</small></article>
+        <article class="metric-card metric-card--strong"><span>Doanh số CRM</span><strong id="crmRevenue">-</strong><small>Để trống nếu thiếu doanh số khách tới</small></article>
       </div>
     </section>
 
-    <!-- MAIN CONTENT -->
-    <section class="main-content">
-      <!-- CENTER: Appointment Table -->
-      <div class="appointments-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            Lịch Hẹn
-          </h2>
-          <div class="panel-actions">
-            <div class="record-tabs" id="recordTabs" role="tablist" aria-label="Loại dữ liệu CRM">
-              <button class="record-tab record-tab--active" data-record-view="appointments" role="tab"
-                aria-selected="true">Lịch hẹn</button>
-              <button class="record-tab" data-record-view="leads" role="tab" aria-selected="false">Lead</button>
-              <button class="record-tab" data-record-view="customers" role="tab"
-                aria-selected="false">Khách hàng</button>
-            </div>
-          </div>
-        </div>
-        <div class="table-filters" id="tableFilters">
-          <input id="tableSearch" class="form-input" type="search" placeholder="Tìm tên hoặc số điện thoại..."
-            aria-label="Tìm trong danh sách" />
-          <select id="serviceFilter" class="form-input" aria-label="Lọc theo dịch vụ">
-            <option value="all">Tất cả dịch vụ</option>
-          </select>
-          <select id="statusFilter" class="form-input" aria-label="Lọc theo trạng thái">
-            <option value="all">Tất cả trạng thái</option>
-          </select>
-          <span class="table-result-count" id="tableResultCount"></span>
-        </div>
-        <div class="table-wrapper" id="appointmentTableWrapper">
-          <table class="data-table" id="appointmentTable">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Tên KH</th>
-                <th>SĐT</th>
-                <th>Dịch vụ</th>
-                <th>Giờ hẹn</th>
-                <th id="sortDateBtn" style="cursor: pointer; user-select: none;" title="Sắp xếp theo ngày hẹn">Ngày hẹn ↕</th>
-                <th>Trạng thái</th>
-                <th>Thao tác</th>
-                <th>Telegram</th>
-              </tr>
-            </thead>
-            <tbody id="appointmentBody">
-            </tbody>
-          </table>
-          <div class="empty-state" id="appointmentEmpty" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-            </svg>
-            <p>Không có lịch hẹn nào</p>
-          </div>
-        </div>
+    <section class="panel" id="finance" aria-labelledby="financeTitle">
+      <div class="panel-head"><p class="eyebrow">Marketing</p><h2 id="financeTitle">Tài chính và chuyển đổi</h2></div>
+      <div class="metric-grid metric-grid--three">
+        <article class="metric-card"><span>Tổng nạp</span><strong id="mktReceived">-</strong><small>Tiền nạp trong kỳ</small></article>
+        <article class="metric-card"><span>Tổng chi phí</span><strong id="mktCost">-</strong><small id="mktCostNote">Ads + phí quản lý</small></article>
+        <article class="metric-card"><span>Nạp trừ chi</span><strong id="mktBalance">-</strong><small>Không phải số dư ví Ads</small></article>
       </div>
-
-      <!-- RIGHT SIDEBAR: Overdue -->
-      <div class="overdue-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title panel-title--warning">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            Quá Hẹn Chưa Đến
-          </h2>
-          <span class="badge badge--danger" id="overdueCount">0</span>
-        </div>
-        <div class="overdue-list" id="overdueList">
-        </div>
-        <div class="empty-state" id="overdueEmpty" style="display:none;">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-            <polyline points="22 4 12 14.01 9 11.01" />
-          </svg>
-          <p>Tất cả khách đã đến đúng hẹn! 🎉</p>
-        </div>
+      <div class="metric-grid metric-grid--four">
+        <article class="metric-card"><span>Tin nhắn</span><strong id="mktMessages">-</strong></article>
+        <article class="metric-card"><span>ROAS</span><strong id="mktRoas">-</strong></article>
+        <article class="metric-card"><span>Chi phí / data</span><strong id="mktCostPerData">-</strong></article>
+        <article class="metric-card"><span>Chi phí / khách tới</span><strong id="mktCostPerArrived">-</strong></article>
       </div>
     </section>
 
-    <!-- BOTTOM CHARTS -->
-    <section class="charts-row">
-      <!-- Funnel -->
-      <div class="funnel-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-            </svg>
-            Funnel Chuyển Đổi
-          </h2>
-        </div>
-        <div class="funnel-chart" id="funnelChart"></div>
-      </div>
-
-      <!-- Revenue by Service -->
-      <div class="revenue-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="18" y1="20" x2="18" y2="10" />
-              <line x1="12" y1="20" x2="12" y2="4" />
-              <line x1="6" y1="20" x2="6" y2="14" />
-            </svg>
-            Doanh Số Theo Dịch Vụ
-          </h2>
-        </div>
-        <div class="revenue-chart" id="revenueChart"></div>
-      </div>
-
-      <!-- Lead Status -->
-      <div class="status-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-              <path d="M21 3v5h-5" />
-            </svg>
-            Trạng Thái Lead
-          </h2>
-        </div>
-        <div class="status-chart" id="statusChart"></div>
-      </div>
-
-      <!-- Revenue Pie Chart -->
-      <div class="pie-panel glass-card">
-        <div class="panel-header">
-          <h2 class="panel-title">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 2a10 10 0 0 1 10 10h-10z" style="fill:currentColor; opacity: 0.2;" />
-            </svg>
-            Tỷ Trọng Dịch Vụ
-          </h2>
-        </div>
-        <div class="pie-chart-container" style="padding:20px; height:280px; position:relative;">
-          <canvas id="revenuePieChart"></canvas>
-        </div>
-      </div>
+    <section class="integrity-grid" id="integrity" aria-label="Cảnh báo dữ liệu">
+      <article class="panel">
+        <div class="panel-head"><p class="eyebrow">Đối soát</p><h2>Cảnh báo dữ liệu</h2><p id="issueSummary">Chưa có dữ liệu đối soát</p></div>
+        <ul class="issue-list" id="issueList"></ul>
+      </article>
     </section>
-
-
   </main>
 
-
-
-  <!-- MODAL: Lead Detail -->
-  <div class="modal-overlay" id="detailModal">
-    <div class="modal glass-card">
-      <div class="modal__header">
-        <h3>Chi tiết hồ sơ</h3>
-        <button class="modal__close">&times;</button>
-      </div>
-      <div class="modal__body">
-        <div class="detail-grid">
-          <div class="detail-item"><span class="detail-label">Tên</span><span class="detail-value"
-              id="detailName">--</span></div>
-          <div class="detail-item"><span class="detail-label">SĐT</span><span class="detail-value"
-              id="detailPhone">--</span></div>
-          <div class="detail-item"><span class="detail-label">Dịch vụ</span><span class="detail-value"
-              id="detailService">--</span></div>
-          <div class="detail-item"><span class="detail-label">Nguồn</span><span class="detail-value"
-              id="detailSource">--</span></div>
-          <div class="detail-item"><span class="detail-label">Ngày</span><span class="detail-value"
-              id="detailDate">--</span></div>
-          <div class="detail-item"><span class="detail-label">NV</span><span class="detail-value"
-              id="detailStaff">--</span></div>
-        </div>
-        <div class="detail-section">
-          <div class="detail-section__heading">Lịch sử ghi nhận</div>
-          <div class="detail-timeline" id="detailTimeline"></div>
-        </div>
-        <div class="detail-actions">
-          <button id="detailCopyBtn" class="btn btn--secondary" type="button">Copy thông tin telesale</button>
-          <a id="detailOpenSheet" class="btn btn--ghost" href="#" target="_blank" rel="noreferrer">Mở nguồn dữ liệu</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal-overlay" id="drilldownModal">
-    <div class="modal modal--wide glass-card">
-      <div class="modal__header">
-        <h3 id="drilldownTitle">Chi tiết chỉ số</h3>
-        <button class="modal__close" type="button">&times;</button>
-      </div>
-      <div class="modal__body">
-        <p class="modal__hint" id="drilldownSummary"></p>
-        <div class="table-wrapper drilldown-table-wrapper">
-          <table class="data-table">
-            <thead id="drilldownHead"></thead>
-            <tbody id="drilldownBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- TOAST NOTIFICATION -->
-  <div class="toast-container" id="toastContainer"></div>
-
-  <!-- Mobile Bottom Navigation -->
-  <nav class="mobile-bottom-nav" aria-label="Điều hướng chính">
-    <a href="index.html" class="nav-item nav-item--active" aria-current="page">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><use href="/icons/navigation.svg#crm" /></svg>
-      <span>Điều hành CRM</span>
-    </a>
-    <a href="marketing.html" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><use href="/icons/navigation.svg#marketing" /></svg>
-      <span>Marketing</span>
-    </a>
-    <a href="settings.html" class="nav-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" focusable="false"><use href="/icons/navigation.svg#data" /></svg>
-      <span>Dữ liệu</span>
-    </a>
+  <nav class="mobile-bottom-nav" aria-label="Điều hướng nhanh">
+    <a class="nav-item nav-item--active" href="#overview"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#crm" /></svg><span>Tổng quan</span></a>
+    <a class="nav-item" href="#finance"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#marketing" /></svg><span>Tài chính</span></a>
+    <a class="nav-item" href="#integrity"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="/icons/navigation.svg#data" /></svg><span>Cảnh báo</span></a>
   </nav>
 
   <script type="module" src="/src/main.js"></script>
 </body>
-
 </html>

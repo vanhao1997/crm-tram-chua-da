@@ -19,6 +19,12 @@ Persisted UUIDs require a future authorized source migration. Optional FS:FX
 identity columns are read only when present; current sources do not have them.
 Derived event fingerprints survive sorting but are not immutable record keys.
 
+The overview is a server aggregate read model. A single `/api/overview` request
+returns CRM counts, period financial totals and compact integrity/freshness
+metadata. It contains no customer names, phone numbers, source rows or record
+identities. CRM and Marketing use the same cached atomic CRM snapshot; a source
+failure leaves only that source's dependent aggregates unavailable.
+
 Sources use numeric Google sheet IDs, resolving their current titles before a
 read. Renaming a tab therefore does not change its source identity. Sheet names
 are a fallback only for custom installations without configured numeric IDs.
@@ -47,6 +53,13 @@ marketing actuals exclude future calendar days. Deterministic budget analysis
 uses the existing D-2 closing convention and requires valid, fresh source data.
 Event ratios are not acquisition-cohort conversion rates.
 
+The overview counts scheduled appointments across the entire selected window,
+including future dates. Lead, arrival, revenue and Marketing financial actuals
+stop at today's Vietnam calendar day. A blank daily deposit means no deposit;
+missing numeric costs or revenue leave their total unavailable. Duplicate daily
+Marketing dates invalidate financial aggregates instead of double counting.
+Source warnings are grouped by code and restricted to the selected window.
+
 ## Delivery phases
 
 MVP restores current-month sources, app calculations, appointment consistency,
@@ -55,6 +68,11 @@ boundaries, source freshness and explicit unavailable states. Tab IDs and
 automatic read-only reconciliation on refresh and every five minutes are also
 implemented. Future retains persisted record keys and source formula repairs;
 both require write access and are excluded from this read-only release.
+
+The overview-only MVP removes browser charts, detail tables, customer actions,
+historical comparisons and budget analysis. V1 transfers calculations to one
+compact aggregate endpoint and caches fingerprinted static assets, while HTML
+and source data remain revalidated. Future source migrations remain deferred.
 
 ## Acceptance
 
@@ -67,6 +85,9 @@ both require write access and are excluded from this read-only release.
 - Old snapshots expire; health reports source freshness separately from liveness.
 - Numeric source identities survive tab renaming; clients cannot select foreign sources.
 - AI provider code, routes, credentials and browser calls are removed.
+- Overview pages request only aggregate data, with no Chart.js or customer-detail rendering.
+- Overview totals match event dates and daily finance independently of the browser timezone.
+- Missing/stale source status remains visible after overview simplification.
 
 ## Operational risks
 
