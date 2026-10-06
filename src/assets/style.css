@@ -2016,10 +2016,16 @@ html {
 
 .page-context {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 16px;
   align-items: center;
   padding: 4px 2px 0;
+}
+
+.page-context > :first-child {
+  flex: 1 1 280px;
+  min-width: 0;
 }
 
 .page-context__eyebrow {
@@ -2042,7 +2048,7 @@ html {
 }
 
 .data-status {
-  align-items: center;
+  align-items: flex-start;
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -2052,7 +2058,11 @@ html {
   font-weight: 600;
   gap: 8px;
   padding: 8px 12px;
-  white-space: nowrap;
+  flex: 1 1 420px;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.5;
+  white-space: normal;
 }
 
 .data-status__dot {
@@ -2060,6 +2070,8 @@ html {
   border-radius: 999px;
   height: 8px;
   width: 8px;
+  flex-shrink: 0;
+  margin-top: 5px;
 }
 
 .data-status[data-status="success"] .data-status__dot {
@@ -2287,7 +2299,9 @@ html {
     flex-direction: column;
   }
 
+  .page-context > :first-child,
   .data-status {
+    flex: none;
     width: 100%;
   }
 

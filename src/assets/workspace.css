@@ -109,6 +109,9 @@ body .data-table td { padding-top: 16px; padding-bottom: 16px; border-bottom: 1p
 .marketing-page #mktKpiRow { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .marketing-page #mktKpiRow .kpi-card { min-height: 124px; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) { background: #f8faf5; border-color: #cbd9ca; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) { flex-direction: column; align-items: stretch; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) .kpi-card__icon { display: none; }
+.marketing-page #mktKpiRow .kpi-card:nth-child(-n+3) .kpi-card__value { font-size: clamp(20px, 2vw, 28px) !important; letter-spacing: -.5px; white-space: nowrap; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) { background: var(--forest); color: #fff; border-color: var(--forest); }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__value { color: #fff; }
 .marketing-page #mktKpiRow .kpi-card:nth-child(5) .kpi-card__label,
