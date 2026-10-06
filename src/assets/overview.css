@@ -470,6 +470,16 @@ button { cursor: pointer; }
   .nav-item--active { color: var(--forest); }
 }
 
+/* Lock the installed app shell; only its content can scroll on iOS. */
+@media (max-width: 1099px) {
+  html.is-standalone body {
+    height: auto;
+    inset: 0;
+    min-height: 0;
+    position: fixed;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; scroll-behavior: auto !important; transition: none !important; }
 }

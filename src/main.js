@@ -18,6 +18,12 @@ const state = {
   autoRefreshTimer: null
 };
 
+function syncDisplayMode() {
+  const standalone = navigator.standalone === true
+    || Boolean(window.matchMedia?.('(display-mode: standalone)').matches);
+  document.documentElement?.classList.toggle('is-standalone', standalone);
+}
+
 function readFilterState() {
   try {
     const saved = JSON.parse(localStorage.getItem(FILTER_STORAGE_KEY) || '{}');
@@ -397,4 +403,5 @@ function init() {
   if (els.autoRefreshToggle?.checked) startAutoRefresh();
 }
 
+syncDisplayMode();
 document.addEventListener('DOMContentLoaded', init);
