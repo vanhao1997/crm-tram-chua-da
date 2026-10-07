@@ -60,7 +60,7 @@ All calendar boundaries use Asia/Ho_Chi_Minh, equivalent to Asia/Saigon.
 | Total cost | Marketing daily | D + E when both recorded; otherwise F with validation | Calendar day A |
 | Received | Marketing daily | Sum C in selected period | Calendar day A |
 | Received minus cost | Marketing daily | Received - total cost | Selected period; not wallet balance |
-| ROAS | Marketing daily | Revenue / Ads | Matching days; unavailable if denominator zero |
+| Cost / revenue | Marketing daily | (Ads + management fee) / Revenue, displayed as % | Matching selected days through today in Asia/Ho_Chi_Minh; source refresh every 5 minutes; unavailable if revenue <= 0 or either total is missing. Red above 30%, green at or below 30%, using the unrounded ratio. |
 | CPL / cost per arrival | Marketing daily | Total cost / corresponding count | Matching days; unavailable if denominator zero |
 
 Monthly totals include daily records once and never include another subtotal.

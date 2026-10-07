@@ -52,6 +52,7 @@ test('overview preserves event dates and money, excludes future actuals and subt
     assert.equal(result.marketing.messages, 6);
     assert.equal(result.marketing.data, 4);
     assert.equal(result.marketing.roas, 1234.5 / 300.5);
+    assert.equal(result.marketing.costRevenueRatio, 315.5 / 1234.5);
     assert.equal(result.metadata.integrity.ok, true);
     assert.deepEqual(result.metadata.integrity.issues.map(issue => [issue.code, issue.count]), [['APPOINTMENTS_DERIVED', 1], ['SHEET_METRICS_RECALCULATED', 6]]);
     assert.equal(result.schedule.recentPast.total, 1);
@@ -90,7 +91,31 @@ test('CRM and marketing failures stay independently unavailable rather than trus
     assert.equal(result.marketing.data, null);
     assert.equal(result.marketing.revenue, null);
     assert.equal(result.marketing.roas, null);
+    assert.equal(result.marketing.costRevenueRatio, null);
     assert.equal(result.metadata.available.crm, false);
+});
+
+test('cost / revenue includes management fees and is unavailable for zero, missing or stale inputs', () => {
+    const input = snapshot();
+    const row = daily('01/10/2026', 0, 270, 30, 1000);
+    input.sources.marketing.values = [row];
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, 0.3);
+    row[5] = 0;
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, 0);
+    row[5] = 300;
+    row[15] = 0;
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, null);
+    row[15] = null;
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, null);
+    row[15] = 1000;
+    row[5] = null;
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, null);
+    row[5] = 300;
+    input.sources.arrived.metadata.stale = true;
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, null);
+    input.sources.arrived.metadata.stale = false;
+    row[5] = -300;
+    assert.equal(buildOverview(input, period).marketing.costRevenueRatio, null);
 });
 
 test('duplicate financial days cannot double-count totals and stale snapshots remain labeled', () => {

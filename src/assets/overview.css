@@ -303,6 +303,9 @@ button { cursor: pointer; }
   line-height: 1.45;
 }
 
+.metric-card strong[data-tone="danger"] { color: var(--accent-red); }
+.metric-card strong[data-tone="success"] { color: var(--forest); }
+
 .metric-card--strong {
   background: var(--forest);
   border-color: var(--forest);

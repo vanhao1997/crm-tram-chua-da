@@ -130,6 +130,8 @@ export function buildOverview(snapshot, period, reference = new Date()) {
     marketing.balance = marketing.received !== null && marketing.cost !== null ? marketing.received - marketing.cost : null;
     const ratio = (value, denominator) => value !== null && denominator > 0 ? value / denominator : null;
     marketing.roas = ratio(marketing.revenue, marketing.ads);
+    marketing.costRevenueRatio = marketing.cost !== null && marketing.cost >= 0
+        ? ratio(marketing.cost, marketing.revenue) : null;
     marketing.costPerData = ratio(marketing.cost, marketing.data);
     marketing.costPerArrived = ratio(marketing.cost, marketing.arrived);
     const issues = (snapshot.integrity?.issues || []).flatMap(issue => issue.code === 'APPOINTMENTS_DERIVED'

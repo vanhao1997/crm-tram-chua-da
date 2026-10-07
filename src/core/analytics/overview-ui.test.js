@@ -141,3 +141,24 @@ test('empty and unavailable appointment lists have distinct states', () => {
   assert.equal(ui.element('upcomingCount').textContent, '—');
   assert.match(ui.element('upcomingAppointments').innerHTML, /Chưa tải được lịch hẹn/);
 });
+
+test('cost / revenue displays percentages, uses the raw 30% threshold and clears previous colors', () => {
+  const ui = harness(async () => aggregate(15));
+  for (const [ratio, expectedText, expectedTone] of [
+    [0.25, '25%', 'success'], [0.3, '30%', 'success'],
+    [0.30004, '30%', 'danger'], [0.45, '45%', 'danger'],
+    [0, '0%', 'success'], [null, '—', 'neutral']
+  ]) {
+    const payload = aggregate(15);
+    payload.marketing = { ...payload.marketing, revenue: 1000, costRevenueRatio: ratio };
+    ui.run(`renderOverview(${JSON.stringify(payload)})`);
+    assert.equal(ui.element('mktCostRevenueRatio').textContent, expectedText);
+    assert.equal(ui.element('mktCostRevenueRatio').dataset.tone, expectedTone);
+  }
+  ui.run('renderCostRevenueRatio({ revenue: 0, costRevenueRatio: null })');
+  assert.match(ui.element('mktCostRevenueNote').textContent, /Doanh thu bằng 0/);
+  assert.equal(ui.element('mktCostRevenueRatio').dataset.tone, 'neutral');
+  ui.run('renderCostRevenueRatio({ costRevenueRatio: 0.4 }); clearOverview()');
+  assert.equal(ui.element('mktCostRevenueRatio').textContent, '—');
+  assert.equal(ui.element('mktCostRevenueRatio').dataset.tone, 'neutral');
+});

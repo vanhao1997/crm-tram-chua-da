@@ -64,7 +64,7 @@ function initDom() {
     'customDatePicker', 'dateStart', 'dateEnd', 'applyCustomDateBtn',
     'crmLeads', 'crmAppointments', 'crmPastAppointments', 'crmArrived', 'crmRevenue',
     'crmAppointmentNote', 'mktReceived', 'mktCost', 'mktCostNote',
-    'mktBalance', 'mktMessages', 'mktRoas', 'mktCostPerData',
+    'mktBalance', 'mktMessages', 'mktCostRevenueRatio', 'mktCostRevenueNote', 'mktCostPerData',
     'mktCostPerArrived', 'issueList', 'issueSummary', 'scheduleFreshness',
     'upcomingCount', 'pastAppointmentCount', 'upcomingSummary',
     'pastAppointmentSummary', 'upcomingAppointments', 'pastAppointments'
@@ -163,18 +163,26 @@ function formatMoney(value) {
     : `${Math.round(Number(value)).toLocaleString('vi-VN')} ₫`;
 }
 
-function formatRatio(value, suffix = 'x') {
-  return value === null || value === undefined || !Number.isFinite(Number(value))
-    ? '—'
-    : `${Number(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 })}${suffix}`;
+function renderCostRevenueRatio(marketing = {}) {
+  const value = marketing.costRevenueRatio;
+  const available = typeof value === 'number' && Number.isFinite(value) && value >= 0;
+  setText('mktCostRevenueRatio', available
+    ? value.toLocaleString('vi-VN', { style: 'percent', maximumFractionDigits: 2 })
+    : '—');
+  if (els.mktCostRevenueRatio) els.mktCostRevenueRatio.dataset.tone = available
+    ? (value > 0.3 ? 'danger' : 'success') : 'neutral';
+  setText('mktCostRevenueNote', available
+    ? '(Ads + phí quản lý) / doanh thu cùng kỳ'
+    : marketing.revenue === 0 ? 'Doanh thu bằng 0, chưa tính được tỷ lệ' : 'Chưa đủ dữ liệu để tính tỷ lệ');
 }
 
 function clearOverview() {
   for (const id of [
     'crmLeads', 'crmAppointments', 'crmPastAppointments', 'crmArrived', 'crmRevenue',
     'mktReceived', 'mktCost', 'mktBalance', 'mktMessages',
-    'mktRoas', 'mktCostPerData', 'mktCostPerArrived'
+    'mktCostPerData', 'mktCostPerArrived'
   ]) setText(id, '—');
+  renderCostRevenueRatio();
   setText('crmAppointmentNote', 'Theo ngày hẹn, gồm lịch tương lai trong kỳ');
   setText('mktCostNote', 'Ads + phí quản lý');
   setText('overviewFreshness', 'Chưa có dữ liệu mới cho kỳ đang xem.');
@@ -271,7 +279,7 @@ function renderOverview(overview) {
   setText('mktCostNote', `Ads ${formatMoney(marketing.ads)} · phí quản lý ${formatMoney(marketing.fee)}`);
   setText('mktBalance', formatMoney(marketing.balance));
   setText('mktMessages', formatNumber(marketing.messages));
-  setText('mktRoas', formatRatio(marketing.roas));
+  renderCostRevenueRatio(marketing);
   setText('mktCostPerData', formatMoney(marketing.costPerData));
   setText('mktCostPerArrived', formatMoney(marketing.costPerArrived));
 
