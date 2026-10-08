@@ -162,3 +162,38 @@ test('cost / revenue displays percentages, uses the raw 30% threshold and clears
   assert.equal(ui.element('mktCostRevenueRatio').textContent, '—');
   assert.equal(ui.element('mktCostRevenueRatio').dataset.tone, 'neutral');
 });
+
+test('cost comparison cards show distinct better/worse results and their exact prior dates and money', () => {
+  const ui = harness(async () => aggregate(15));
+  const payload = aggregate(15);
+  payload.marketing.comparison = {
+    period: { key: 'month', start: '2026-09-01', end: '2026-09-08' },
+    costPerData: { previous: 200000, current: 150000, change: -0.25, direction: 'down', reason: null },
+    costPerArrived: { previous: 1000000, current: 1250000, change: 0.25, direction: 'up', reason: null }
+  };
+  ui.run(`renderOverview(${JSON.stringify(payload)})`);
+  assert.equal(ui.element('mktCostPerDataComparison').textContent, 'Giảm 25% · Tốt');
+  assert.equal(ui.element('mktCostPerDataComparison').dataset.tone, 'success');
+  assert.equal(ui.element('mktCostPerArrivedComparison').textContent, 'Tăng 25% · Xấu');
+  assert.equal(ui.element('mktCostPerArrivedComparison').dataset.tone, 'danger');
+  assert.match(ui.element('mktCostPerDataBaseline').textContent, /Cùng kỳ tháng trước \(01\/09\/2026 – 08\/09\/2026\): 200\.000 ₫/);
+  ui.run('clearOverview()');
+  assert.equal(ui.element('mktCostPerDataComparison').dataset.tone, 'neutral');
+  assert.equal(ui.element('mktCostPerArrivedBaseline').textContent, '');
+});
+
+test('cost comparisons keep equal, zero baseline and unavailable states honest after period changes', () => {
+  const ui = harness(async () => aggregate(15));
+  for (const [metric, text, tone] of [
+    [{ previous: 0, change: null, direction: 'up' }, 'Tăng · Xấu (kỳ trước bằng 0)', 'danger'],
+    [{ previous: 100, change: 0, direction: 'flat' }, 'Không đổi so với kỳ trước', 'neutral'],
+    [{ reason: 'no_period' }, 'Không có kỳ tương ứng để so sánh', 'neutral'],
+    [{ reason: 'source_unavailable' }, 'Chưa so sánh: nguồn thiếu hoặc chưa cập nhật', 'neutral'],
+    [{ reason: 'incomplete_days' }, 'Chưa so sánh: thiếu ngày hoặc có ngày trùng', 'neutral'],
+    [{ reason: 'missing_metric' }, 'Chưa đủ dữ liệu để so sánh', 'neutral']
+  ]) {
+    ui.run(`renderCostComparisons(${JSON.stringify({ costPerData: metric, costPerArrived: metric })})`);
+    assert.equal(ui.element('mktCostPerDataComparison').textContent, text);
+    assert.equal(ui.element('mktCostPerArrivedComparison').dataset.tone, tone);
+  }
+});

@@ -305,6 +305,9 @@ button { cursor: pointer; }
 
 .metric-card strong[data-tone="danger"] { color: var(--accent-red); }
 .metric-card strong[data-tone="success"] { color: var(--forest); }
+.metric-comparison { border-top: 1px solid var(--border-subtle); font-weight: 700; padding-top: 8px; }
+.metric-comparison[data-tone="danger"] { color: var(--accent-red); }
+.metric-comparison[data-tone="success"] { color: var(--forest); }
 
 .metric-card--strong {
   background: var(--forest);

@@ -76,6 +76,21 @@ missing numeric costs or revenue leave their total unavailable. Duplicate daily
 Marketing dates invalidate financial aggregates instead of double counting.
 Source warnings are grouped by code and restricted to the selected window.
 
+Cost per data and cost per arrival cards compare the aggregate cost/count ratios
+from the same cached source snapshot. Change is (current - previous) / previous;
+an increase is bad/red, a decrease good/green, and equality neutral. A zero prior
+cost ratio can show an increase without inventing a percentage change. Each card
+displays the prior ratio and its calendar dates. Month-to-date compares day 1
+through today with the same dates last month, capped at its final day if shorter.
+Last month compares two full calendar months. Today compares yesterday; this week
+compares the same elapsed weekdays of the previous week. Custom ranges compare
+the preceding equal-length range, using actualEnd when the selection extends
+into the future. All-time and future-only selections have no comparison.
+Comparisons require fresh available sources, one numeric daily record per day in
+both ranges, and positive data/arrival counts; incomplete inputs remain neutral.
+They use the existing Vietnam timezone, five-minute UI refresh and 60-second cache
+without additional Sheet requests or exposing customer records.
+
 ## Delivery phases
 
 MVP restores current-month sources, app calculations, appointment consistency,
@@ -86,7 +101,7 @@ implemented. Future retains persisted record keys and source formula repairs;
 both require write access and are excluded from this read-only release.
 
 The overview-only MVP removes browser charts, detail tables, customer actions,
-historical comparisons and budget analysis. V1 transfers calculations to one
+full historical comparisons and budget analysis. V1 transfers calculations to one
 compact aggregate endpoint and caches fingerprinted static assets, while HTML
 and source data remain revalidated. Future source migrations remain deferred.
 

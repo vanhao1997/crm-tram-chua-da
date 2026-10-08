@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildOverview, overviewPeriod } from './overview.js';
+import { buildOverview, comparisonPeriod, overviewPeriod } from './overview.js';
 
 const reference = new Date('2026-10-05T18:30:00Z');
 const period = overviewPeriod({}, reference);
@@ -139,4 +139,102 @@ test('custom windows compact only source discrepancies inside the selected dates
     ];
     const result = buildOverview(input, overviewPeriod({ period: 'custom', from: '2026-10-02', to: '2026-10-02' }, reference));
     assert.deepEqual(result.metadata.integrity.issues, [{ code: 'SHEET_METRICS_RECALCULATED', severity: 'warning', message: 'Recalculated', count: 1 }]);
+});
+
+test('comparison periods match elapsed Vietnam dates across month, week, custom and year boundaries', () => {
+    const ranges = [
+        [{}, '2026-10-08T03:00:00Z', '2026-09-01', '2026-09-08'],
+        [{}, '2026-03-31T03:00:00Z', '2026-02-01', '2026-02-28'],
+        [{}, '2024-03-31T03:00:00Z', '2024-02-01', '2024-02-29'],
+        [{}, '2026-01-02T03:00:00Z', '2025-12-01', '2025-12-02'],
+        [{ period: 'lastmonth' }, '2026-10-08T03:00:00Z', '2026-08-01', '2026-08-31'],
+        [{ period: 'week' }, '2026-10-08T03:00:00Z', '2026-09-28', '2026-10-01'],
+        [{ period: 'today' }, '2026-10-07T18:00:00Z', '2026-10-07', '2026-10-07'],
+        [{ period: 'custom', from: '2026-10-03', to: '2026-10-05' }, '2026-10-08T03:00:00Z', '2026-09-30', '2026-10-02'],
+        [{ period: 'custom', from: '2026-10-06', to: '2026-10-31' }, '2026-10-08T03:00:00Z', '2026-10-03', '2026-10-05']
+    ];
+    for (const [query, time, start, end] of ranges) {
+        const value = comparisonPeriod(overviewPeriod(query, new Date(time)));
+        assert.equal(value.start, start);
+        assert.equal(value.end, end);
+        assert.equal(value.timezone, 'Asia/Ho_Chi_Minh');
+    }
+    assert.equal(comparisonPeriod(overviewPeriod({ period: 'all' }, reference)), null);
+    assert.equal(comparisonPeriod(overviewPeriod({ period: 'custom', from: '2026-11-01', to: '2026-11-05' }, reference)), null);
+});
+
+function comparisonSnapshot() {
+    const input = snapshot();
+    const rows = [];
+    for (let day = 1; day <= 8; day++) {
+        const current = daily(`${String(day).padStart(2, '0')}/10/2026`, 0, 90, 10);
+        const previous = daily(`${String(day).padStart(2, '0')}/09/2026`, 0, 180, 20);
+        current[6] = day === 1 ? 1 : 3;
+        previous[6] = 2;
+        current[12] = 1;
+        previous[12] = 4;
+        rows.push(current, previous);
+    }
+    rows.push(daily('09/09/2026', 0, 999999, 0), daily('THÁNG 9', 0, 999999, 0));
+    input.sources.marketing.values = rows;
+    return input;
+}
+const comparisonReference = new Date('2026-10-08T03:00:00Z');
+const comparisonWindow = overviewPeriod({}, comparisonReference);
+
+test('cost comparisons use ratios of period sums, exclude later baseline days and classify each metric separately', () => {
+    const result = buildOverview(comparisonSnapshot(), comparisonWindow, comparisonReference);
+    const c = result.marketing.comparison;
+    assert.equal(result.marketing.costPerData, 800 / 22);
+    assert.equal(c.costPerData.previous, 100);
+    assert.equal(c.costPerData.change, (800 / 22 - 100) / 100);
+    assert.equal(c.costPerData.direction, 'down');
+    assert.equal(c.costPerArrived.previous, 50);
+    assert.equal(c.costPerArrived.current, 100);
+    assert.equal(c.costPerArrived.change, 1);
+    assert.equal(c.costPerArrived.direction, 'up');
+    assert.equal(c.period.end, '2026-09-08');
+});
+
+test('comparison refuses missing days, duplicate baseline days, stale sources and zero event counts', () => {
+    for (const mutate of [
+        input => input.sources.marketing.values.splice(1, 1),
+        input => input.sources.marketing.values.splice(0, 1),
+        input => input.sources.marketing.values.push(input.sources.marketing.values[1]),
+        input => { input.sources.marketing.metadata.stale = true; },
+        input => { input.sources.arrived.metadata.stale = true; },
+        input => { delete input.sources.booked; },
+        input => { input.sources.marketing.values[1][5] = null; }
+    ]) {
+        const input = comparisonSnapshot();
+        mutate(input);
+        const comparison = buildOverview(input, comparisonWindow, comparisonReference).marketing.comparison;
+        assert.equal(comparison.costPerData.direction, null);
+        assert.equal(comparison.costPerArrived.direction, null);
+        assert.ok(comparison.costPerData.reason);
+    }
+    const input = comparisonSnapshot();
+    for (const row of input.sources.marketing.values) if (/\/09\//.test(row[0])) row[12] = 0;
+    let result = buildOverview(input, comparisonWindow, comparisonReference);
+    assert.equal(result.marketing.comparison.costPerArrived.direction, null);
+    assert.equal(result.marketing.comparison.costPerData.direction, 'down');
+    input.sources.marketing.values.push(input.sources.marketing.values[1]);
+    result = buildOverview(input, comparisonWindow, comparisonReference);
+    assert.equal(result.marketing.costPerData, 800 / 22);
+    assert.equal(result.marketing.comparison.costPerData.direction, null);
+});
+
+test('zero baseline cost and equal ratios never divide by zero or invent a percentage', () => {
+    const input = comparisonSnapshot();
+    for (const row of input.sources.marketing.values) if (/\/09\//.test(row[0])) row[5] = 0;
+    let comparison = buildOverview(input, comparisonWindow, comparisonReference).marketing.comparison;
+    assert.equal(comparison.costPerData.direction, 'up');
+    assert.equal(comparison.costPerData.change, null);
+    assert.equal(comparison.costPerData.previous, 0);
+    for (const row of input.sources.marketing.values) row[5] = 0;
+    comparison = buildOverview(input, comparisonWindow, comparisonReference).marketing.comparison;
+    assert.equal(comparison.costPerData.direction, 'flat');
+    assert.equal(comparison.costPerData.change, 0);
+    const all = buildOverview(input, overviewPeriod({ period: 'all' }, comparisonReference), comparisonReference);
+    assert.equal(all.marketing.comparison.costPerData.reason, 'no_period');
 });

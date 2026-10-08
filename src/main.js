@@ -66,6 +66,8 @@ function initDom() {
     'crmAppointmentNote', 'mktReceived', 'mktCost', 'mktCostNote',
     'mktBalance', 'mktMessages', 'mktCostRevenueRatio', 'mktCostRevenueNote', 'mktCostPerData',
     'mktCostPerArrived', 'issueList', 'issueSummary', 'scheduleFreshness',
+    'mktCostPerDataComparison', 'mktCostPerDataBaseline',
+    'mktCostPerArrivedComparison', 'mktCostPerArrivedBaseline',
     'upcomingCount', 'pastAppointmentCount', 'upcomingSummary',
     'pastAppointmentSummary', 'upcomingAppointments', 'pastAppointments'
   ]) {
@@ -176,6 +178,31 @@ function renderCostRevenueRatio(marketing = {}) {
     : marketing.revenue === 0 ? 'Doanh thu bằng 0, chưa tính được tỷ lệ' : 'Chưa đủ dữ liệu để tính tỷ lệ');
 }
 
+function renderCostComparisons(comparison) {
+  const period = comparison?.period;
+  for (const [key, id] of [['costPerData', 'mktCostPerData'], ['costPerArrived', 'mktCostPerArrived']]) {
+    const metric = comparison?.[key];
+    const available = metric && !metric.reason && ['up', 'down', 'flat'].includes(metric.direction);
+    let message = 'Chưa đủ dữ liệu để so sánh';
+    let tone = 'neutral';
+    if (available) {
+      tone = metric.direction === 'up' ? 'danger' : metric.direction === 'down' ? 'success' : 'neutral';
+      const change = typeof metric.change === 'number' && Number.isFinite(metric.change)
+        ? Math.abs(metric.change).toLocaleString('vi-VN', { style: 'percent', maximumFractionDigits: 1 }) : null;
+      message = metric.direction === 'flat' ? 'Không đổi so với kỳ trước'
+        : `${metric.direction === 'up' ? 'Tăng' : 'Giảm'}${change ? ` ${change}` : ''} · ${metric.direction === 'up' ? 'Xấu' : 'Tốt'}`;
+      if (metric.previous === 0 && metric.direction === 'up') message += ' (kỳ trước bằng 0)';
+    } else if (metric?.reason === 'no_period') message = 'Không có kỳ tương ứng để so sánh';
+    else if (metric?.reason === 'source_unavailable') message = 'Chưa so sánh: nguồn thiếu hoặc chưa cập nhật';
+    else if (metric?.reason === 'incomplete_days') message = 'Chưa so sánh: thiếu ngày hoặc có ngày trùng';
+    setText(`${id}Comparison`, message);
+    if (els[`${id}Comparison`]) els[`${id}Comparison`].dataset.tone = tone;
+    const label = period?.key === 'month' ? 'Cùng kỳ tháng trước' : 'Kỳ trước';
+    setText(`${id}Baseline`, period
+      ? `${label} (${formatDateKey(period.start)} – ${formatDateKey(period.end)}): ${formatMoney(metric?.previous)}` : '');
+  }
+}
+
 function clearOverview() {
   for (const id of [
     'crmLeads', 'crmAppointments', 'crmPastAppointments', 'crmArrived', 'crmRevenue',
@@ -183,6 +210,7 @@ function clearOverview() {
     'mktCostPerData', 'mktCostPerArrived'
   ]) setText(id, '—');
   renderCostRevenueRatio();
+  renderCostComparisons();
   setText('crmAppointmentNote', 'Theo ngày hẹn, gồm lịch tương lai trong kỳ');
   setText('mktCostNote', 'Ads + phí quản lý');
   setText('overviewFreshness', 'Chưa có dữ liệu mới cho kỳ đang xem.');
@@ -282,6 +310,7 @@ function renderOverview(overview) {
   renderCostRevenueRatio(marketing);
   setText('mktCostPerData', formatMoney(marketing.costPerData));
   setText('mktCostPerArrived', formatMoney(marketing.costPerArrived));
+  renderCostComparisons(marketing.comparison);
 
   renderFreshness(overview);
   renderSchedule(overview.schedule);

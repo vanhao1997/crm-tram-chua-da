@@ -6,6 +6,20 @@ const SOURCE_NAMES = ['leads', 'booked', 'arrived', 'marketing'];
 const numeric = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 const shiftDay = (key, days) => new Date(Date.parse(`${key}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);
 const lastDay = month => `${month}-${new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate()}`;
+const dayCount = (start, end) => Math.round((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86400000) + 1;
+
+export function comparisonPeriod(period) {
+    if (!period.start || period.actualEnd < period.start) return null;
+    const end = period.actualEnd;
+    if (period.key === 'month' || period.key === 'lastmonth') {
+        const previous = new Date(Date.UTC(Number(period.start.slice(0, 4)), Number(period.start.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
+        const monthEnd = lastDay(previous);
+        const matchingEnd = `${previous}-${end.slice(8, 10)}`;
+        return { key: period.key, start: `${previous}-01`, end: period.key === 'lastmonth' || matchingEnd > monthEnd ? monthEnd : matchingEnd, timezone: period.timezone };
+    }
+    const offset = period.key === 'today' ? 1 : period.key === 'week' ? 7 : dayCount(period.start, end);
+    return { key: period.key, start: shiftDay(period.start, -offset), end: shiftDay(end, -offset), timezone: period.timezone };
+}
 
 function invalidPeriod() {
     const error = new Error('Invalid overview period');
@@ -71,6 +85,49 @@ function sum(rows, columns, { blanksAreZero = false } = {}) {
     return total;
 }
 
+function marketingTotals(sources, sourceStatus, period) {
+    const daily = (sources.marketing?.values || []).filter(row => inWindow(calendarDay(row[0]), period, true));
+    const dates = daily.map(row => calendarDay(row[0]));
+    const duplicateDays = new Set(dates).size !== dates.length;
+    const rows = duplicateDays ? [] : daily;
+    const marketing = {
+        received: sum(rows, [2], { blanksAreZero: true }),
+        ads: sum(rows, [3]), fee: sum(rows, [4]), cost: sum(rows, [5]),
+        messages: sum(rows, [17]), data: sum(rows, [6, 7, 8]),
+        appointments: sum(rows, [9, 10, 11]), arrived: sum(rows, [12, 13, 14]),
+        revenue: sum(rows, [15])
+    };
+    if (['leads', 'booked', 'arrived'].some(name => !sourceStatus[name].available || sourceStatus[name].stale)) {
+        for (const metric of ['data', 'appointments', 'arrived', 'revenue']) marketing[metric] = null;
+    }
+    marketing.balance = marketing.received !== null && marketing.cost !== null ? marketing.received - marketing.cost : null;
+    const ratio = (value, denominator) => value !== null && denominator > 0 ? value / denominator : null;
+    marketing.roas = ratio(marketing.revenue, marketing.ads);
+    marketing.costRevenueRatio = marketing.cost !== null && marketing.cost >= 0
+        ? ratio(marketing.cost, marketing.revenue) : null;
+    marketing.costPerData = ratio(marketing.cost, marketing.data);
+    marketing.costPerArrived = ratio(marketing.cost, marketing.arrived);
+    const completeDays = !duplicateDays && period.start && daily.length === dayCount(period.start, period.actualEnd);
+    return { marketing, duplicateDays, completeDays };
+}
+
+function marketingComparison(sources, sourceStatus, period, current) {
+    const baseline = comparisonPeriod(period);
+    const previous = baseline ? marketingTotals(sources, sourceStatus, { ...baseline, actualEnd: baseline.end }) : null;
+    let reason = !baseline ? 'no_period' : null;
+    if (baseline && Object.values(sourceStatus).some(source => !source.available || source.stale)) reason = 'source_unavailable';
+    else if (baseline && (!current.completeDays || !previous.completeDays)) reason = 'incomplete_days';
+    const compare = key => {
+        const value = numeric(current.marketing[key]);
+        const before = numeric(previous?.marketing[key]);
+        const unavailable = reason || (value === null || before === null || value < 0 || before < 0 ? 'missing_metric' : null);
+        if (unavailable) return { current: value, previous: reason ? null : before, change: null, direction: null, reason: unavailable };
+        return { current: value, previous: before, change: before > 0 ? (value - before) / before : value === 0 ? 0 : null,
+            direction: value > before ? 'up' : value < before ? 'down' : 'flat', reason: null };
+    };
+    return { period: baseline, costPerData: compare('costPerData'), costPerArrived: compare('costPerArrived') };
+}
+
 function selectedIssues(issues, period) {
     const grouped = new Map();
     for (const issue of issues) {
@@ -113,27 +170,9 @@ export function buildOverview(snapshot, period, reference = new Date()) {
         revenue: crmAvailable ? revenue : null,
         derivedAppointments: crmAvailable ? derivedAppointments : null
     };
-    const daily = (sources.marketing?.values || []).filter(row => inWindow(calendarDay(row[0]), period, true));
-    const dates = daily.map(row => calendarDay(row[0]));
-    const duplicateDays = new Set(dates).size !== dates.length;
-    const financialRows = duplicateDays ? [] : daily;
-    const marketing = {
-        received: sum(financialRows, [2], { blanksAreZero: true }),
-        ads: sum(financialRows, [3]), fee: sum(financialRows, [4]), cost: sum(financialRows, [5]),
-        messages: sum(financialRows, [17]), data: sum(financialRows, [6, 7, 8]),
-        appointments: sum(financialRows, [9, 10, 11]), arrived: sum(financialRows, [12, 13, 14]),
-        revenue: sum(financialRows, [15])
-    };
-    if (!crmAvailable || ['leads', 'booked', 'arrived'].some(name => sourceStatus[name].stale)) {
-        for (const metric of ['data', 'appointments', 'arrived', 'revenue']) marketing[metric] = null;
-    }
-    marketing.balance = marketing.received !== null && marketing.cost !== null ? marketing.received - marketing.cost : null;
-    const ratio = (value, denominator) => value !== null && denominator > 0 ? value / denominator : null;
-    marketing.roas = ratio(marketing.revenue, marketing.ads);
-    marketing.costRevenueRatio = marketing.cost !== null && marketing.cost >= 0
-        ? ratio(marketing.cost, marketing.revenue) : null;
-    marketing.costPerData = ratio(marketing.cost, marketing.data);
-    marketing.costPerArrived = ratio(marketing.cost, marketing.arrived);
+    const currentMarketing = marketingTotals(sources, sourceStatus, period);
+    const { marketing, duplicateDays } = currentMarketing;
+    marketing.comparison = marketingComparison(sources, sourceStatus, period, currentMarketing);
     const issues = (snapshot.integrity?.issues || []).flatMap(issue => issue.code === 'APPOINTMENTS_DERIVED'
         ? (derivedAppointments ? [{ ...issue, count: derivedAppointments }] : []) : [issue]);
     if (duplicateDays && !issues.some(issue => issue.code === 'DUPLICATE_DAY')) issues.push({ code: 'DUPLICATE_DAY', severity: 'critical', message: 'Nguồn Marketing có ngày trùng; tổng tài chính chưa xác định.' });
