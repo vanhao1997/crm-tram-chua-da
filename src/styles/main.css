@@ -2920,13 +2920,14 @@ textarea.is-readonly-note {
 /* Airtable Kanban Pipeline View */
 .airtable-kanban-wrap {
   display: grid;
-  grid-template-columns: repeat(6, minmax(275px, 1fr));
+  grid-template-columns: repeat(6, minmax(312px, 1fr));
   gap: 12px;
-  padding: 16px 18px;
+  padding: 14px 16px;
   overflow-x: auto;
   background: #f8fafc;
-  min-height: 520px;
+  min-height: 540px;
   align-items: start;
+  scrollbar-width: thin;
 }
 
 .airtable-kanban-col {
@@ -2935,7 +2936,8 @@ textarea.is-readonly-note {
   border-radius: 12px;
   display: flex;
   flex-direction: column;
-  max-height: 72vh;
+  max-height: 78vh;
+  min-width: 0;
 }
 
 .airtable-kanban-col-header {
@@ -2947,6 +2949,9 @@ textarea.is-readonly-note {
   background: #ffffff;
   border-top-left-radius: 11px;
   border-top-right-radius: 11px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
 .airtable-stage-pill {
@@ -2964,14 +2969,25 @@ textarea.is-readonly-note {
   background: #f1f5f9;
   padding: 2px 8px;
   border-radius: 999px;
+  font-variant-numeric: tabular-nums;
 }
 
 .airtable-kanban-cards {
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 9px;
   overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.airtable-kanban-cards::-webkit-scrollbar {
+  width: 5px;
+}
+
+.airtable-kanban-cards::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .airtable-kanban-cards .lead-card {
@@ -2979,10 +2995,10 @@ textarea.is-readonly-note {
   border: 1px solid var(--border-light);
   border-radius: 10px;
   padding: 10px 11px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   display: flex;
   flex-direction: column;
-  gap: 6.5px;
+  gap: 7px;
 }
 
 .airtable-kanban-empty {
@@ -3035,18 +3051,189 @@ textarea.is-readonly-note {
   color: #b45309;
 }
 
-/* Compact Kanban Card Refinements */
-.airtable-kanban-cards .card-phone-bar {
-  padding: 5.5px 8px;
+/* Admin Action Row on Cards (Mobile & Kanban) */
+.card-admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.airtable-kanban-cards .card-grid-2,
+.card-admin-actions .btn-send-tele-single.is-card-btn,
+.card-admin-actions .btn-delete-lead-single.is-card-btn {
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  border-radius: 6px;
+}
+
+/* Compact Kanban Card Refinements (Prevent Clipping, Wrapping & Unbounded Height) */
+.airtable-kanban-cards .card-customer .customer-name {
+  font-size: 13.5px;
+  line-height: 1.25;
+}
+
+.airtable-kanban-cards .card-customer .customer-meta {
+  font-size: 11.5px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.airtable-kanban-cards .btn-card-edit {
+  padding: 3px 8px;
+  font-size: 11.5px;
+  min-height: 24px !important;
+  height: 24px;
+}
+
+.airtable-kanban-cards .card-phone-bar {
+  padding: 5px 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.airtable-kanban-cards .card-phone-number {
+  font-size: 12.5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.airtable-kanban-cards .card-phone-actions {
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.airtable-kanban-cards .mobile-action-btn {
+  padding: 3px 7px !important;
+  font-size: 11px !important;
+  min-height: 26px !important;
+  height: 26px !important;
+  border-radius: 6px;
+}
+
+.airtable-kanban-cards .card-grid-2 {
+  grid-template-columns: 1.42fr 0.98fr;
+  gap: 6px;
+}
+
 .airtable-kanban-cards .card-grid-appt {
+  grid-template-columns: 1.48fr 0.92fr;
   gap: 6px;
 }
 
 .airtable-kanban-cards .card-field {
-  gap: 2.5px;
+  gap: 2px;
+}
+
+.airtable-kanban-cards .card-field-label {
+  font-size: 10.5px;
+}
+
+.airtable-kanban-cards .pill-select.card-select,
+.airtable-kanban-cards .telesale-select-clean.card-select {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  font-size: 12px !important;
+  padding: 3px 20px 3px 7px !important;
+  background-position: right 6px center !important;
+}
+
+.airtable-kanban-cards .inline-date-picker.card-input,
+.airtable-kanban-cards .inline-time-input.card-input {
+  height: 32px !important;
+  min-height: 32px !important;
+  max-height: 32px !important;
+  font-size: 12.5px !important;
+  padding: 3px 6px !important;
+}
+
+.airtable-kanban-cards .note-tracker-wrap {
+  gap: 5px;
+}
+
+.airtable-kanban-cards .note-meta-badges {
+  gap: 4px;
+}
+
+.airtable-kanban-cards .note-count-badge,
+.airtable-kanban-cards .note-latest-badge {
+  font-size: 10.5px;
+  padding: 2px 6px;
+}
+
+.airtable-kanban-cards .note-locked-badge {
+  display: none !important;
+}
+
+.airtable-kanban-cards .note-step-header,
+.airtable-kanban-cards .care-timeline-header-row {
+  margin-bottom: 2px;
+}
+
+.airtable-kanban-cards .care-attempt-badge,
+.airtable-kanban-cards .care-date-badge,
+.airtable-kanban-cards .care-time-badge,
+.airtable-kanban-cards .care-calls-badge {
+  font-size: 10px;
+  padding: 1.5px 5px;
+}
+
+.airtable-kanban-cards .note-inline-input.card-input {
+  min-height: 30px !important;
+  max-height: 54px !important;
+  padding: 4px 7px !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+
+.airtable-kanban-cards .care-timeline-list {
+  max-height: 112px;
+  overflow-y: auto;
+  padding-right: 2px;
+  gap: 4px;
+  scrollbar-width: thin;
+}
+
+.airtable-kanban-cards .care-timeline-item {
+  padding: 4px 6px;
+  gap: 2px;
+}
+
+.airtable-kanban-cards .care-timeline-text,
+.airtable-kanban-cards .care-inline-edit-input.card-input {
+  font-size: 11.5px !important;
+  line-height: 1.35 !important;
+  min-height: 26px !important;
+  height: auto !important;
+  padding: 3px 6px !important;
+}
+
+.airtable-kanban-cards .btn-add-care-footer {
+  min-height: 28px !important;
+  height: 28px;
+  padding: 3px 8px;
+  font-size: 11.5px;
+}
+
+@media (max-width: 767.98px) {
+  .airtable-kanban-wrap {
+    grid-template-columns: repeat(6, minmax(304px, 86vw));
+    gap: 10px;
+    padding: 8px 4px 12px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    background: transparent;
+  }
+
+  .airtable-kanban-col {
+    scroll-snap-align: start;
+    max-height: 74vh;
+  }
 }
 
 /* ============================================================

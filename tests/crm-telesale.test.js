@@ -865,5 +865,39 @@ test('Bảo mật toàn diện: Không lộ token/doanh thu ở frontend, chặn
   assert.equal(adminBottomNav.includes('mobile-bottom-nav has-6-tabs'), true);
   assert.equal(adminBottomNav.includes('data-tab="overview"'), true);
   assert.equal(adminBottomNav.includes('data-tab="admin"'), true);
+
+  // 5. Kiểm tra Kanban Pipeline (renderKanbanBoard) gắn class is-kanban-card và tách riêng .card-admin-actions
+  const { renderKanbanBoard } = await import('../src/main.js');
+  const { STATUS_OPTIONS, DEFAULT_TELESALE_LIST } = await import('../server/config.js');
+  const kanbanHtml = renderKanbanBoard(
+    [
+      {
+        id: 'mkt-row-500',
+        sheetKey: 'mkt',
+        sheetRowIndex: 500,
+        dataDate: '15/10/2026',
+        name: 'Nguyet Anh',
+        phone: '0987098206',
+        phoneDisplay: '0987 098 206',
+        service: 'Nâng cơ 999k',
+        customerInfo: 'Tư vấn nâng cơ trẻ hóa',
+        status: 'ĐẶT HẸN',
+        canonicalStatus: 'ĐẶT HẸN',
+        statusGroup: 'booked',
+        badgeColor: 'emerald',
+        apptDate: '16/10/2026',
+        apptTime: '9h',
+        telesale: 'NGÂN',
+        noteM: '14/10 19h55 2c tb',
+        careHistory: [{ text: '15/10 8h33 đã chốt hẹn' }],
+      },
+    ],
+    STATUS_OPTIONS,
+    DEFAULT_TELESALE_LIST,
+    { isAdmin: true }
+  );
+  assert.equal(kanbanHtml.includes('is-kanban-card'), true);
+  assert.equal(kanbanHtml.includes('card-admin-actions'), true);
 });
+
 

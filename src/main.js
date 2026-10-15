@@ -1474,6 +1474,8 @@ export function renderKanbanBoard(records = [], statusOptions = [], telesaleList
     { key: 'lost', title: 'Hủy / Từ Chối', color: 'rose' },
   ];
 
+  const kanbanOpts = { ...options, isKanban: true };
+
   return `
     <div class="airtable-kanban-wrap">
       ${stages
@@ -1493,7 +1495,7 @@ export function renderKanbanBoard(records = [], statusOptions = [], telesaleList
                     ? `<div class="airtable-kanban-empty">Trống</div>`
                     : stageItems
                         .slice(0, 40)
-                        .map((rec) => renderCard(rec, statusOptions, telesaleList, options))
+                        .map((rec) => renderCard(rec, statusOptions, telesaleList, kanbanOpts))
                         .join('')
                 }
               </div>
@@ -1912,17 +1914,20 @@ function render() {
               class="airtable-view-btn ${state.viewMode === 'grid' ? 'active' : ''}"
               data-view-mode="grid"
             >
-              <span>⊞ Grid View (Bảng Airtable)</span>
+              <span>⊞ Bảng dữ liệu (Grid)</span>
             </button>
             <button
               type="button"
               class="airtable-view-btn ${state.viewMode === 'kanban' ? 'active' : ''}"
               data-view-mode="kanban"
             >
-              <span>▥ Kanban Pipeline (Theo Tình Trạng)</span>
+              <span>▥ Kanban Pipeline</span>
             </button>
           </div>
 
+          ${
+            state.viewMode !== 'kanban'
+              ? `
           <div class="airtable-view-tools">
             <label class="airtable-tool-label" for="airtable-group-by">Nhóm (Group):</label>
             <select class="clean-select airtable-group-select" id="airtable-group-by">
@@ -1931,6 +1936,9 @@ function render() {
               <option value="telesale" ${state.groupBy === 'telesale' ? 'selected' : ''}>Nhóm theo Telesale</option>
             </select>
           </div>
+          `
+              : ''
+          }
         </div>
 
         <div class="toolbar">
@@ -2082,6 +2090,14 @@ function render() {
           </div>
         </div>
 
+        ${
+          state.viewMode === 'kanban'
+            ? `
+        <div class="table-footer">
+          <span>Hiển thị <strong>${filtered.length}</strong> khách hàng theo 6 cột Pipeline</span>
+        </div>
+        `
+            : `
         <div class="table-footer">
           <span>
             ${paged.length > 0 ? start + 1 : 0}–${start + paged.length} / ${filtered.length} khách hàng
@@ -2096,6 +2112,8 @@ function render() {
             }>Sau</button>
           </div>
         </div>
+        `
+        }
       </div>
       `
       }
@@ -2715,9 +2733,10 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
   const isoApptDate = vnDateToIso(rec.apptDate);
   const tone = escapeHtml(rec.badgeColor || 'slate');
   const isAdmin = Boolean(options?.isAdmin ?? state.currentUser?.role === 'admin');
+  const isKanban = Boolean(options?.isKanban);
 
   return `
-    <div class="lead-card ${isNew ? 'is-new-lead' : ''}">
+    <div class="lead-card ${isNew ? 'is-new-lead' : ''} ${isKanban ? 'is-kanban-card' : ''}">
       <div class="card-top">
         <div class="card-customer">
           <div class="customer-name" data-edit-record="${escapeHtml(rec.id)}">
@@ -2730,33 +2749,36 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
           </div>
         </div>
         <div class="card-top-actions">
-          ${
-            isAdmin
-              ? `
-            <button
-              type="button"
-              class="btn-send-tele-single is-card-btn"
-              data-send-telegram-customer="${escapeHtml(rec.id)}"
-              title="Gửi thông tin khách này vào nhóm Telegram (Chỉ Admin)"
-            >
-              📨 Gửi Telegram
-            </button>
-            <button
-              type="button"
-              class="btn-delete-lead-single is-card-btn"
-              data-delete-customer="${escapeHtml(rec.id)}"
-              title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
-            >
-              🗑️ Xóa
-            </button>
-          `
-              : ''
-          }
           <button type="button" class="btn-card-edit" data-edit-record="${escapeHtml(rec.id)}">
             Sửa
           </button>
         </div>
       </div>
+
+      ${
+        isAdmin
+          ? `
+        <div class="card-admin-actions">
+          <button
+            type="button"
+            class="btn-send-tele-single is-card-btn"
+            data-send-telegram-customer="${escapeHtml(rec.id)}"
+            title="Gửi thông tin khách này vào nhóm Telegram (Chỉ Admin)"
+          >
+            📨 Gửi Telegram
+          </button>
+          <button
+            type="button"
+            class="btn-delete-lead-single is-card-btn"
+            data-delete-customer="${escapeHtml(rec.id)}"
+            title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+          >
+            🗑️ Xóa
+          </button>
+        </div>
+      `
+          : ''
+      }
 
       <div class="card-phone-bar">
         <span class="card-phone-number">${escapeHtml(displayPhone)}</span>
