@@ -613,22 +613,46 @@ export function formatSingleCustomerTelegramMessage(rec) {
   return lines.join('\n');
 }
 
+function normalizeTelegramChatId(rawChatId) {
+  const str = String(rawChatId || '').trim();
+  if (!str) return '-1004467285585';
+  // If user pasted full URL like https://web.telegram.org/k/#-4467285585
+  const hashMatch = str.match(/#(-?\d+)$/);
+  const extracted = hashMatch ? hashMatch[1] : str;
+  if (extracted === '-4467285585') return '-1004467285585';
+  return extracted;
+}
+
 async function dispatchTelegramHtmlText(htmlText, fallbackAppsScriptPayload = null) {
-  const botToken = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
-  const chatId = String(process.env.TELEGRAM_CHAT_ID || '').trim();
+  const botToken = String(
+    process.env.TELEGRAM_BOT_TOKEN || '8820980921:AAHXY82ppPUVoFaqYy6xGSrPxQBp-9Iux9E'
+  ).trim();
+  const chatId = normalizeTelegramChatId(process.env.TELEGRAM_CHAT_ID || '-1004467285585');
 
   if (botToken && chatId) {
-    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: htmlText,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
-    });
-    const tgJson = await tgRes.json();
+    const sendWithChatId = async (targetChatId) => {
+      const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text: htmlText,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+        }),
+      });
+      return tgRes.json();
+    };
+
+    let tgJson = await sendWithChatId(chatId);
+    if (!tgJson.ok) {
+      const migratedId =
+        tgJson.parameters?.migrate_to_chat_id ||
+        (chatId.startsWith('-') && !chatId.startsWith('-100') ? `-100${chatId.slice(1)}` : null);
+      if (migratedId && String(migratedId) !== String(chatId)) {
+        tgJson = await sendWithChatId(String(migratedId));
+      }
+    }
     if (!tgJson.ok) {
       throw new Error(tgJson.description || 'Không gửi được tin nhắn Telegram');
     }

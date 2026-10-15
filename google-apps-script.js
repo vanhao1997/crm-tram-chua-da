@@ -18,8 +18,9 @@
  */
 
 // ================= CẤU HÌNH TELEGRAM BOT (ĐIỀN TẠI ĐÂY) =================
-const TELEGRAM_BOT_TOKEN = ''; // VD: '7890123456:AAHxyz...' (Lấy từ @BotFather)
-const TELEGRAM_CHAT_ID = '';   // VD: '-1001234567890' (ID nhóm Telegram hoặc ID cá nhân)
+const TELEGRAM_BOT_TOKEN = '8820980921:AAHXY82ppPUVoFaqYy6xGSrPxQBp-9Iux9E'; // Bot: BSN - Nhắc lịch hôm nay (@bsnnhaclichhen_bot)
+const TELEGRAM_CHAT_ID = '-1004467285585';   // Nhóm: BSN - TELE BÁO KHÁCH (https://web.telegram.org/k/#-4467285585)
+
 
 const SHEET_NAMES = {
   mkt: '1) DATA NGUỒN MKT',
@@ -506,9 +507,18 @@ function formatCustomerTelegramLinesGas(item, idx) {
   ];
 }
 
+function normalizeTelegramChatIdGas(rawChatId) {
+  const str = String(rawChatId || '').trim();
+  if (!str) return TELEGRAM_CHAT_ID;
+  const hashMatch = str.match(/#(-?\d+)$/);
+  const extracted = hashMatch ? hashMatch[1] : str;
+  if (extracted === '-4467285585') return '-1004467285585';
+  return extracted;
+}
+
 function sendRawTelegramHtml(text, customToken, customChatId, meta) {
   const token = String(customToken || TELEGRAM_BOT_TOKEN || '').trim();
-  const chatId = String(customChatId || TELEGRAM_CHAT_ID || '').trim();
+  const chatId = normalizeTelegramChatIdGas(customChatId || TELEGRAM_CHAT_ID);
 
   if (!token || !chatId) {
     throw new Error(
@@ -517,21 +527,36 @@ function sendRawTelegramHtml(text, customToken, customChatId, meta) {
   }
 
   const telegramUrl = 'https://api.telegram.org/bot' + token + '/sendMessage';
-  const response = UrlFetchApp.fetch(telegramUrl, {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify({
-      chat_id: chatId,
-      text: text,
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-    }),
-    muteHttpExceptions: true,
-  });
+  const sendWithId = function (targetChatId) {
+    const response = UrlFetchApp.fetch(telegramUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        chat_id: targetChatId,
+        text: text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+      }),
+      muteHttpExceptions: true,
+    });
+    return {
+      response: response,
+      body: JSON.parse(response.getContentText() || '{}'),
+    };
+  };
 
-  const resBody = JSON.parse(response.getContentText() || '{}');
-  if (!resBody.ok) {
-    throw new Error('Lỗi gửi Telegram: ' + (resBody.description || response.getContentText()));
+  let res = sendWithId(chatId);
+  if (!res.body.ok) {
+    const migratedId =
+      (res.body.parameters && res.body.parameters.migrate_to_chat_id) ||
+      (chatId.indexOf('-') === 0 && chatId.indexOf('-100') !== 0 ? '-100' + chatId.substring(1) : null);
+    if (migratedId && String(migratedId) !== String(chatId)) {
+      res = sendWithId(String(migratedId));
+    }
+  }
+
+  if (!res.body.ok) {
+    throw new Error('Lỗi gửi Telegram: ' + (res.body.description || res.response.getContentText()));
   }
 
   return Object.assign({ ok: true }, meta || {});

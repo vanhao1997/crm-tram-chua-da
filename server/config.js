@@ -34,6 +34,11 @@ export const HOST = process.env.HOST || '0.0.0.0';
 export const APP_VERSION = process.env.APP_VERSION || '2026.10.15';
 export const SPREADSHEET_ID =
   process.env.SPREADSHEET_ID || '1HEOYV5QzcOAHSMr6x5zeuem1Vi3V9QdeTvF6lKhGLgk';
+export const DEFAULT_TELEGRAM_BOT_TOKEN =
+  process.env.TELEGRAM_BOT_TOKEN || '8820980921:AAHXY82ppPUVoFaqYy6xGSrPxQBp-9Iux9E';
+export const DEFAULT_TELEGRAM_CHAT_ID =
+  process.env.TELEGRAM_CHAT_ID || '-1004467285585';
+
 
 export const SHEETS_CONFIG = {
   mkt: {
