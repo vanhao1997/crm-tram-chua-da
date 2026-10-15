@@ -46,6 +46,7 @@ const state = {
     pageSize: 50,
   },
   editingRecordId: null,
+  activeCareInputId: null,
   toasts: [],
 };
 
@@ -184,12 +185,16 @@ function getFilteredRecords() {
     }
 
     if (q) {
+      const careTexts = Array.isArray(r.careHistory)
+        ? r.careHistory.map((c) => c?.text || '').join(' ')
+        : '';
       const text = [
         r.name,
         r.phone,
         r.customerInfo,
         r.service,
         r.noteM,
+        careTexts,
         r.telesale,
         r.apptDate,
       ]
@@ -1773,6 +1778,351 @@ export function getDialPhone(rec) {
   };
 }
 
+function toShortVnDate(rawDate) {
+  const str = String(rawDate || '').trim();
+  if (!str) return '';
+  const m = str.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+  if (m) {
+    return `${m[1].padStart(2, '0')}/${m[2].padStart(2, '0')}`;
+  }
+  const iso = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return `${iso[3]}/${iso[2]}`;
+  }
+  return '';
+}
+
+export function formatNowVnStamp(date = new Date()) {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${dd}/${mm} ${hh}h${min}`;
+}
+
+export function ensureNoteTimestampPrefix(rawNote, date = new Date()) {
+  const trimmed = String(rawNote || '').trim();
+  if (!trimmed) return '';
+  if (/^\d{1,2}[/-]\d{1,2}\b/.test(trimmed)) {
+    return trimmed;
+  }
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  if (/^\d{1,2}(?:h\d{0,2}|:\d{2})\b/i.test(trimmed)) {
+    return `${dd}/${mm} ${trimmed}`;
+  }
+  return `${formatNowVnStamp(date)} ${trimmed}`;
+}
+
+function parseSingleContactNote(rawText, fallbackDateShort = '', addedAtIso = '') {
+  const text = String(rawText || '').trim();
+  let dateShort = '';
+  let isInferredDate = false;
+
+  // 1. Kiểm tra ngày liên hệ ghi ở đầu câu (VD: "15/10 8h33...", "3/10: ...")
+  const startDateMatch = text.match(/^\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?(?=\s|$|:|,|-)/);
+  if (startDateMatch) {
+    dateShort = `${startDateMatch[1].padStart(2, '0')}/${startDateMatch[2].padStart(2, '0')}`;
+  } else {
+    // Kiểm tra ngày liên hệ sau dấu phẩy đi kèm giờ/cuộc gọi (VD: "..., 7/3 10h38 hẹn...")
+    const clauseDateMatch = text.match(
+      /[,;]\s*(\d{1,2})[/-](\d{1,2})(?:[/-]\d{2,4})?\s+(?:\d{1,2}h|\d{1,2}:\d{2}|\d+\s*c\b|gọi|gl\b|knm\b|tb\b)/i
+    );
+    if (clauseDateMatch) {
+      dateShort = `${clauseDateMatch[1].padStart(2, '0')}/${clauseDateMatch[2].padStart(2, '0')}`;
+    }
+  }
+
+  if (!dateShort && addedAtIso) {
+    const d = new Date(addedAtIso);
+    if (!Number.isNaN(d.getTime())) {
+      dateShort = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+  }
+
+  if (!dateShort && fallbackDateShort) {
+    dateShort = fallbackDateShort;
+    isInferredDate = true;
+  }
+
+  // 2. Bóc tách giờ liên hệ (loại trừ giờ hẹn sau các từ "hẹn", "dời", "chốt", "qua", "tới", "mai")
+  const times = [];
+  const startTimeMatch = text.match(
+    /^\s*(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?[\s:,-]+)?(?:\d+\s*c\s+)?(\d{1,2}h\d{0,2}|\d{1,2}:\d{2})\b/i
+  );
+  if (startTimeMatch) {
+    times.push(startTimeMatch[1]);
+  }
+
+  const clauseTimeRegex =
+    /[,;]\s*(?:\d{1,2}[/-]\d{1,2}\s+)?(?:\d+\s*c\s+)?(\d{1,2}h\d{0,2}|\d{1,2}:\d{2})(?=\s+(?:\d+\s*c\b|knm|tb|thuê|zl|gọi|gl\b|lhl|nghe|bận|báo|chat))/gi;
+  let cm;
+  while ((cm = clauseTimeRegex.exec(text)) !== null) {
+    if (!times.includes(cm[1])) {
+      times.push(cm[1]);
+    }
+  }
+
+  if (times.length === 0 && addedAtIso) {
+    const d = new Date(addedAtIso);
+    if (!Number.isNaN(d.getTime())) {
+      times.push(`${String(d.getHours()).padStart(2, '0')}h${String(d.getMinutes()).padStart(2, '0')}`);
+    }
+  }
+
+  // 3. Đếm số cuộc gọi thực tế trong lần liên hệ (VD: "2c knm", "3c tb", "4 cuộc")
+  let callCount = 0;
+  const callRegex = /\b(\d{1,2})\s*(?:c|cuộc)(?=\s|$|,|\.|knm|tb|thuê|zl|gọi)/gi;
+  let callMatch;
+  while ((callMatch = callRegex.exec(text)) !== null) {
+    const n = Number(callMatch[1]);
+    if (n > 0 && n <= 20) {
+      callCount += n;
+    }
+  }
+  if (callCount === 0) {
+    callCount = Math.max(1, times.length);
+  }
+
+  return {
+    rawText: text,
+    dateShort,
+    isInferredDate,
+    timeLabel: times.join(' → '),
+    lastTime: times.length > 0 ? times[times.length - 1] : '',
+    callCount,
+  };
+}
+
+export function analyzeContactLogs(rec) {
+  const dataDateShort = toShortVnDate(rec?.dataDate);
+  let runningDateShort = dataDateShort;
+  const entries = [];
+
+  const noteMText = String(rec?.noteM || '').trim();
+  let firstNoteEntry = null;
+  if (noteMText) {
+    const parsed = parseSingleContactNote(noteMText, runningDateShort, '');
+    if (parsed.dateShort) runningDateShort = parsed.dateShort;
+    firstNoteEntry = {
+      step: 1,
+      label: 'Lần 1',
+      source: 'noteM',
+      ...parsed,
+    };
+    entries.push(firstNoteEntry);
+  }
+
+  const careHistory = Array.isArray(rec?.careHistory) ? rec.careHistory : [];
+  const careEntries = [];
+  for (let i = 0; i < careHistory.length; i++) {
+    const item = careHistory[i];
+    const txt = String(item?.text || item || '').trim();
+    if (!txt) continue;
+    const parsed = parseSingleContactNote(txt, runningDateShort, item?.addedAt || '');
+    if (parsed.dateShort) runningDateShort = parsed.dateShort;
+    const stepNum = entries.length + 1;
+    const entry = {
+      step: stepNum,
+      label: `Lần ${stepNum}`,
+      source: 'care',
+      careIndex: i,
+      ...parsed,
+    };
+    entries.push(entry);
+    careEntries.push(entry);
+  }
+
+  const totalContacts = entries.length;
+  const totalCallAttempts = entries.reduce((sum, e) => sum + e.callCount, 0);
+  const latestEntry = entries.length > 0 ? entries[entries.length - 1] : null;
+  const latestDateShort = latestEntry?.dateShort || '';
+  const latestTime = latestEntry?.lastTime || '';
+  const latestSummary = latestDateShort
+    ? `${latestDateShort}${latestTime ? ` · ${latestTime}` : ''}`
+    : latestTime || '';
+
+  return {
+    totalContacts,
+    totalCallAttempts,
+    entries,
+    firstNoteEntry,
+    careEntries,
+    latestDateShort,
+    latestTime,
+    latestSummary,
+  };
+}
+
+const QUICK_CARE_CHIPS = [
+  '2c knm, đã nt zl care',
+  '3c thuê bao',
+  'Khách bận, hẹn gọi lại',
+  'Đã nhắc lịch, khách chốt qua đúng giờ',
+];
+
+function renderNoteTimelineBlock(rec, isCard = false) {
+  const log = analyzeContactLogs(rec);
+  const isCareBoxOpen = state.activeCareInputId === rec.id;
+  const nextStepNum = log.totalContacts + 1;
+
+  return `
+    <div class="note-tracker-wrap ${isCard ? 'is-card-note' : ''}">
+      <div class="note-meta-bar">
+        <div class="note-meta-badges">
+          ${
+            log.totalContacts > 0
+              ? `
+            <span class="note-count-badge has-contacts" title="Đã ghi nhận ${log.totalContacts} đợt liên hệ (Tổng khoảng ${log.totalCallAttempts} cuộc gọi)">
+              📞 Đã LH <strong>${log.totalContacts} lần</strong>${
+                  log.totalCallAttempts > log.totalContacts
+                    ? ` <em>(${log.totalCallAttempts} cuộc)</em>`
+                    : ''
+                }
+            </span>
+            ${
+              log.latestSummary
+                ? `<span class="note-latest-badge" title="Ngày giờ liên hệ gần nhất">
+                    🕒 Gần nhất: <strong>${escapeHtml(log.latestSummary)}</strong>
+                  </span>`
+                : ''
+            }
+          `
+              : `
+            <span class="note-count-badge is-zero">⚪ Chưa LH (0 lần)</span>
+          `
+          }
+        </div>
+        <button
+          type="button"
+          class="btn-add-care-inline ${isCareBoxOpen ? 'is-open' : ''}"
+          data-toggle-care="${escapeHtml(rec.id)}"
+          title="Ghi thêm lần liên hệ tiếp theo (tự động gắn ngày giờ hôm nay)"
+        >
+          ${isCareBoxOpen ? '✕ Đóng' : `+ Ghi Lần ${nextStepNum}`}
+        </button>
+      </div>
+
+      ${
+        isCareBoxOpen
+          ? `
+        <div class="quick-care-composer">
+          <div class="quick-care-header">
+            <span>➕ Ghi chú <strong>Lần ${nextStepNum}</strong> (Tự gắn ngày giờ <code>${escapeHtml(
+              formatNowVnStamp()
+            )}</code>)</span>
+          </div>
+          <div class="quick-care-chips">
+            ${QUICK_CARE_CHIPS.map(
+              (chip) => `
+              <button
+                type="button"
+                class="quick-care-chip"
+                data-care-chip="${escapeHtml(rec.id)}"
+                data-chip-text="${escapeHtml(chip)}"
+              >${escapeHtml(chip)}</button>
+            `
+            ).join('')}
+          </div>
+          <div class="quick-care-input-row">
+            <input
+              type="text"
+              class="quick-care-input"
+              id="care-input-${escapeHtml(rec.id)}"
+              data-care-input="${escapeHtml(rec.id)}"
+              placeholder="Nhập kết quả gọi Lần ${nextStepNum}..."
+            />
+            <button
+              type="button"
+              class="btn-save-care-inline"
+              data-save-care="${escapeHtml(rec.id)}"
+            >Lưu Lần ${nextStepNum}</button>
+          </div>
+        </div>
+      `
+          : ''
+      }
+
+      <div class="note-primary-box">
+        ${
+          log.firstNoteEntry
+            ? `
+          <div class="note-step-header">
+            <span class="care-attempt-badge is-first">Lần 1</span>
+            ${
+              log.firstNoteEntry.dateShort
+                ? `<span class="care-date-badge" title="${
+                    log.firstNoteEntry.isInferredDate
+                      ? 'Ngày liên hệ theo Ngày Data'
+                      : 'Ngày liên hệ ghi trong Note'
+                  }">📅 ${escapeHtml(log.firstNoteEntry.dateShort)}</span>`
+                : ''
+            }
+            ${
+              log.firstNoteEntry.timeLabel
+                ? `<span class="care-time-badge">⏰ ${escapeHtml(log.firstNoteEntry.timeLabel)}</span>`
+                : ''
+            }
+            ${
+              log.firstNoteEntry.callCount > 1
+                ? `<span class="care-calls-badge">${log.firstNoteEntry.callCount} cuộc</span>`
+                : ''
+            }
+          </div>
+        `
+            : ''
+        }
+        <textarea
+          rows="${Math.min(5, Math.max(1, Math.ceil((rec.noteM || '').length / (isCard ? 34 : 36))))}"
+          class="note-inline-input ${isCard ? 'card-input' : ''}"
+          data-note-input="${escapeHtml(rec.id)}"
+          placeholder="${
+            isCard
+              ? 'Nhập ghi chú tư vấn (tự gắn ngày giờ)...'
+              : 'Nhập ghi chú (tự gắn ngày giờ)...'
+          }"
+        >${escapeHtml(rec.noteM || '')}</textarea>
+      </div>
+
+      ${
+        log.careEntries.length > 0
+          ? `
+        <div class="care-timeline-list">
+          ${log.careEntries
+            .map(
+              (entry) => `
+            <div class="care-timeline-item">
+              <div class="care-timeline-badges">
+                <span class="care-attempt-badge">${escapeHtml(entry.label)}</span>
+                ${
+                  entry.dateShort
+                    ? `<span class="care-date-badge">📅 ${escapeHtml(entry.dateShort)}</span>`
+                    : ''
+                }
+                ${
+                  entry.timeLabel
+                    ? `<span class="care-time-badge">⏰ ${escapeHtml(entry.timeLabel)}</span>`
+                    : ''
+                }
+                ${
+                  entry.callCount > 1
+                    ? `<span class="care-calls-badge">${entry.callCount} cuộc</span>`
+                    : ''
+                }
+              </div>
+              <div class="care-timeline-text">${escapeHtml(entry.rawText)}</div>
+            </div>
+          `
+            )
+            .join('')}
+        </div>
+      `
+          : ''
+      }
+    </div>
+  `;
+}
+
 export function renderRow(rec, statusOptions, telesaleList) {
   const isNew = rec.statusGroup === 'new';
   const { dialPhone, hasValidPhone, displayPhone } = getDialPhone(rec);
@@ -1863,21 +2213,7 @@ export function renderRow(rec, statusOptions, telesaleList) {
       </td>
 
       <td class="cell-note">
-        <textarea
-          rows="${Math.min(5, Math.max(1, Math.ceil((rec.noteM || '').length / 36)))}"
-          class="note-inline-input"
-          data-note-input="${escapeHtml(rec.id)}"
-          placeholder="Nhập ghi chú..."
-        >${escapeHtml(rec.noteM || '')}</textarea>
-        ${
-          rec.careHistory && rec.careHistory.length > 0
-            ? `
-          <div class="care-subnotes">
-            ${rec.careHistory.map((c) => escapeHtml(c.text)).join(' · ')}
-          </div>
-        `
-            : ''
-        }
+        ${renderNoteTimelineBlock(rec, false)}
       </td>
     </tr>
   `;
@@ -1977,19 +2313,9 @@ export function renderCard(rec, statusOptions, telesaleList) {
       </div>
 
       <div class="card-field">
-        <span class="card-field-label">Ghi chú tư vấn</span>
-        <textarea
-          rows="${Math.min(5, Math.max(1, Math.ceil((rec.noteM || '').length / 34)))}"
-          class="note-inline-input card-input"
-          data-note-input="${escapeHtml(rec.id)}"
-          placeholder="Nhập ghi chú tư vấn..."
-        >${escapeHtml(rec.noteM || '')}</textarea>
+        <span class="card-field-label">Ghi chú & Lịch sử liên hệ</span>
+        ${renderNoteTimelineBlock(rec, true)}
       </div>
-      ${
-        rec.careHistory && rec.careHistory.length > 0
-          ? `<div class="care-subnotes">${rec.careHistory.map((c) => escapeHtml(c.text)).join(' · ')}</div>`
-          : ''
-      }
     </div>
   `;
 }
@@ -2028,14 +2354,27 @@ function renderEditModal(data) {
   if (!rec) return '';
   const isoApptDate = vnDateToIso(rec.apptDate);
   const displayPhone = rec.phoneDisplay || rec.phone || rec.rawPhone || '';
+  const log = analyzeContactLogs(rec);
+  const nextStepNum = log.totalContacts + 1;
 
   return `
     <div class="modal-overlay" id="modal-overlay">
-      <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-card modal-card-wide" onclick="event.stopPropagation()">
         <div class="modal-header">
-          <span class="modal-header-title">${escapeHtml(rec.name || 'Khách hàng')}${
-            displayPhone ? ` · ${escapeHtml(displayPhone)}` : ''
-          }</span>
+          <div class="modal-header-main">
+            <span class="modal-header-title">${escapeHtml(rec.name || 'Khách hàng')}${
+              displayPhone ? ` · ${escapeHtml(displayPhone)}` : ''
+            }</span>
+            <span class="note-count-badge ${log.totalContacts > 0 ? 'has-contacts' : 'is-zero'}">
+              ${
+                log.totalContacts > 0
+                  ? `📞 Đã LH ${log.totalContacts} lần (${log.totalCallAttempts} cuộc)${
+                      log.latestSummary ? ` · Gần nhất: ${escapeHtml(log.latestSummary)}` : ''
+                    }`
+                  : '⚪ Chưa có lịch sử liên hệ'
+              }
+            </span>
+          </div>
           <button class="btn-clean" id="btn-close-modal">✕</button>
         </div>
 
@@ -2086,10 +2425,62 @@ function renderEditModal(data) {
           </div>
 
           <div class="field-group">
-            <label>Ghi chú tư vấn</label>
-            <textarea id="modal-notem" placeholder="Nhập ghi chú tư vấn...">${escapeHtml(
+            <label>Ghi chú gốc (Lần 1 — Cột M)</label>
+            <textarea id="modal-notem" placeholder="Nhập ghi chú tư vấn lần 1...">${escapeHtml(
               rec.noteM || ''
             )}</textarea>
+          </div>
+
+          ${
+            log.entries.length > 0
+              ? `
+            <div class="field-group">
+              <label>Lịch sử các lần liên hệ (${log.totalContacts} lần · ${log.totalCallAttempts} cuộc gọi)</label>
+              <div class="care-timeline-list is-modal-timeline">
+                ${log.entries
+                  .map(
+                    (entry) => `
+                  <div class="care-timeline-item">
+                    <div class="care-timeline-badges">
+                      <span class="care-attempt-badge ${entry.step === 1 ? 'is-first' : ''}">${escapeHtml(
+                      entry.label
+                    )}</span>
+                      ${
+                        entry.dateShort
+                          ? `<span class="care-date-badge">📅 ${escapeHtml(entry.dateShort)}</span>`
+                          : ''
+                      }
+                      ${
+                        entry.timeLabel
+                          ? `<span class="care-time-badge">⏰ ${escapeHtml(entry.timeLabel)}</span>`
+                          : ''
+                      }
+                      ${
+                        entry.callCount > 1
+                          ? `<span class="care-calls-badge">${entry.callCount} cuộc</span>`
+                          : ''
+                      }
+                    </div>
+                    <div class="care-timeline-text">${escapeHtml(entry.rawText)}</div>
+                  </div>
+                `
+                  )
+                  .join('')}
+              </div>
+            </div>
+          `
+              : ''
+          }
+
+          <div class="field-group">
+            <label>➕ Ghi thêm Lần liên hệ thứ ${nextStepNum} (Tự động gắn ngày giờ ${escapeHtml(
+              formatNowVnStamp()
+            )})</label>
+            <input
+              type="text"
+              id="modal-new-care"
+              placeholder="VD: 2c knm, đã nhắn Zalo nhắc lịch..."
+            />
           </div>
         </div>
 
@@ -2102,7 +2493,7 @@ function renderEditModal(data) {
   `;
 }
 
-async function quickSave(recordId, updates, msg) {
+async function quickSave(recordId, updates, msg, appendCareNoteText = '') {
   const rec = findRecord(recordId);
   if (!rec) return;
   try {
@@ -2112,6 +2503,7 @@ async function quickSave(recordId, updates, msg) {
       phone: rec.phone,
       name: rec.name,
       updates,
+      appendCareNoteText,
     });
     state.crmData = res.crmData;
     notify(msg || 'Đã lưu');
@@ -2701,7 +3093,75 @@ function bindEvents() {
     input.addEventListener('blur', () => {
       const nextVal = input.value.trim();
       if (nextVal !== originalNote) {
-        quickSave(id, { noteM: nextVal }, 'Đã lưu ghi chú');
+        const finalNote =
+          !originalNote.trim() && nextVal ? ensureNoteTimestampPrefix(nextVal) : nextVal;
+        quickSave(id, { noteM: finalNote }, 'Đã lưu ghi chú');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-toggle-care]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-toggle-care');
+      state.activeCareInputId = state.activeCareInputId === id ? null : id;
+      render();
+      if (state.activeCareInputId) {
+        const careInput = document.getElementById(`care-input-${id}`);
+        if (careInput) careInput.focus();
+      }
+    });
+  });
+
+  const submitCareNoteForRecord = async (recordId, rawCareText) => {
+    const rec = findRecord(recordId);
+    const cleanText = String(rawCareText || '').trim();
+    if (!rec || !cleanText) return;
+    const stamped = ensureNoteTimestampPrefix(cleanText);
+    state.activeCareInputId = null;
+
+    if (!String(rec.noteM || '').trim()) {
+      await quickSave(recordId, { noteM: stamped }, 'Đã lưu Lần liên hệ 1');
+    } else {
+      const log = analyzeContactLogs(rec);
+      await quickSave(
+        recordId,
+        {},
+        `Đã lưu Lần liên hệ ${log.totalContacts + 1}`,
+        stamped
+      );
+    }
+  };
+
+  document.querySelectorAll('[data-care-chip]').forEach((chipBtn) => {
+    chipBtn.addEventListener('click', () => {
+      const id = chipBtn.getAttribute('data-care-chip');
+      const chipText = chipBtn.getAttribute('data-chip-text') || '';
+      const inputEl = document.getElementById(`care-input-${id}`);
+      if (inputEl) {
+        inputEl.value = chipText;
+        inputEl.focus();
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-care-input]').forEach((inputEl) => {
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const id = inputEl.getAttribute('data-care-input');
+        submitCareNoteForRecord(id, inputEl.value);
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-save-care]').forEach((saveBtn) => {
+    saveBtn.addEventListener('click', () => {
+      const id = saveBtn.getAttribute('data-save-care');
+      const inputEl = document.getElementById(`care-input-${id}`);
+      if (inputEl && inputEl.value.trim()) {
+        submitCareNoteForRecord(id, inputEl.value);
+      } else {
+        notify('Vui lòng nhập nội dung lần liên hệ');
       }
     });
   });
@@ -2729,13 +3189,30 @@ function bindEvents() {
   document.getElementById('btn-save-modal')?.addEventListener('click', async () => {
     const id = state.editingRecordId;
     if (!id) return;
+    const rec = findRecord(id);
     const status = document.getElementById('modal-status')?.value ?? '';
     const telesale = document.getElementById('modal-telesale')?.value || '';
     const customerInfo = document.getElementById('modal-custinfo')?.value || '';
     const apptTime = document.getElementById('modal-appttime')?.value || '';
     const rawIsoDate = document.getElementById('modal-apptdate')?.value || '';
     const apptDate = isoToVnDate(rawIsoDate);
-    const noteM = document.getElementById('modal-notem')?.value || '';
+    let noteM = document.getElementById('modal-notem')?.value?.trim() || '';
+    const newCareRaw = document.getElementById('modal-new-care')?.value?.trim() || '';
+
+    if (!String(rec?.noteM || '').trim() && noteM) {
+      noteM = ensureNoteTimestampPrefix(noteM);
+    }
+
+    let appendCare = '';
+    if (newCareRaw) {
+      const stampedCare = ensureNoteTimestampPrefix(newCareRaw);
+      if (!noteM) {
+        noteM = stampedCare;
+      } else {
+        appendCare = stampedCare;
+      }
+    }
+
     const saveBtn = document.getElementById('btn-save-modal');
     if (saveBtn) {
       saveBtn.disabled = true;
@@ -2746,7 +3223,8 @@ function bindEvents() {
     await quickSave(
       id,
       { status, telesale, customerInfo, apptTime, apptDate, noteM },
-      'Đã lưu thông tin khách hàng'
+      appendCare ? 'Đã lưu thông tin & thêm lần liên hệ mới' : 'Đã lưu thông tin khách hàng',
+      appendCare
     );
   });
 }

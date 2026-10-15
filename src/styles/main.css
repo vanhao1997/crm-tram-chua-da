@@ -953,6 +953,277 @@ select option {
 }
 
 /* ============================================================
+   Note & Care Contact Timeline (Số lần liên hệ & Ngày giờ từng lần)
+   ============================================================ */
+.cell-note {
+  min-width: 340px;
+  max-width: 520px;
+}
+
+.note-tracker-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.note-meta-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.note-meta-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.note-count-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.note-count-badge.has-contacts {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.note-count-badge.has-contacts em {
+  font-style: normal;
+  color: #047857;
+  font-weight: 500;
+}
+
+.note-count-badge.is-zero {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  font-weight: 500;
+}
+
+.note-latest-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2.5px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  white-space: nowrap;
+}
+
+.btn-add-care-inline {
+  border: 1px dashed #94a3b8;
+  background: #ffffff;
+  color: #0f766e;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2.5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.btn-add-care-inline:hover,
+.btn-add-care-inline.is-open {
+  border-style: solid;
+  border-color: var(--brand-primary);
+  background: #f0fdf4;
+  color: var(--brand-primary);
+}
+
+.quick-care-composer {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.quick-care-header {
+  font-size: 11.5px;
+  color: #334155;
+}
+
+.quick-care-header code {
+  background: #e2e8f0;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.quick-care-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.quick-care-chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 11px;
+  padding: 2.5px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.quick-care-chip:hover {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  background: #f0fdf4;
+}
+
+.quick-care-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-care-input {
+  flex: 1;
+  min-width: 0;
+  padding: 5.5px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 12.5px;
+  background: #ffffff;
+  outline: none;
+}
+
+.quick-care-input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(18, 62, 52, 0.1);
+}
+
+.btn-save-care-inline {
+  background: var(--brand-primary);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 5.5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-save-care-inline:hover {
+  background: var(--brand-primary-hover);
+}
+
+.note-primary-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: #fcfdfd;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  padding: 5px 7px;
+}
+
+.note-step-header,
+.care-timeline-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.care-attempt-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.care-attempt-badge.is-first {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.care-date-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.care-time-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.care-calls-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  padding: 0.5px 5px;
+  border-radius: 4px;
+}
+
+.care-timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 1px;
+}
+
+.care-timeline-list.is-modal-timeline {
+  max-height: 190px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.care-timeline-item {
+  background: #f8fafc;
+  border-left: 3px solid #0ea5e9;
+  border-radius: 4px 7px 7px 4px;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.care-timeline-text {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #1e293b;
+  font-weight: 500;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* ============================================================
    4. Footer & Clean Modal
    ============================================================ */
 .table-footer {
@@ -1000,6 +1271,13 @@ select option {
   border: 1px solid var(--border-light);
   box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.15);
   overflow: hidden;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-card.modal-card-wide {
+  max-width: 560px;
 }
 
 .modal-header {
@@ -1008,6 +1286,14 @@ select option {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+}
+
+.modal-header-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
 .modal-header-title {
@@ -1021,6 +1307,7 @@ select option {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  overflow-y: auto;
 }
 
 .field-group {

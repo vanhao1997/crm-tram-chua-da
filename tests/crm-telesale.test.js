@@ -456,6 +456,58 @@ test('Tích hợp Không gian điều hành CEO (crm-tram-chua-da) dành riêng 
   assert.equal(html.includes('Hiệu Suất & Doanh Số Theo Nhân Sự Telesale'), true);
 });
 
+test('analyzeContactLogs & Timeline Ghi chú bóc tách chính xác số lần liên hệ, số cuộc gọi và ngày giờ từng lần', async () => {
+  const { analyzeContactLogs, ensureNoteTimestampPrefix, renderRow, renderCard } = await import(
+    '../src/main.js'
+  );
+  const { STATUS_OPTIONS, DEFAULT_TELESALE_LIST } = await import('../server/config.js');
+
+  const sampleRec = {
+    id: 'mkt-row-832',
+    sheetKey: 'mkt',
+    sheetRowIndex: 832,
+    dataDate: '14/10/2026',
+    name: 'Nguyet Anh',
+    phone: '0912345678',
+    statusGroup: 'unreachable',
+    noteM: '19h55 2c tb, đã kbzl',
+    careHistory: [
+      { text: '15/10 8h33 2c zl knm, đã nt care' },
+      { text: '10h15 2c zl knm, 12h04 2c knm' },
+    ],
+  };
+
+  const log = analyzeContactLogs(sampleRec);
+  assert.equal(log.totalContacts, 3);
+  assert.equal(log.totalCallAttempts, 8);
+  assert.equal(log.entries[0].dateShort, '14/10');
+  assert.equal(log.entries[0].timeLabel, '19h55');
+  assert.equal(log.entries[1].dateShort, '15/10');
+  assert.equal(log.entries[1].timeLabel, '8h33');
+  assert.equal(log.entries[2].dateShort, '15/10');
+  assert.equal(log.entries[2].timeLabel, '10h15 → 12h04');
+  assert.equal(log.latestSummary, '15/10 · 12h04');
+
+  const fixedDate = new Date(2026, 9, 15, 13, 30);
+  assert.equal(ensureNoteTimestampPrefix('2c knm', fixedDate), '15/10 13h30 2c knm');
+  assert.equal(ensureNoteTimestampPrefix('9h15 khách bận', fixedDate), '15/10 9h15 khách bận');
+  assert.equal(ensureNoteTimestampPrefix('15/10 9h15 khách bận', fixedDate), '15/10 9h15 khách bận');
+
+  const rowHtml = renderRow(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST);
+  assert.equal(rowHtml.includes('Đã LH <strong>3 lần</strong>'), true);
+  assert.equal(rowHtml.includes('(8 cuộc)'), true);
+  assert.equal(rowHtml.includes('Lần 1'), true);
+  assert.equal(rowHtml.includes('Lần 2'), true);
+  assert.equal(rowHtml.includes('Lần 3'), true);
+  assert.equal(rowHtml.includes('+ Ghi Lần 4'), true);
+
+  const cardHtml = renderCard(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST);
+  assert.equal(cardHtml.includes('Đã LH <strong>3 lần</strong>'), true);
+  assert.equal(cardHtml.includes('Lần 2'), true);
+  assert.equal(cardHtml.includes('Lần 3'), true);
+});
+
+
 
 
 

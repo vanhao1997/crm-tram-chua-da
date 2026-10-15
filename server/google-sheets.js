@@ -153,6 +153,7 @@ function applyOverrideToRecord(record, override) {
     for (const item of override.careAdditions) {
       baseHistory.push({
         text: item.text,
+        addedAt: item.addedAt || '',
       });
     }
     updated.careHistory = baseHistory;
