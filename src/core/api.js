@@ -206,4 +206,26 @@ export async function fetchAdminOverview({ period = 'month', from = '', to = '' 
   return buildClientAdminOverview({ period, from, to }, buildHeaders);
 }
 
+export async function fetchTelegramSchedule() {
+  const res = await fetch('/api/admin/telegram-schedule', {
+    headers: buildHeaders(false),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'Không thể tải cài đặt tự động gửi Telegram');
+  }
+  return data.schedule || { enabled: true, sendTime: '08:00', lastSentDate: '', lastSentTime: '' };
+}
 
+export async function updateTelegramSchedule(payload = {}) {
+  const res = await fetch('/api/admin/telegram-schedule', {
+    method: 'PUT',
+    headers: buildHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'Không thể lưu cài đặt tự động gửi Telegram');
+  }
+  return data.schedule;
+}

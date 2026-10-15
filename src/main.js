@@ -10,6 +10,8 @@ import {
   updateAdminUser,
   deleteAdminUser,
   fetchAdminOverview,
+  fetchTelegramSchedule,
+  updateTelegramSchedule,
 } from './core/api.js';
 import { escapeHtml, vnDateToIso, isoToVnDate, getLocalIsoDate } from './core/utils.js';
 
@@ -30,6 +32,12 @@ const state = {
   adminUsers: [],
   adminLoading: false,
   editingUserId: null,
+  telegramSchedule: {
+    enabled: true,
+    sendTime: '08:00',
+    lastSentDate: '',
+    lastSentTime: '',
+  },
   adminOverview: null,
   overviewLoading: false,
   overviewPeriod: 'month', // 'today' | 'week' | 'month' | 'lastmonth' | 'all' | 'custom'
@@ -416,7 +424,12 @@ export function renderLoginScreen(loginState = {}) {
   `;
 }
 
-export function renderAdminView(adminUsers = [], editingUserId = null, currentAdminId = '') {
+export function renderAdminView(
+  adminUsers = [],
+  editingUserId = null,
+  currentAdminId = '',
+  telegramSchedule = null
+) {
   const users = Array.isArray(adminUsers) ? adminUsers : [];
   const editingUser = editingUserId ? users.find((u) => u.id === editingUserId) : null;
 
@@ -429,6 +442,12 @@ export function renderAdminView(adminUsers = [], editingUserId = null, currentAd
   const formScope = editingUser?.permissions?.dataScope || 'all';
   const formCanEdit = editingUser ? editingUser.permissions?.canEdit !== false : true;
   const formActive = editingUser ? Boolean(editingUser.active) : true;
+
+  const sched = telegramSchedule || state.telegramSchedule || { enabled: true, sendTime: '08:00' };
+  const teleEnabled = sched.enabled !== false;
+  const teleSendTime = String(sched.sendTime || '08:00').trim() || '08:00';
+  const teleLastSentDate = String(sched.lastSentDate || '').trim();
+  const teleLastSentTime = String(sched.lastSentTime || '').trim();
 
   return `
     <div class="admin-panel">
@@ -444,6 +463,122 @@ export function renderAdminView(adminUsers = [], editingUserId = null, currentAd
         <div class="admin-stat-card">
           <span class="admin-stat-label">Tài khoản đang khóa</span>
           <strong class="admin-stat-value ${lockedCount > 0 ? 'is-rose' : ''}">${lockedCount}</strong>
+        </div>
+        <div class="admin-stat-card">
+          <span class="admin-stat-label">Tự động báo lịch Telegram</span>
+          <strong class="admin-stat-value ${teleEnabled ? 'is-emerald' : 'is-rose'}">
+            ${teleEnabled ? `BẬT (${escapeHtml(teleSendTime)})` : 'ĐANG TẮT'}
+          </strong>
+        </div>
+      </div>
+
+      <!-- PHẦN QUẢN TRỊ TỰ ĐỘNG BÁO LỊCH QUA TELEGRAM (CHỈ ADMIN) -->
+      <div class="sheet-card admin-tele-schedule-card" id="admin-tele-schedule-card">
+        <div class="admin-section-header">
+          <div>
+            <h2 class="admin-section-title">🤖 Quản Trị Tự Động Báo Lịch Hẹn Qua Telegram</h2>
+            <p class="admin-section-desc">
+              Bật / Tắt chế độ tự động báo lịch và cài đặt giờ gửi hàng ngày cho Bot Telegram (Nhóm: <strong>BSN - TELE BÁO KHÁCH</strong>).
+            </p>
+          </div>
+          <div class="tele-schedule-status-badge ${teleEnabled ? 'is-enabled' : 'is-disabled'}">
+            <span class="tele-status-dot"></span>
+            <span>${
+              teleEnabled
+                ? `Đang BẬT · Tự động gửi lúc ${escapeHtml(teleSendTime)} mỗi ngày`
+                : 'Đang TẮT tự động gửi lịch hẹn'
+            }</span>
+          </div>
+        </div>
+
+        <div class="tele-schedule-controls-grid">
+          <div class="tele-control-box">
+            <label class="tele-control-label">1. Trạng thái Tự động báo lịch (Bật / Tắt)</label>
+            <div class="tele-toggle-row">
+              <button
+                type="button"
+                class="tele-switch-btn ${teleEnabled ? 'is-on' : 'is-off'}"
+                id="btn-toggle-tele-auto"
+                data-tele-enabled="${teleEnabled ? 'true' : 'false'}"
+              >
+                <span class="tele-switch-track">
+                  <span class="tele-switch-knob"></span>
+                </span>
+                <span class="tele-switch-text">
+                  ${teleEnabled ? '🟢 Đang BẬT tự động báo lịch' : '⚪ Đang TẮT tự động báo lịch'}
+                </span>
+              </button>
+            </div>
+            <span class="tele-control-hint">
+              Bấm nút gạt để Bật hoặc Tắt chế độ Bot tự động gửi danh sách lịch hẹn mỗi ngày.
+            </span>
+          </div>
+
+          <div class="tele-control-box">
+            <label class="tele-control-label" for="admin-tele-send-time">
+              2. Cài đặt giờ gửi tự động cho Bot (Giờ Việt Nam GMT+7)
+            </label>
+            <div class="tele-time-input-row">
+              <input
+                type="time"
+                id="admin-tele-send-time"
+                class="modal-input tele-time-input"
+                value="${escapeHtml(teleSendTime)}"
+              />
+              <button
+                type="button"
+                class="btn-clean btn-primary-clean"
+                id="btn-save-tele-schedule"
+              >
+                💾 Lưu cài đặt giờ
+              </button>
+            </div>
+            <div class="tele-time-presets">
+              <span class="preset-label">Chọn nhanh:</span>
+              ${['07:00', '07:30', '08:00', '08:30', '09:00', '12:00', '20:00']
+                .map(
+                  (t) => `
+                  <button
+                    type="button"
+                    class="tele-preset-chip ${teleSendTime === t ? 'active' : ''}"
+                    data-tele-preset="${t}"
+                  >${t}</button>
+                `
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <div class="tele-control-box">
+            <label class="tele-control-label">3. Bắn báo cáo thủ công ngay lập tức</label>
+            <div class="tele-manual-btns">
+              <button
+                type="button"
+                class="btn-reminder-action is-telegram-btn"
+                data-send-telegram="today"
+              >
+                📨 Gửi lịch Hôm nay ngay
+              </button>
+              <button
+                type="button"
+                class="btn-reminder-action"
+                data-send-telegram="tomorrow"
+              >
+                📅 Gửi lịch Ngày mai
+              </button>
+            </div>
+            <span class="tele-control-hint">
+              ${
+                teleLastSentDate
+                  ? `✅ Tự động gửi gần nhất: <strong>${escapeHtml(
+                      teleLastSentTime || teleSendTime
+                    )} ngày ${escapeHtml(teleLastSentDate)}</strong>`
+                  : `ℹ️ Hôm nay chưa tới giờ tự động gửi (Hẹn lúc <strong>${escapeHtml(
+                      teleSendTime
+                    )}</strong>).`
+              }
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1505,7 +1640,12 @@ function render() {
         state.activeTab === 'overview' && isAdmin
           ? renderAdminOverview(state.adminOverview, state)
           : state.activeTab === 'admin' && isAdmin
-          ? renderAdminView(state.adminUsers, state.editingUserId, state.currentUser.id)
+          ? renderAdminView(
+              state.adminUsers,
+              state.editingUserId,
+              state.currentUser.id,
+              state.telegramSchedule
+            )
           : `
       ${
         state.activeTab !== 'today'
@@ -1524,7 +1664,13 @@ function render() {
               <span>Ngày mai (${escapeHtml(tomorrowShort)}): <strong>${apptSummary.tomorrowList.length} khách</strong></span>
               ${
                 isAdmin
-                  ? `<span class="reminder-sep">·</span><span class="auto-tele-badge" title="Hệ thống tự động gửi danh sách lịch hẹn hôm nay vào Telegram lúc 08:00 sáng mỗi ngày">⏰ Tự động báo 8h00 sáng</span>`
+                  ? `<span class="reminder-sep">·</span><button type="button" class="auto-tele-badge ${
+                      state.telegramSchedule?.enabled === false ? 'is-off' : ''
+                    }" data-open-admin-tele="1" title="Bấm để mở cài đặt Bật/Tắt & Giờ gửi tự động qua Telegram">${
+                      state.telegramSchedule?.enabled === false
+                        ? '⏸️ Tự động báo: Đang tắt'
+                        : `⏰ Tự động báo ${escapeHtml(state.telegramSchedule?.sendTime || '08:00')}`
+                    }</button>`
                   : ''
               }
             </div>
@@ -2850,12 +2996,12 @@ async function loadAuthenticatedWorkspace() {
       Promise.all([
         fetchAdminUsers().catch(() => []),
         resolveAdminOverviewSafe().catch(() => null),
-      ]).then(([users, overview]) => {
+        fetchTelegramSchedule().catch(() => null),
+      ]).then(([users, overview, teleSched]) => {
         state.adminUsers = users;
         if (overview) state.adminOverview = overview;
-        if (state.activeWorkspace === 'admin' || state.activeWorkspace === 'overview') {
-          render();
-        }
+        if (teleSched) state.telegramSchedule = teleSched;
+        render();
       });
     }
   } catch (err) {
@@ -2929,7 +3075,12 @@ function bindEvents() {
       }
       if (nextTab === 'admin' && state.currentUser?.role === 'admin') {
         try {
-          state.adminUsers = await fetchAdminUsers();
+          const [users, teleSched] = await Promise.all([
+            fetchAdminUsers(),
+            fetchTelegramSchedule().catch(() => state.telegramSchedule),
+          ]);
+          state.adminUsers = users;
+          if (teleSched) state.telegramSchedule = teleSched;
         } catch (err) {
           notify(`Lỗi tải danh sách tài khoản: ${err.message}`);
         }
@@ -3004,7 +3155,93 @@ function bindEvents() {
   // =========================================================================
   // SỰ KIỆN TRANG QUẢN LÝ ADMIN (Chỉ hoạt động khi role === 'admin')
   // =========================================================================
+  document.querySelectorAll('[data-open-admin-tele]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (state.currentUser?.role !== 'admin') return;
+      state.activeTab = 'admin';
+      render();
+      try {
+        const [users, teleSched] = await Promise.all([
+          fetchAdminUsers().catch(() => state.adminUsers),
+          fetchTelegramSchedule().catch(() => state.telegramSchedule),
+        ]);
+        state.adminUsers = users;
+        if (teleSched) state.telegramSchedule = teleSched;
+        render();
+      } catch {
+        // ignore
+      }
+    });
+  });
+
   if (state.currentUser?.role === 'admin' && state.activeTab === 'admin') {
+    document.getElementById('btn-toggle-tele-auto')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const curEnabled = btn.getAttribute('data-tele-enabled') !== 'false';
+      const nextEnabled = !curEnabled;
+      const timeVal =
+        document.getElementById('admin-tele-send-time')?.value ||
+        state.telegramSchedule?.sendTime ||
+        '08:00';
+      btn.disabled = true;
+      try {
+        const updated = await updateTelegramSchedule({
+          enabled: nextEnabled,
+          sendTime: timeVal,
+        });
+        state.telegramSchedule = updated;
+        notify(
+          nextEnabled
+            ? `Đã BẬT tự động báo lịch Telegram lúc ${updated.sendTime} mỗi ngày`
+            : 'Đã TẮT tự động báo lịch Telegram'
+        );
+        render();
+      } catch (err) {
+        btn.disabled = false;
+        notify(`Lỗi lưu cài đặt Telegram: ${err.message}`);
+      }
+    });
+
+    document.getElementById('btn-save-tele-schedule')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      const timeVal = document.getElementById('admin-tele-send-time')?.value?.trim() || '08:00';
+      btn.disabled = true;
+      try {
+        const updated = await updateTelegramSchedule({
+          sendTime: timeVal,
+        });
+        state.telegramSchedule = updated;
+        notify(
+          updated.enabled
+            ? `Đã lưu giờ tự động gửi Telegram: ${updated.sendTime} mỗi ngày`
+            : `Đã lưu giờ gửi (${updated.sendTime}) · Chế độ tự động hiện đang TẮT`
+        );
+        render();
+      } catch (err) {
+        btn.disabled = false;
+        notify(`Lỗi lưu giờ gửi Telegram: ${err.message}`);
+      }
+    });
+
+    document.querySelectorAll('[data-tele-preset]').forEach((chip) => {
+      chip.addEventListener('click', async () => {
+        const presetTime = chip.getAttribute('data-tele-preset') || '08:00';
+        const timeInput = document.getElementById('admin-tele-send-time');
+        if (timeInput) timeInput.value = presetTime;
+        try {
+          const updated = await updateTelegramSchedule({
+            enabled: true,
+            sendTime: presetTime,
+          });
+          state.telegramSchedule = updated;
+          notify(`Đã đặt tự động báo lịch Telegram lúc ${updated.sendTime} mỗi ngày`);
+          render();
+        } catch (err) {
+          notify(`Lỗi lưu giờ gửi: ${err.message}`);
+        }
+      });
+    });
+
     document.getElementById('btn-gen-random-pass')?.addEventListener('click', () => {
       const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
       let pass = 'bsn';

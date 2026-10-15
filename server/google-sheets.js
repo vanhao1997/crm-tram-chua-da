@@ -27,12 +27,30 @@ function ensureDirs() {
   if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
+function normalizeTelegramSendTime(rawTime) {
+  const str = String(rawTime || '').trim();
+  const match = str.match(/^(\d{1,2})\s*[:hH]\s*(\d{1,2})?$/);
+  if (match) {
+    const hh = Math.min(23, Math.max(0, Number(match[1]) || 0));
+    const mm = Math.min(59, Math.max(0, Number(match[2] || 0)));
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  }
+  return '08:00';
+}
+
 function loadLocalState() {
   ensureDirs();
   const defaultState = {
     telesaleList: [...DEFAULT_TELESALE_LIST],
     appsScriptUrl: process.env.GOOGLE_APPS_SCRIPT_URL || '',
     autoSyncSheets: true,
+    telegramSchedule: {
+      enabled: true,
+      sendTime: '08:00',
+      lastSentDate: '',
+      lastSentTime: '',
+      lastSentSlotKey: '',
+    },
     rowOverrides: {},
     addedRecords: {
       mkt: [],
@@ -57,11 +75,19 @@ function loadLocalState() {
     while (list.length < 5) {
       list.push(`TELESALE ${list.length + 1}`);
     }
+    const rawSched = raw.telegramSchedule || {};
     return {
       ...defaultState,
       ...raw,
       telesaleList: list,
       appsScriptUrl: raw.appsScriptUrl || process.env.GOOGLE_APPS_SCRIPT_URL || '',
+      telegramSchedule: {
+        enabled: rawSched.enabled !== undefined ? Boolean(rawSched.enabled) : true,
+        sendTime: normalizeTelegramSendTime(rawSched.sendTime || '08:00'),
+        lastSentDate: String(rawSched.lastSentDate || raw.lastAutoTelegramDate || ''),
+        lastSentTime: String(rawSched.lastSentTime || ''),
+        lastSentSlotKey: String(rawSched.lastSentSlotKey || ''),
+      },
       rowOverrides: raw.rowOverrides || {},
       addedRecords: {
         mkt: raw.addedRecords?.mkt || [],
@@ -761,39 +787,97 @@ export async function sendTelegramReminder(rawInput = {}) {
   return { ok: true, count: appts.length, dateVn: targetDateVn, via: res.via };
 }
 
+export function getTelegramScheduleConfig() {
+  const sched = localState.telegramSchedule || {};
+  return {
+    enabled: sched.enabled !== undefined ? Boolean(sched.enabled) : true,
+    sendTime: normalizeTelegramSendTime(sched.sendTime || '08:00'),
+    lastSentDate: String(sched.lastSentDate || ''),
+    lastSentTime: String(sched.lastSentTime || ''),
+  };
+}
+
+export async function updateTelegramScheduleConfig(payload = {}) {
+  const prev = getTelegramScheduleConfig();
+  const nextEnabled =
+    payload.enabled !== undefined ? Boolean(payload.enabled) : prev.enabled;
+  const nextSendTime =
+    payload.sendTime !== undefined
+      ? normalizeTelegramSendTime(payload.sendTime)
+      : prev.sendTime;
+
+  localState.telegramSchedule = {
+    ...(localState.telegramSchedule || {}),
+    enabled: nextEnabled,
+    sendTime: nextSendTime,
+  };
+  saveLocalState(localState);
+
+  if (localState.appsScriptUrl) {
+    postToAppsScript({
+      action: 'updateTelegramSchedule',
+      enabled: nextEnabled,
+      sendTime: nextSendTime,
+    }).catch(() => {});
+  }
+
+  return getTelegramScheduleConfig();
+}
+
 let dailySchedulerTimer = null;
 
 export function startDailyTelegramScheduler() {
   if (dailySchedulerTimer) return dailySchedulerTimer;
 
-  const checkAndTrigger8Am = async () => {
+  const checkAndTriggerScheduledTelegram = async () => {
     try {
-      const hasConfig =
-        (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) ||
-        Boolean(localState.appsScriptUrl);
-      if (!hasConfig) return;
+      const cfg = getTelegramScheduleConfig();
+      if (!cfg.enabled) return;
 
       const vnNow = getVnDateParts(new Date());
-      // Tự động gửi vào khung 08:00 - 08:15 sáng mỗi ngày theo giờ Việt Nam (Asia/Ho_Chi_Minh)
-      if (vnNow.hour === 8 && vnNow.minute >= 0 && vnNow.minute <= 15) {
-        if (localState.lastAutoTelegramDate === vnNow.dateVn) {
+      const [hStr, mStr] = cfg.sendTime.split(':');
+      const targetHour = Number(hStr) || 8;
+      const targetMin = Number(mStr) || 0;
+
+      const nowTotalMinutes = vnNow.hour * 60 + vnNow.minute;
+      const targetTotalMinutes = targetHour * 60 + targetMin;
+
+      // Tự động gửi khi đến đúng giờ cài đặt (trong khung 15 phút từ giờ cài đặt để tránh lỡ nhịp khi khởi động lại server)
+      if (nowTotalMinutes >= targetTotalMinutes && nowTotalMinutes <= targetTotalMinutes + 15) {
+        const slotKey = `${vnNow.dateVn}@${cfg.sendTime}`;
+        if (localState.telegramSchedule?.lastSentSlotKey === slotKey) {
           return;
         }
+        const nowTimeText = `${String(vnNow.hour).padStart(2, '0')}:${String(
+          vnNow.minute
+        ).padStart(2, '0')}`;
+        localState.telegramSchedule = {
+          ...(localState.telegramSchedule || {}),
+          enabled: cfg.enabled,
+          sendTime: cfg.sendTime,
+          lastSentDate: vnNow.dateVn,
+          lastSentTime: nowTimeText,
+          lastSentSlotKey: slotKey,
+        };
         localState.lastAutoTelegramDate = vnNow.dateVn;
         saveLocalState(localState);
 
         await getAllSheetsData(true).catch(() => null);
         await sendTelegramReminder({ dateVn: vnNow.dateVn, label: 'HÔM NAY' });
-        console.log(`[Telegram 8h00] Đã tự động gửi lịch hẹn ngày ${vnNow.dateVn} vào Telegram.`);
+        console.log(
+          `[Telegram Auto ${cfg.sendTime}] Đã tự động gửi lịch hẹn ngày ${vnNow.dateVn} vào Telegram.`
+        );
       }
     } catch (err) {
-      // Nếu lỗi mạng tạm thời thì cho phép thử lại ở phút kế tiếp trong khung 8h sáng
-      localState.lastAutoTelegramDate = '';
-      console.warn('[Telegram 8h00] Chưa gửi được tự động:', err?.message || err);
+      // Nếu lỗi mạng tạm thời thì xóa khoá slot để thử lại ở nhịp kế tiếp
+      if (localState.telegramSchedule) {
+        localState.telegramSchedule.lastSentSlotKey = '';
+      }
+      console.warn('[Telegram Auto] Chưa gửi được tự động:', err?.message || err);
     }
   };
 
-  dailySchedulerTimer = setInterval(checkAndTrigger8Am, 60 * 1000);
+  dailySchedulerTimer = setInterval(checkAndTriggerScheduledTelegram, 20 * 1000);
   if (typeof dailySchedulerTimer.unref === 'function') {
     dailySchedulerTimer.unref();
   }

@@ -94,6 +94,8 @@ function doPost(e) {
         return jsonResponse(handleSendTelegramFromWeb(payload));
       case 'sendSingleTelegram':
         return jsonResponse(handleSendSingleTelegramFromWeb(payload));
+      case 'updateTelegramSchedule':
+        return jsonResponse(handleUpdateTelegramScheduleFromWeb(payload));
       default:
         return jsonResponse({ ok: false, error: 'Action không hợp lệ: ' + action });
     }
@@ -649,18 +651,57 @@ function collectAppointmentsForDate(targetDateVn) {
   return results;
 }
 
+function handleUpdateTelegramScheduleFromWeb(payload) {
+  const enabled = payload.enabled !== false;
+  const sendTime = String(payload.sendTime || '08:00').trim();
+  const hourMatch = sendTime.match(/^(\d{1,2})/);
+  const targetHour = hourMatch ? Math.min(23, Math.max(0, Number(hourMatch[1]) || 8)) : 8;
+
+  try {
+    const props = PropertiesService.getScriptProperties();
+    props.setProperty('TELEGRAM_AUTO_ENABLED', enabled ? 'true' : 'false');
+    props.setProperty('TELEGRAM_AUTO_SEND_TIME', sendTime);
+
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'sendTodayAppointmentsToTelegram') {
+        ScriptApp.deleteTrigger(triggers[i]);
+      }
+    }
+
+    if (enabled) {
+      ScriptApp.newTrigger('sendTodayAppointmentsToTelegram')
+        .timeBased()
+        .everyDays(1)
+        .atHour(targetHour)
+        .inTimezone('Asia/Ho_Chi_Minh')
+        .create();
+    }
+    return { ok: true, enabled: enabled, sendTime: sendTime };
+  } catch (e) {
+    return { ok: true, enabled: enabled, sendTime: sendTime, note: String(e) };
+  }
+}
+
 function ensureDailyTelegramTriggerExists() {
   try {
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty('TELEGRAM_AUTO_ENABLED') === 'false') {
+      return false;
+    }
     const triggers = ScriptApp.getProjectTriggers();
     for (let i = 0; i < triggers.length; i++) {
       if (triggers[i].getHandlerFunction() === 'sendTodayAppointmentsToTelegram') {
         return true;
       }
     }
+    const savedTime = String(props.getProperty('TELEGRAM_AUTO_SEND_TIME') || '08:00');
+    const hourMatch = savedTime.match(/^(\d{1,2})/);
+    const targetHour = hourMatch ? Math.min(23, Math.max(0, Number(hourMatch[1]) || 8)) : 8;
     ScriptApp.newTrigger('sendTodayAppointmentsToTelegram')
       .timeBased()
       .everyDays(1)
-      .atHour(8)
+      .atHour(targetHour)
       .inTimezone('Asia/Ho_Chi_Minh')
       .create();
     return true;

@@ -3300,4 +3300,210 @@ textarea.is-readonly-note {
   color: #0c4a6e;
   background: #e0f2fe;
   border: 1px solid #bae6fd;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
+
+.auto-tele-badge:hover {
+  background: #bae6fd;
+  border-color: #7dd3fc;
+}
+
+.auto-tele-badge.is-off {
+  color: #475569;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.admin-tele-schedule-card {
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  border: 1.5px solid #bae6fd;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.tele-schedule-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tele-schedule-status-badge.is-enabled {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #86efac;
+}
+
+.tele-schedule-status-badge.is-disabled {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.tele-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.tele-schedule-controls-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.tele-control-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+.tele-control-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tele-toggle-row {
+  display: flex;
+  align-items: center;
+}
+
+.tele-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tele-switch-btn.is-on {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1.5px solid #34d399;
+}
+
+.tele-switch-btn.is-off {
+  background: #f8fafc;
+  color: #475569;
+  border: 1.5px solid #cbd5e1;
+}
+
+.tele-switch-track {
+  position: relative;
+  width: 38px;
+  height: 22px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.tele-switch-btn.is-on .tele-switch-track {
+  background: #10b981;
+}
+
+.tele-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease;
+}
+
+.tele-switch-btn.is-on .tele-switch-knob {
+  transform: translateX(16px);
+}
+
+.tele-time-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tele-time-input {
+  max-width: 135px;
+  font-family: var(--font-mono);
+  font-size: 15px !important;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tele-time-presets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tele-time-presets .preset-label {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.tele-preset-chip {
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: #334155;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.tele-preset-chip:hover {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #7dd3fc;
+}
+
+.tele-preset-chip.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+
+.tele-manual-btns {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tele-control-hint {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+@media (max-width: 1024px) {
+  .tele-schedule-controls-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

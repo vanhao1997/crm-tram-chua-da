@@ -8,6 +8,8 @@ import {
   getAllSheetsData,
   updateCustomerInteraction,
   sendTelegramReminder,
+  getTelegramScheduleConfig,
+  updateTelegramScheduleConfig,
 } from './google-sheets.js';
 import {
   authenticateUser,
@@ -334,6 +336,37 @@ export async function handleRequest(req, res) {
           {
             ok: true,
             users: listUsersForAdmin(),
+          },
+          {},
+          req
+        );
+      }
+
+      if (pathname === '/api/admin/telegram-schedule' && req.method === 'GET') {
+        return sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            schedule: getTelegramScheduleConfig(),
+          },
+          {},
+          req
+        );
+      }
+
+      if (
+        pathname === '/api/admin/telegram-schedule' &&
+        (req.method === 'POST' || req.method === 'PUT')
+      ) {
+        const body = await readJsonBody(req);
+        const schedule = await updateTelegramScheduleConfig(body);
+        return sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            schedule,
           },
           {},
           req

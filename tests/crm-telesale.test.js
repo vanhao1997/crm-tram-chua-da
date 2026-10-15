@@ -598,5 +598,40 @@ test('Quyền Gửi Telegram chỉ hiển thị cho Admin và ẩn hoàn toàn v
   assert.equal(batchMsg.includes('📅 <b>LỊCH HẸN KHÁCH HÀNG — HÔM NAY (15/10/2026)</b>'), true);
   assert.equal(batchMsg.includes('Tổng cộng: <b>1 khách hẹn</b>'), true);
   assert.equal(batchMsg.includes('1. ⏰ <b>09:30</b> — <b>Nguyễn Thị Mai</b>'), true);
+
+  // 5. Kiểm tra phần Quản trị Tự động báo lịch qua Telegram trong trang Admin (Bật/Tắt & Cài đặt giờ gửi)
+  const { renderAdminView } = await import('../src/main.js');
+  const { getTelegramScheduleConfig, updateTelegramScheduleConfig } = await import(
+    '../server/google-sheets.js'
+  );
+
+  const adminPanelOnHtml = renderAdminView([], null, 'admin-1', {
+    enabled: true,
+    sendTime: '08:30',
+    lastSentDate: '15/10/2026',
+    lastSentTime: '08:30',
+  });
+  assert.equal(adminPanelOnHtml.includes('Quản Trị Tự Động Báo Lịch Hẹn Qua Telegram'), true);
+  assert.equal(adminPanelOnHtml.includes('id="btn-toggle-tele-auto"'), true);
+  assert.equal(adminPanelOnHtml.includes('id="admin-tele-send-time"'), true);
+  assert.equal(adminPanelOnHtml.includes('value="08:30"'), true);
+  assert.equal(adminPanelOnHtml.includes('Đang BẬT · Tự động gửi lúc 08:30 mỗi ngày'), true);
+
+  const adminPanelOffHtml = renderAdminView([], null, 'admin-1', {
+    enabled: false,
+    sendTime: '09:00',
+  });
+  assert.equal(adminPanelOffHtml.includes('Đang TẮT tự động gửi lịch hẹn'), true);
+
+  // Kiểm tra hàm lưu cấu hình Bật/Tắt và Giờ gửi trên Backend
+  const prevCfg = getTelegramScheduleConfig();
+  const updatedCfg = await updateTelegramScheduleConfig({ enabled: false, sendTime: '09:15' });
+  assert.equal(updatedCfg.enabled, false);
+  assert.equal(updatedCfg.sendTime, '09:15');
+  // Khôi phục lại mặc định 08:00 Bật
+  await updateTelegramScheduleConfig({
+    enabled: prevCfg.enabled,
+    sendTime: prevCfg.sendTime || '08:00',
+  });
 });
 

@@ -23,7 +23,7 @@ git remote remove origin >nul 2>&1
 git remote add origin https://github.com/vanhao1997/crm-tram-chua-da.git
 
 git add -A
-git commit -m "feat(telegram): auto 8AM daily schedule, per-customer Telegram send & admin-only permissions" --allow-empty
+git commit -m "feat(telegram): admin toggle & custom time setup for daily Telegram bot schedule" --allow-empty
 git branch -M main
 git push -u origin main --force
 
