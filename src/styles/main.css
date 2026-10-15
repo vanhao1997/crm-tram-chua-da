@@ -1140,11 +1140,96 @@ select option {
 }
 
 .note-step-header,
+.care-timeline-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.note-step-badges,
 .care-timeline-badges {
   display: flex;
   align-items: center;
   gap: 5px;
   flex-wrap: wrap;
+}
+
+.note-admin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #6d28d9;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+  white-space: nowrap;
+}
+
+.note-locked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1.5px 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.note-admin-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.btn-note-admin-save,
+.btn-note-admin-delete {
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1.5px 6px;
+  cursor: pointer;
+  line-height: 1.35;
+  white-space: nowrap;
+  transition: all 0.14s ease;
+}
+
+.btn-note-admin-save {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.btn-note-admin-save:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.btn-note-admin-delete {
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+}
+
+.btn-note-admin-delete:hover {
+  background: #ffe4e6;
+  border-color: #fda4af;
+}
+
+.note-inline-input.is-readonly-note,
+textarea.is-readonly-note {
+  background: #f8fafc;
+  color: #334155;
+  cursor: default;
 }
 
 .care-attempt-badge {
@@ -1198,7 +1283,7 @@ select option {
 }
 
 .care-timeline-list.is-modal-timeline {
-  max-height: 190px;
+  max-height: 220px;
   overflow-y: auto;
   padding-right: 4px;
 }
@@ -1210,7 +1295,13 @@ select option {
   padding: 5px 8px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
+}
+
+.care-timeline-item.is-admin-care-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #0ea5e9;
 }
 
 .care-timeline-text {
@@ -1221,6 +1312,32 @@ select option {
   white-space: pre-wrap;
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+.care-inline-edit-input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #0f172a;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.care-inline-edit-input:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(18, 62, 52, 0.12);
+}
+
+.modal-field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* ============================================================

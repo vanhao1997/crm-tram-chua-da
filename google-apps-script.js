@@ -215,6 +215,20 @@ function handleUpdateInteraction(payload) {
   if (updates.noteM !== undefined) {
     sheet.getRange(rowIndex, COL.NOTE_M).setValue(updates.noteM);
   }
+  if (Array.isArray(updates.careHistory)) {
+    var careTexts = [];
+    for (var cIdx = 0; cIdx < updates.careHistory.length; cIdx++) {
+      var cItem = updates.careHistory[cIdx];
+      var cText = String((cItem && cItem.text !== undefined ? cItem.text : cItem) || '').trim();
+      if (cText) careTexts.push(cText);
+    }
+    var maxCareCols = COL.WEEKDAY - COL.CARE_START; // 8 cột Care (N..U)
+    var rowCareValues = [];
+    for (var k = 0; k < maxCareCols; k++) {
+      rowCareValues.push(k < careTexts.length ? careTexts[k] : '');
+    }
+    sheet.getRange(rowIndex, COL.CARE_START, 1, maxCareCols).setValues([rowCareValues]);
+  }
   if (updates.weekday !== undefined) {
     sheet.getRange(rowIndex, COL.WEEKDAY).setValue(updates.weekday);
   }
@@ -268,7 +282,7 @@ function handleUpdateInteraction(payload) {
 }
 
 /**
- * Cập nhật các cột H..M (Thông tin KH, Tình trạng, Giờ hẹn, Ngày hẹn, Telesale, Ghi chú)
+ * Cập nhật các cột H..U (Thông tin KH, Tình trạng, Giờ hẹn, Ngày hẹn, Telesale, Ghi chú M & Lịch sử Care N..U)
  * trên sheet đích nếu tìm thấy khách hàng có cùng SĐT
  */
 function syncFieldsIfPhoneExists(targetSheetName, sourceRowData) {
@@ -283,7 +297,7 @@ function syncFieldsIfPhoneExists(targetSheetName, sourceRowData) {
     for (let i = phones.length - 1; i >= 1; i--) {
       if (normalizePhone(phones[i][0]) === phone) {
         const targetRowIdx = i + 1;
-        const interactionCols = sourceRowData.slice(COL.CUSTOMER_INFO - 1, COL.NOTE_M);
+        const interactionCols = sourceRowData.slice(COL.CUSTOMER_INFO - 1, COL.WEEKDAY - 1);
         targetSheet.getRange(targetRowIdx, COL.CUSTOMER_INFO, 1, interactionCols.length).setValues([interactionCols]);
         return targetRowIdx;
       }

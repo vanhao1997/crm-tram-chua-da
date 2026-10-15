@@ -17,7 +17,7 @@ if ($existingRemotes -contains "origin") {
 }
 
 git add -A
-git commit -m "feat(crm): unified Sales CRM Telesale & Admin CEO Overview + Apps Script v2" --allow-empty
+git commit -m "feat(crm): Admin full note/care history editing & deletion + Contact timeline" --allow-empty
 git push -u origin main --force
 
 Write-Host "✅ Đã push thành công lên $remoteUrl (nhánh main)!" -ForegroundColor Green

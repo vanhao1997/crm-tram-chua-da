@@ -507,7 +507,36 @@ test('analyzeContactLogs & Timeline Ghi chú bóc tách chính xác số lần l
   assert.equal(cardHtml.includes('Lần 3'), true);
 });
 
+test('Admin có toàn quyền chỉnh sửa & xóa mọi ghi chú (Lần 1 và Lịch sử Care Lần 2+)', async () => {
+  const { renderNoteTimelineBlock } = await import('../src/main.js');
 
+  const sampleRec = {
+    id: 'mkt-row-832',
+    sheetKey: 'mkt',
+    sheetRowIndex: 832,
+    dataDate: '14/10/2026',
+    name: 'Nguyet Anh',
+    phone: '0912345678',
+    noteM: '14/10 19h55 2c tb, đã kbzl',
+    careHistory: [
+      { text: '15/10 8h33 2c zl knm, đã nt care' },
+      { text: '15/10 10h15 ghi nhầm khách cần xóa' },
+    ],
+  };
 
+  // Khi render cho Admin (isAdmin: true):
+  // - Có nút Lưu & Xóa cho Lần 1 (noteM)
+  // - Mỗi dòng Care (Lần 2, Lần 3...) đều có ô input sửa trực tiếp (data-care-edit-input) + nút Lưu & Xóa
+  const adminHtml = renderNoteTimelineBlock(sampleRec, false, { isAdmin: true });
+  assert.equal(adminHtml.includes('🛡️ Admin Sửa/Xóa'), true);
+  assert.equal(adminHtml.includes('data-admin-save-notem="mkt-row-832"'), true);
+  assert.equal(adminHtml.includes('data-admin-delete-notem="mkt-row-832"'), true);
+  assert.equal(adminHtml.includes('data-care-edit-input="mkt-row-832"'), true);
+  assert.equal(adminHtml.includes('data-care-save="mkt-row-832"'), true);
+  assert.equal(adminHtml.includes('data-care-delete="mkt-row-832"'), true);
 
-
+  // Khi render cho Telesale (isAdmin: false): không hiện nút xóa hay ô sửa lịch sử Care
+  const saleHtml = renderNoteTimelineBlock(sampleRec, false, { isAdmin: false });
+  assert.equal(saleHtml.includes('data-care-edit-input='), false);
+  assert.equal(saleHtml.includes('data-care-delete='), false);
+});

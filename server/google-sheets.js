@@ -148,11 +148,21 @@ function applyOverrideToRecord(record, override) {
     updated.statusGroup = statusInfo.statusGroup;
     updated.badgeColor = statusInfo.badgeColor;
   }
+  if (Array.isArray(override.careHistory)) {
+    updated.careHistory = override.careHistory
+      .map((item) => ({
+        text: String(item?.text ?? item ?? '').trim(),
+        addedAt: item?.addedAt || '',
+      }))
+      .filter((item) => Boolean(item.text));
+  }
   if (Array.isArray(override.careAdditions) && override.careAdditions.length > 0) {
     const baseHistory = Array.isArray(updated.careHistory) ? [...updated.careHistory] : [];
     for (const item of override.careAdditions) {
+      const txt = String(item?.text ?? item ?? '').trim();
+      if (!txt) continue;
       baseHistory.push({
-        text: item.text,
+        text: txt,
         addedAt: item.addedAt || '',
       });
     }
@@ -334,15 +344,30 @@ export async function updateCustomerInteraction({
   if (updates.apptTime !== undefined) nextOverride.apptTime = String(updates.apptTime).trim();
   if (updates.apptDate !== undefined) nextOverride.apptDate = String(updates.apptDate).trim();
 
+  if (Array.isArray(updates.careHistory)) {
+    nextOverride.careHistory = updates.careHistory
+      .map((item) => ({
+        text: String(item?.text ?? item ?? '').trim(),
+        addedAt: item?.addedAt || nowIso,
+      }))
+      .filter((item) => Boolean(item.text));
+    delete nextOverride.careAdditions;
+  }
+
   if (appendCareNoteText && String(appendCareNoteText).trim()) {
-    const careList = Array.isArray(nextOverride.careAdditions)
-      ? [...nextOverride.careAdditions]
-      : [];
-    careList.push({
+    const newCareEntry = {
       text: String(appendCareNoteText).trim(),
       addedAt: nowIso,
-    });
-    nextOverride.careAdditions = careList;
+    };
+    if (Array.isArray(nextOverride.careHistory)) {
+      nextOverride.careHistory = [...nextOverride.careHistory, newCareEntry];
+    } else {
+      const careList = Array.isArray(nextOverride.careAdditions)
+        ? [...nextOverride.careAdditions]
+        : [];
+      careList.push(newCareEntry);
+      nextOverride.careAdditions = careList;
+    }
   }
 
   await postToAppsScript({
@@ -527,16 +552,20 @@ export function syncRecordLocallyToTargetSheet(
   const existingBase = normPhone ? targetBase.find((r) => r.phone === normPhone) : null;
   if (existingBase) {
     const key = `${targetSheetKey}:${existingBase.sheetRowIndex}`;
-    localState.rowOverrides[key] = {
-      ...(localState.rowOverrides[key] || {}),
+    const prevTargetOverride = localState.rowOverrides[key] || {};
+    const nextTargetOverride = {
+      ...prevTargetOverride,
       status: overrideStatus || sourceRec.status,
       telesale: sourceRec.telesale,
       noteM: sourceRec.noteM,
       customerInfo: sourceRec.customerInfo,
       apptTime: sourceRec.apptTime,
       apptDate: sourceRec.apptDate,
+      careHistory: Array.isArray(sourceRec.careHistory) ? [...sourceRec.careHistory] : [],
       updatedAt: new Date().toISOString(),
     };
+    delete nextTargetOverride.careAdditions;
+    localState.rowOverrides[key] = nextTargetOverride;
     saveLocalState(localState);
     return { targetSheetKey, sheetRowIndex: existingBase.sheetRowIndex };
   }

@@ -1961,13 +1961,17 @@ const QUICK_CARE_CHIPS = [
   'Đã nhắc lịch, khách chốt qua đúng giờ',
 ];
 
-function renderNoteTimelineBlock(rec, isCard = false) {
+export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
   const log = analyzeContactLogs(rec);
   const isCareBoxOpen = state.activeCareInputId === rec.id;
   const nextStepNum = log.totalContacts + 1;
+  const isAdmin = Boolean(options?.isAdmin ?? state.currentUser?.role === 'admin');
+  const isTelesale = !isAdmin && state.currentUser?.role === 'telesale';
+  const hasFirstNote = Boolean(String(rec?.noteM || '').trim());
+  const isFirstNoteReadonly = isTelesale && hasFirstNote;
 
   return `
-    <div class="note-tracker-wrap ${isCard ? 'is-card-note' : ''}">
+    <div class="note-tracker-wrap ${isCard ? 'is-card-note' : ''} ${isAdmin ? 'is-admin-note-wrap' : ''}">
       <div class="note-meta-bar">
         <div class="note-meta-badges">
           ${
@@ -1991,6 +1995,11 @@ function renderNoteTimelineBlock(rec, isCard = false) {
               : `
             <span class="note-count-badge is-zero">⚪ Chưa LH (0 lần)</span>
           `
+          }
+          ${
+            isAdmin && log.totalContacts > 0
+              ? `<span class="note-admin-badge" title="Admin có thể sửa trực tiếp hoặc xóa bất kỳ ghi chú bị lỗi nào">🛡️ Admin Sửa/Xóa</span>`
+              : ''
           }
         </div>
         <button
@@ -2048,24 +2057,48 @@ function renderNoteTimelineBlock(rec, isCard = false) {
           log.firstNoteEntry
             ? `
           <div class="note-step-header">
-            <span class="care-attempt-badge is-first">Lần 1</span>
+            <div class="note-step-badges">
+              <span class="care-attempt-badge is-first">Lần 1</span>
+              ${
+                log.firstNoteEntry.dateShort
+                  ? `<span class="care-date-badge" title="${
+                      log.firstNoteEntry.isInferredDate
+                        ? 'Ngày liên hệ theo Ngày Data'
+                        : 'Ngày liên hệ ghi trong Note'
+                    }">📅 ${escapeHtml(log.firstNoteEntry.dateShort)}</span>`
+                  : ''
+              }
+              ${
+                log.firstNoteEntry.timeLabel
+                  ? `<span class="care-time-badge">⏰ ${escapeHtml(log.firstNoteEntry.timeLabel)}</span>`
+                  : ''
+              }
+              ${
+                log.firstNoteEntry.callCount > 1
+                  ? `<span class="care-calls-badge">${log.firstNoteEntry.callCount} cuộc</span>`
+                  : ''
+              }
+            </div>
             ${
-              log.firstNoteEntry.dateShort
-                ? `<span class="care-date-badge" title="${
-                    log.firstNoteEntry.isInferredDate
-                      ? 'Ngày liên hệ theo Ngày Data'
-                      : 'Ngày liên hệ ghi trong Note'
-                  }">📅 ${escapeHtml(log.firstNoteEntry.dateShort)}</span>`
-                : ''
-            }
-            ${
-              log.firstNoteEntry.timeLabel
-                ? `<span class="care-time-badge">⏰ ${escapeHtml(log.firstNoteEntry.timeLabel)}</span>`
-                : ''
-            }
-            ${
-              log.firstNoteEntry.callCount > 1
-                ? `<span class="care-calls-badge">${log.firstNoteEntry.callCount} cuộc</span>`
+              isAdmin
+                ? `
+              <div class="note-admin-actions">
+                <button
+                  type="button"
+                  class="btn-note-admin-save"
+                  data-admin-save-notem="${escapeHtml(rec.id)}"
+                  title="Lưu chỉnh sửa ghi chú Lần 1"
+                >💾 Lưu</button>
+                <button
+                  type="button"
+                  class="btn-note-admin-delete"
+                  data-admin-delete-notem="${escapeHtml(rec.id)}"
+                  title="Xóa ghi chú Lần 1 bị lỗi"
+                >🗑️ Xóa</button>
+              </div>
+            `
+                : isFirstNoteReadonly
+                ? `<span class="note-locked-badge" title="Ghi chú đã lưu. Bấm '+ Ghi Lần ${nextStepNum}' để thêm mới hoặc nhờ Admin sửa nếu ghi nhầm.">🔒 Đã khóa sửa</span>`
                 : ''
             }
           </div>
@@ -2074,8 +2107,15 @@ function renderNoteTimelineBlock(rec, isCard = false) {
         }
         <textarea
           rows="${Math.min(5, Math.max(1, Math.ceil((rec.noteM || '').length / (isCard ? 34 : 36))))}"
-          class="note-inline-input ${isCard ? 'card-input' : ''}"
+          class="note-inline-input ${isCard ? 'card-input' : ''} ${
+            isAdmin ? 'is-admin-editable' : ''
+          } ${isFirstNoteReadonly ? 'is-readonly-note' : ''}"
           data-note-input="${escapeHtml(rec.id)}"
+          ${
+            isFirstNoteReadonly
+              ? `readonly title="Chỉ Admin mới có quyền sửa ghi chú đã lưu. Vui lòng bấm '+ Ghi Lần ${nextStepNum}' để ghi lần liên hệ mới."`
+              : ''
+          }
           placeholder="${
             isCard
               ? 'Nhập ghi chú tư vấn (tự gắn ngày giờ)...'
@@ -2091,26 +2131,63 @@ function renderNoteTimelineBlock(rec, isCard = false) {
           ${log.careEntries
             .map(
               (entry) => `
-            <div class="care-timeline-item">
-              <div class="care-timeline-badges">
-                <span class="care-attempt-badge">${escapeHtml(entry.label)}</span>
+            <div class="care-timeline-item ${isAdmin ? 'is-admin-care-item' : ''}">
+              <div class="care-timeline-header-row">
+                <div class="care-timeline-badges">
+                  <span class="care-attempt-badge">${escapeHtml(entry.label)}</span>
+                  ${
+                    entry.dateShort
+                      ? `<span class="care-date-badge">📅 ${escapeHtml(entry.dateShort)}</span>`
+                      : ''
+                  }
+                  ${
+                    entry.timeLabel
+                      ? `<span class="care-time-badge">⏰ ${escapeHtml(entry.timeLabel)}</span>`
+                      : ''
+                  }
+                  ${
+                    entry.callCount > 1
+                      ? `<span class="care-calls-badge">${entry.callCount} cuộc</span>`
+                      : ''
+                  }
+                </div>
                 ${
-                  entry.dateShort
-                    ? `<span class="care-date-badge">📅 ${escapeHtml(entry.dateShort)}</span>`
-                    : ''
-                }
-                ${
-                  entry.timeLabel
-                    ? `<span class="care-time-badge">⏰ ${escapeHtml(entry.timeLabel)}</span>`
-                    : ''
-                }
-                ${
-                  entry.callCount > 1
-                    ? `<span class="care-calls-badge">${entry.callCount} cuộc</span>`
+                  isAdmin
+                    ? `
+                  <div class="note-admin-actions">
+                    <button
+                      type="button"
+                      class="btn-note-admin-save"
+                      data-care-save="${escapeHtml(rec.id)}"
+                      data-care-index="${entry.careIndex}"
+                      title="Lưu chỉnh sửa ${escapeHtml(entry.label)}"
+                    >💾 Lưu</button>
+                    <button
+                      type="button"
+                      class="btn-note-admin-delete"
+                      data-care-delete="${escapeHtml(rec.id)}"
+                      data-care-index="${entry.careIndex}"
+                      title="Xóa ghi chú ${escapeHtml(entry.label)} bị lỗi"
+                    >🗑️ Xóa</button>
+                  </div>
+                `
                     : ''
                 }
               </div>
-              <div class="care-timeline-text">${escapeHtml(entry.rawText)}</div>
+              ${
+                isAdmin
+                  ? `
+                <input
+                  type="text"
+                  class="care-inline-edit-input ${isCard ? 'card-input' : ''}"
+                  data-care-edit-input="${escapeHtml(rec.id)}"
+                  data-care-index="${entry.careIndex}"
+                  value="${escapeHtml(entry.rawText)}"
+                  placeholder="Sửa nội dung ${escapeHtml(entry.label)}..."
+                />
+              `
+                  : `<div class="care-timeline-text">${escapeHtml(entry.rawText)}</div>`
+              }
             </div>
           `
             )
@@ -2123,7 +2200,7 @@ function renderNoteTimelineBlock(rec, isCard = false) {
   `;
 }
 
-export function renderRow(rec, statusOptions, telesaleList) {
+export function renderRow(rec, statusOptions, telesaleList, options = {}) {
   const isNew = rec.statusGroup === 'new';
   const { dialPhone, hasValidPhone, displayPhone } = getDialPhone(rec);
   const isoApptDate = vnDateToIso(rec.apptDate);
@@ -2213,13 +2290,13 @@ export function renderRow(rec, statusOptions, telesaleList) {
       </td>
 
       <td class="cell-note">
-        ${renderNoteTimelineBlock(rec, false)}
+        ${renderNoteTimelineBlock(rec, false, options)}
       </td>
     </tr>
   `;
 }
 
-export function renderCard(rec, statusOptions, telesaleList) {
+export function renderCard(rec, statusOptions, telesaleList, options = {}) {
   const isNew = rec.statusGroup === 'new';
   const { dialPhone, hasValidPhone, displayPhone } = getDialPhone(rec);
   const isoApptDate = vnDateToIso(rec.apptDate);
@@ -2314,7 +2391,7 @@ export function renderCard(rec, statusOptions, telesaleList) {
 
       <div class="card-field">
         <span class="card-field-label">Ghi chú & Lịch sử liên hệ</span>
-        ${renderNoteTimelineBlock(rec, true)}
+        ${renderNoteTimelineBlock(rec, true, options)}
       </div>
     </div>
   `;
@@ -2356,6 +2433,10 @@ function renderEditModal(data) {
   const displayPhone = rec.phoneDisplay || rec.phone || rec.rawPhone || '';
   const log = analyzeContactLogs(rec);
   const nextStepNum = log.totalContacts + 1;
+  const isAdmin = state.currentUser?.role === 'admin';
+  const isTelesale = !isAdmin && state.currentUser?.role === 'telesale';
+  const hasFirstNote = Boolean(String(rec.noteM || '').trim());
+  const isFirstNoteReadonly = isTelesale && hasFirstNote;
 
   return `
     <div class="modal-overlay" id="modal-overlay">
@@ -2425,43 +2506,82 @@ function renderEditModal(data) {
           </div>
 
           <div class="field-group">
-            <label>Ghi chú gốc (Lần 1 — Cột M)</label>
-            <textarea id="modal-notem" placeholder="Nhập ghi chú tư vấn lần 1...">${escapeHtml(
-              rec.noteM || ''
-            )}</textarea>
+            <div class="modal-field-label-row">
+              <label>Ghi chú gốc (Lần 1 — Cột M)</label>
+              ${
+                isAdmin && hasFirstNote
+                  ? `<button type="button" class="btn-note-admin-delete" id="btn-modal-clear-notem">🗑️ Xóa Lần 1</button>`
+                  : isFirstNoteReadonly
+                  ? `<span class="note-locked-badge">🔒 Chỉ Admin mới sửa được ghi chú đã lưu</span>`
+                  : ''
+              }
+            </div>
+            <textarea
+              id="modal-notem"
+              ${isFirstNoteReadonly ? 'readonly class="is-readonly-note"' : ''}
+              placeholder="Nhập ghi chú tư vấn lần 1..."
+            >${escapeHtml(rec.noteM || '')}</textarea>
           </div>
 
           ${
-            log.entries.length > 0
+            log.careEntries.length > 0
               ? `
             <div class="field-group">
-              <label>Lịch sử các lần liên hệ (${log.totalContacts} lần · ${log.totalCallAttempts} cuộc gọi)</label>
-              <div class="care-timeline-list is-modal-timeline">
-                ${log.entries
+              <label>Lịch sử các lần liên hệ tiếp theo (${log.careEntries.length} lần Care — Cột N..U)${
+                isAdmin ? ' · 🛡️ Admin có thể sửa hoặc xóa từng lần' : ''
+              }</label>
+              <div class="care-timeline-list is-modal-timeline" id="modal-care-list">
+                ${log.careEntries
                   .map(
                     (entry) => `
-                  <div class="care-timeline-item">
-                    <div class="care-timeline-badges">
-                      <span class="care-attempt-badge ${entry.step === 1 ? 'is-first' : ''}">${escapeHtml(
-                      entry.label
-                    )}</span>
+                  <div class="care-timeline-item ${
+                    isAdmin ? 'is-admin-care-item' : ''
+                  }" data-modal-care-row="${entry.careIndex}">
+                    <div class="care-timeline-header-row">
+                      <div class="care-timeline-badges">
+                        <span class="care-attempt-badge">${escapeHtml(entry.label)}</span>
+                        ${
+                          entry.dateShort
+                            ? `<span class="care-date-badge">📅 ${escapeHtml(entry.dateShort)}</span>`
+                            : ''
+                        }
+                        ${
+                          entry.timeLabel
+                            ? `<span class="care-time-badge">⏰ ${escapeHtml(entry.timeLabel)}</span>`
+                            : ''
+                        }
+                        ${
+                          entry.callCount > 1
+                            ? `<span class="care-calls-badge">${entry.callCount} cuộc</span>`
+                            : ''
+                        }
+                      </div>
                       ${
-                        entry.dateShort
-                          ? `<span class="care-date-badge">📅 ${escapeHtml(entry.dateShort)}</span>`
-                          : ''
-                      }
-                      ${
-                        entry.timeLabel
-                          ? `<span class="care-time-badge">⏰ ${escapeHtml(entry.timeLabel)}</span>`
-                          : ''
-                      }
-                      ${
-                        entry.callCount > 1
-                          ? `<span class="care-calls-badge">${entry.callCount} cuộc</span>`
+                        isAdmin
+                          ? `
+                        <button
+                          type="button"
+                          class="btn-note-admin-delete"
+                          data-modal-care-delete="${entry.careIndex}"
+                          title="Xóa ghi chú này"
+                        >🗑️ Xóa</button>
+                      `
                           : ''
                       }
                     </div>
-                    <div class="care-timeline-text">${escapeHtml(entry.rawText)}</div>
+                    ${
+                      isAdmin
+                        ? `
+                      <input
+                        type="text"
+                        class="care-inline-edit-input"
+                        data-modal-care-input="${entry.careIndex}"
+                        value="${escapeHtml(entry.rawText)}"
+                        placeholder="Nội dung ${escapeHtml(entry.label)}..."
+                      />
+                    `
+                        : `<div class="care-timeline-text">${escapeHtml(entry.rawText)}</div>`
+                    }
                   </div>
                 `
                   )
@@ -3081,6 +3201,10 @@ function bindEvents() {
     };
     fitHeight();
 
+    if (input.hasAttribute('readonly')) {
+      return;
+    }
+
     input.addEventListener('input', fitHeight);
 
     input.addEventListener('keydown', (e) => {
@@ -3090,13 +3214,145 @@ function bindEvents() {
       }
     });
 
-    input.addEventListener('blur', () => {
+    input.addEventListener('blur', (e) => {
+      const related = e.relatedTarget;
+      if (
+        related &&
+        (related.hasAttribute('data-admin-delete-notem') ||
+          related.hasAttribute('data-admin-save-notem') ||
+          related.hasAttribute('data-care-delete') ||
+          related.hasAttribute('data-care-save'))
+      ) {
+        return;
+      }
       const nextVal = input.value.trim();
       if (nextVal !== originalNote) {
         const finalNote =
           !originalNote.trim() && nextVal ? ensureNoteTimestampPrefix(nextVal) : nextVal;
         quickSave(id, { noteM: finalNote }, 'Đã lưu ghi chú');
       }
+    });
+  });
+
+  // =========================================================================
+  // SỰ KIỆN ADMIN SỬA / XÓA GHI CHÚ TRỰC TIẾP (Lần 1 & Lịch sử Care Lần 2+)
+  // =========================================================================
+  document.querySelectorAll('[data-admin-save-notem]').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-admin-save-notem');
+      const wrap = btn.closest('.note-tracker-wrap');
+      const textarea =
+        wrap?.querySelector(`[data-note-input="${id}"]`) ||
+        document.querySelector(`[data-note-input="${id}"]`);
+      if (!textarea) return;
+      const rec = findRecord(id);
+      const originalNote = rec ? rec.noteM || '' : '';
+      const nextVal = textarea.value.trim();
+      const finalNote =
+        !originalNote.trim() && nextVal ? ensureNoteTimestampPrefix(nextVal) : nextVal;
+      await quickSave(id, { noteM: finalNote }, 'Admin đã lưu ghi chú Lần 1');
+    });
+  });
+
+  document.querySelectorAll('[data-admin-delete-notem]').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-admin-delete-notem');
+      const rec = findRecord(id);
+      if (!rec) return;
+      const origCare = Array.isArray(rec.careHistory) ? rec.careHistory : [];
+      if (origCare.length > 0) {
+        const firstCareText = String(origCare[0]?.text ?? origCare[0] ?? '').trim();
+        const remainingCare = origCare.slice(1);
+        await quickSave(
+          id,
+          { noteM: firstCareText, careHistory: remainingCare },
+          'Admin đã xóa ghi chú Lần 1 bị lỗi'
+        );
+      } else {
+        await quickSave(id, { noteM: '' }, 'Admin đã xóa ghi chú Lần 1');
+      }
+    });
+  });
+
+  const saveAdminCareItem = async (id, careIdx, rawNewText) => {
+    const rec = findRecord(id);
+    if (!rec) return;
+    const origCare = Array.isArray(rec.careHistory) ? rec.careHistory : [];
+    const cleanText = String(rawNewText || '').trim();
+    const nextCare = origCare
+      .map((item, idx) => {
+        const existingText = String(item?.text ?? item ?? '').trim();
+        const existingAddedAt = item?.addedAt || '';
+        if (idx === careIdx) {
+          return cleanText ? { text: cleanText, addedAt: existingAddedAt } : null;
+        }
+        return existingText ? { text: existingText, addedAt: existingAddedAt } : null;
+      })
+      .filter(Boolean);
+
+    await quickSave(
+      id,
+      { careHistory: nextCare },
+      cleanText ? 'Admin đã cập nhật ghi chú liên hệ' : 'Admin đã xóa ghi chú liên hệ'
+    );
+  };
+
+  document.querySelectorAll('[data-care-edit-input]').forEach((input) => {
+    const id = input.getAttribute('data-care-edit-input');
+    const careIdx = Number(input.getAttribute('data-care-index'));
+    const rec = findRecord(id);
+    const origCare = Array.isArray(rec?.careHistory) ? rec.careHistory : [];
+    const origText = String(origCare[careIdx]?.text ?? origCare[careIdx] ?? '').trim();
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+
+    input.addEventListener('blur', (e) => {
+      const related = e.relatedTarget;
+      if (
+        related &&
+        (related.hasAttribute('data-care-delete') ||
+          related.hasAttribute('data-care-save') ||
+          related.hasAttribute('data-admin-delete-notem') ||
+          related.hasAttribute('data-admin-save-notem'))
+      ) {
+        return;
+      }
+      const nextText = input.value.trim();
+      if (nextText !== origText) {
+        saveAdminCareItem(id, careIdx, nextText);
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-care-save]').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-care-save');
+      const careIdx = Number(btn.getAttribute('data-care-index'));
+      const itemWrap = btn.closest('.care-timeline-item');
+      const input =
+        itemWrap?.querySelector('[data-care-edit-input]') ||
+        document.querySelector(
+          `[data-care-edit-input="${id}"][data-care-index="${careIdx}"]`
+        );
+      if (!input) return;
+      await saveAdminCareItem(id, careIdx, input.value);
+    });
+  });
+
+  document.querySelectorAll('[data-care-delete]').forEach((btn) => {
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-care-delete');
+      const careIdx = Number(btn.getAttribute('data-care-index'));
+      await saveAdminCareItem(id, careIdx, '');
     });
   });
 
@@ -3186,6 +3442,23 @@ function bindEvents() {
   document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
   document.getElementById('btn-cancel-modal')?.addEventListener('click', closeModal);
 
+  document.getElementById('btn-modal-clear-notem')?.addEventListener('click', () => {
+    const noteEl = document.getElementById('modal-notem');
+    if (noteEl) {
+      noteEl.value = '';
+      noteEl.focus();
+    }
+  });
+
+  document.querySelectorAll('[data-modal-care-delete]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const rowEl = btn.closest('[data-modal-care-row]');
+      if (rowEl) {
+        rowEl.remove();
+      }
+    });
+  });
+
   document.getElementById('btn-save-modal')?.addEventListener('click', async () => {
     const id = state.editingRecordId;
     if (!id) return;
@@ -3203,11 +3476,34 @@ function bindEvents() {
       noteM = ensureNoteTimestampPrefix(noteM);
     }
 
+    const updatesPayload = { status, telesale, customerInfo, apptTime, apptDate, noteM };
+
+    if (state.currentUser?.role === 'admin') {
+      const modalCareListEl = document.getElementById('modal-care-list');
+      if (modalCareListEl) {
+        const origCare = Array.isArray(rec?.careHistory) ? rec.careHistory : [];
+        const careInputs = Array.from(
+          modalCareListEl.querySelectorAll('[data-modal-care-input]')
+        );
+        updatesPayload.careHistory = careInputs
+          .map((inputEl) => {
+            const cIdx = Number(inputEl.getAttribute('data-modal-care-input'));
+            const txt = inputEl.value.trim();
+            if (!txt) return null;
+            return {
+              text: txt,
+              addedAt: origCare[cIdx]?.addedAt || '',
+            };
+          })
+          .filter(Boolean);
+      }
+    }
+
     let appendCare = '';
     if (newCareRaw) {
       const stampedCare = ensureNoteTimestampPrefix(newCareRaw);
-      if (!noteM) {
-        noteM = stampedCare;
+      if (!updatesPayload.noteM) {
+        updatesPayload.noteM = stampedCare;
       } else {
         appendCare = stampedCare;
       }
@@ -3222,7 +3518,7 @@ function bindEvents() {
     state.editingRecordId = null;
     await quickSave(
       id,
-      { status, telesale, customerInfo, apptTime, apptDate, noteM },
+      updatesPayload,
       appendCare ? 'Đã lưu thông tin & thêm lần liên hệ mới' : 'Đã lưu thông tin khách hàng',
       appendCare
     );

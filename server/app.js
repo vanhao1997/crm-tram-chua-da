@@ -316,6 +316,12 @@ export async function handleRequest(req, res) {
           });
         }
         const body = await readJsonBody(req);
+        if (currentUser.role !== 'admin' && body?.updates?.careHistory !== undefined) {
+          return sendJson(res, 403, {
+            ok: false,
+            error: 'Chỉ tài khoản Admin mới có quyền chỉnh sửa hoặc xóa lịch sử ghi chú đã lưu',
+          });
+        }
         const updateResult = await updateCustomerInteraction(body);
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
