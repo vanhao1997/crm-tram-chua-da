@@ -8,6 +8,7 @@ import {
   getAllSheetsData,
   updateCustomerInteraction,
   addAdminLead,
+  deleteAdminLead,
   sendTelegramReminder,
   getTelegramScheduleConfig,
   updateTelegramScheduleConfig,
@@ -392,6 +393,23 @@ export async function handleRequest(req, res) {
         );
       }
 
+      if (pathname === '/api/admin/leads' && req.method === 'DELETE') {
+        const body = await readJsonBody(req).catch(() => ({}));
+        const deleted = await deleteAdminLead(body);
+        const data = await getAllSheetsData(false);
+        const scopedData = filterCrmDataForUser(data, currentUser);
+        return sendJson(
+          res,
+          200,
+          {
+            ...deleted,
+            crmData: scopedData,
+          },
+          {},
+          req
+        );
+      }
+
       return sendJson(res, 404, { ok: false, error: 'Không tìm thấy API Admin' });
     }
 
@@ -434,6 +452,39 @@ export async function handleRequest(req, res) {
           201,
           {
             ...created,
+            crmData: scopedData,
+          },
+          {},
+          req
+        );
+      }
+
+      if (
+        (pathname === '/api/crm/leads' && req.method === 'DELETE') ||
+        (pathname === '/api/crm/leads/delete' && req.method === 'POST')
+      ) {
+        if (currentUser.role !== 'admin') {
+          return sendJson(res, 403, {
+            ok: false,
+            error: 'Chỉ tài khoản Admin mới có quyền xóa Data khách hàng',
+          });
+        }
+        const body = await readJsonBody(req).catch(() => ({}));
+        const deleted = await deleteAdminLead({
+          recordId: body.recordId || body.id || parsedUrl.searchParams.get('id') || '',
+          sheetKey: body.sheetKey || parsedUrl.searchParams.get('sheetKey') || 'mkt',
+          sheetRowIndex:
+            body.sheetRowIndex || parsedUrl.searchParams.get('sheetRowIndex') || 0,
+          phone: body.phone || parsedUrl.searchParams.get('phone') || '',
+          name: body.name || parsedUrl.searchParams.get('name') || '',
+        });
+        const data = await getAllSheetsData(false);
+        const scopedData = filterCrmDataForUser(data, currentUser);
+        return sendJson(
+          res,
+          200,
+          {
+            ...deleted,
             crmData: scopedData,
           },
           {},

@@ -88,6 +88,8 @@ function doPost(e) {
         return jsonResponse(handleAppendCareNote(payload));
       case 'addLead':
         return jsonResponse(handleAddLead(payload));
+      case 'deleteLead':
+        return jsonResponse(handleDeleteLead(payload));
       case 'syncCustomerToSheet':
         return jsonResponse(handleSyncCustomerToSheet(payload));
       case 'sendTelegramReminder':
@@ -432,6 +434,54 @@ function handleAddLead(payload) {
     sheetName: sheet.getName(),
     rowIndex: targetRow,
     syncedSheets: syncedSheets,
+  };
+}
+
+/**
+ * Xóa dòng dữ liệu khách hàng trên Google Sheet (Chỉ dành cho Admin)
+ */
+function handleDeleteLead(payload) {
+  const sheetKey = payload.sheetKey || 'mkt';
+  const sheet = getTargetSheet(sheetKey || payload.sheetName);
+  const rowIndex = resolveRowIndex(
+    sheet,
+    Number(payload.sheetRowIndex),
+    payload.phone,
+    payload.name
+  );
+  if (!rowIndex || rowIndex < 2) {
+    throw new Error('Không tìm thấy dòng dữ liệu cần xóa');
+  }
+  sheet.deleteRow(rowIndex);
+
+  const deletedFrom = [sheet.getName() + '#' + rowIndex];
+  const targetPhone = normalizePhone(payload.phone);
+  if (sheetKey === 'mkt' && targetPhone && payload.deleteSynced !== false) {
+    [SHEET_NAMES.booked, SHEET_NAMES.arrived].forEach(function (otherSheetName) {
+      try {
+        const otherSheet = getTargetSheet(otherSheetName);
+        const lastR = otherSheet.getLastRow();
+        if (lastR >= 2) {
+          const vals = otherSheet.getRange(1, 1, lastR, 5).getValues();
+          for (var i = vals.length - 1; i >= 1; i--) {
+            if (normalizePhone(vals[i][3]) === targetPhone) {
+              otherSheet.deleteRow(i + 1);
+              deletedFrom.push(otherSheetName + '#' + (i + 1));
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        // Bỏ qua nếu không có trên sheet liên kết
+      }
+    });
+  }
+
+  SpreadsheetApp.flush();
+  return {
+    ok: true,
+    deletedRowIndex: rowIndex,
+    deletedFrom: deletedFrom,
   };
 }
 

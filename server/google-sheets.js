@@ -55,55 +55,57 @@ function loadLocalState() {
       lastSentTime: '',
       lastSentSlotKey: '',
     },
-    rowOverrides: {},
-    addedRecords: {
-      mkt: [],
-      booked: [],
-      arrived: [],
-    },
-  };
-
-  if (!fs.existsSync(STATE_FILE)) {
-    return defaultState;
-  }
-
-  try {
-    const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
-    const list =
-      Array.isArray(raw.telesaleList) && raw.telesaleList.length > 0
-        ? raw.telesaleList
-            .map((s) => String(s || '').trim().toUpperCase())
-            .filter(Boolean)
-            .slice(0, 5)
-        : [...DEFAULT_TELESALE_LIST];
-    while (list.length < 5) {
-      list.push(`TELESALE ${list.length + 1}`);
-    }
-    const rawSched = raw.telegramSchedule || {};
-    return {
-      ...defaultState,
-      ...raw,
-      telesaleList: list,
-      appsScriptUrl:
-        raw.appsScriptUrl || process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL || '',
-      telegramSchedule: {
-        enabled: rawSched.enabled !== undefined ? Boolean(rawSched.enabled) : true,
-        sendTime: normalizeTelegramSendTime(rawSched.sendTime || '08:00'),
-        lastSentDate: String(rawSched.lastSentDate || raw.lastAutoTelegramDate || ''),
-        lastSentTime: String(rawSched.lastSentTime || ''),
-        lastSentSlotKey: String(rawSched.lastSentSlotKey || ''),
-      },
-      rowOverrides: raw.rowOverrides || {},
+      rowOverrides: {},
+      deletedRecords: [],
       addedRecords: {
-        mkt: raw.addedRecords?.mkt || [],
-        booked: raw.addedRecords?.booked || [],
-        arrived: raw.addedRecords?.arrived || [],
+        mkt: [],
+        booked: [],
+        arrived: [],
       },
     };
-  } catch {
-    return defaultState;
+
+    if (!fs.existsSync(STATE_FILE)) {
+      return defaultState;
+    }
+
+    try {
+      const raw = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+      const list =
+        Array.isArray(raw.telesaleList) && raw.telesaleList.length > 0
+          ? raw.telesaleList
+              .map((s) => String(s || '').trim().toUpperCase())
+              .filter(Boolean)
+              .slice(0, 5)
+          : [...DEFAULT_TELESALE_LIST];
+      while (list.length < 5) {
+        list.push(`TELESALE ${list.length + 1}`);
+      }
+      const rawSched = raw.telegramSchedule || {};
+      return {
+        ...defaultState,
+        ...raw,
+        telesaleList: list,
+        appsScriptUrl:
+          raw.appsScriptUrl || process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL || '',
+        telegramSchedule: {
+          enabled: rawSched.enabled !== undefined ? Boolean(rawSched.enabled) : true,
+          sendTime: normalizeTelegramSendTime(rawSched.sendTime || '08:00'),
+          lastSentDate: String(rawSched.lastSentDate || raw.lastAutoTelegramDate || ''),
+          lastSentTime: String(rawSched.lastSentTime || ''),
+          lastSentSlotKey: String(rawSched.lastSentSlotKey || ''),
+        },
+        rowOverrides: raw.rowOverrides || {},
+        deletedRecords: Array.isArray(raw.deletedRecords) ? raw.deletedRecords : [],
+        addedRecords: {
+          mkt: raw.addedRecords?.mkt || [],
+          booked: raw.addedRecords?.booked || [],
+          arrived: raw.addedRecords?.arrived || [],
+        },
+      };
+    } catch {
+      return defaultState;
+    }
   }
-}
 
 let stateVersion = 1;
 let cachedResponseEntry = {
@@ -340,6 +342,33 @@ function sanitizeDataDeep(obj, spreadsheetId) {
   return obj;
 }
 
+export function isRecordDeletedInLocalState(sheetKey, rec, localSnap = localState) {
+  const list = localSnap?.deletedRecords;
+  if (!Array.isArray(list) || list.length === 0 || !rec) return false;
+  const recPhone = normalizePhone(rec.phone || '');
+  const recName = String(rec.name || '').trim().toLowerCase();
+  const recRow = Number(rec.sheetRowIndex || 0);
+
+  return list.some((del) => {
+    if (del.sheetKey !== sheetKey) return false;
+    const delPhone = normalizePhone(del.phone || '');
+    const delName = String(del.name || '').trim().toLowerCase();
+    const delRow = Number(del.sheetRowIndex || 0);
+
+    if (delPhone && recPhone) {
+      if (delPhone !== recPhone) return false;
+      if (delRow && recRow && delRow === recRow) return true;
+      if (delName && recName && delName === recName) return true;
+      if (!delName) return true;
+      return false;
+    }
+    if (delRow && recRow && delRow === recRow) {
+      if (!delName || !recName || delName === recName) return true;
+    }
+    return false;
+  });
+}
+
 /**
  * Xây dựng dữ liệu trả về cho Frontend:
  * Tuyệt đối KHÔNG trả về spreadsheetId, spreadsheetUrl, sheetUrl, hay doanh số (revenue).
@@ -357,16 +386,20 @@ function buildFullResponse(parsedSheets, fetchedAt) {
   const mergedSheets = {};
 
   for (const sheetKey of ['mkt', 'booked', 'arrived']) {
-    const baseRecords = parsedSheets[sheetKey]?.records || [];
+    const baseRecords = (parsedSheets[sheetKey]?.records || []).filter(
+      (rec) => !isRecordDeletedInLocalState(sheetKey, rec, localState)
+    );
     const withOverrides = baseRecords.map((rec) => {
       const key = `${sheetKey}:${rec.sheetRowIndex}`;
       return applyOverrideToRecord(rec, localState.rowOverrides[key]);
     });
 
-    const added = (localState.addedRecords[sheetKey] || []).map((rec) => {
-      const key = `${sheetKey}:${rec.sheetRowIndex}`;
-      return applyOverrideToRecord(rec, localState.rowOverrides[key]);
-    });
+    const added = (localState.addedRecords[sheetKey] || [])
+      .filter((rec) => !isRecordDeletedInLocalState(sheetKey, rec, localState))
+      .map((rec) => {
+        const key = `${sheetKey}:${rec.sheetRowIndex}`;
+        return applyOverrideToRecord(rec, localState.rowOverrides[key]);
+      });
 
     const existingPhones = new Set(withOverrides.map((r) => r.phone).filter(Boolean));
     const uniqueAdded = added.filter((r) => !r.phone || !existingPhones.has(r.phone));
@@ -560,6 +593,101 @@ async function sheetsApiBatchUpdateValues(dataRanges) {
     }),
   });
   return res.ok;
+}
+
+async function sheetsApiDeleteRow(sheetId, rowIndex1Based) {
+  const token = await getServiceAccountAccessToken();
+  const numericSheetId = Number(sheetId);
+  if (!token || !Number.isFinite(numericSheetId) || rowIndex1Based < 2) return false;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}:batchUpdate`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      requests: [
+        {
+          deleteDimension: {
+            range: {
+              sheetId: numericSheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex1Based - 1,
+              endIndex: rowIndex1Based,
+            },
+          },
+        },
+      ],
+    }),
+  });
+  return res.ok;
+}
+
+async function deleteRowFromSheetViaApi(
+  targetSheetKey,
+  { rowIdx = 0, phone = '', name = '' } = {}
+) {
+  try {
+    const cfg = SHEETS_CONFIG[targetSheetKey];
+    if (!cfg) return false;
+    const rows = await sheetsApiGetValues(`'${cfg.name}'!A1:G2000`);
+    if (!rows || rows.length < 2) return false;
+
+    const targetPhone = normalizePhone(phone);
+    const targetName = String(name || '').trim().toLowerCase();
+
+    const isSeparatorRow = (rowArr) => {
+      if (!rowArr) return true;
+      const hasC = String(rowArr[2] || '').trim();
+      const hasD = String(rowArr[3] || '').trim();
+      const colG = String(rowArr[6] || '').trim().toUpperCase();
+      return !hasC && !hasD && colG.startsWith('THÁNG');
+    };
+
+    const matchesRow = (rowArr) => {
+      if (!rowArr || isSeparatorRow(rowArr)) return false;
+      const rPhone = normalizePhone(rowArr[3]);
+      const rName = String(rowArr[2] || '').trim().toLowerCase();
+      if (targetPhone && rPhone) {
+        return rPhone === targetPhone;
+      }
+      if (!targetPhone && targetName && rName) {
+        return rName === targetName;
+      }
+      return false;
+    };
+
+    let actualRow = -1;
+    if (rowIdx >= 2 && rowIdx <= rows.length && matchesRow(rows[rowIdx - 1])) {
+      actualRow = rowIdx;
+    } else {
+      if (targetPhone && targetName) {
+        for (let i = rows.length - 1; i >= 1; i--) {
+          if (isSeparatorRow(rows[i])) continue;
+          const rPhone = normalizePhone(rows[i]?.[3]);
+          const rName = String(rows[i]?.[2] || '').trim().toLowerCase();
+          if (rPhone === targetPhone && rName === targetName) {
+            actualRow = i + 1;
+            break;
+          }
+        }
+      }
+      if (actualRow < 2) {
+        for (let i = rows.length - 1; i >= 1; i--) {
+          if (matchesRow(rows[i])) {
+            actualRow = i + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    if (actualRow < 2) return false;
+    return await sheetsApiDeleteRow(Number(cfg.gid), actualRow);
+  } catch {
+    return false;
+  }
 }
 
 async function upsertRowViaSheetsApi(targetSheetName, row23, overrideStatus) {
@@ -1606,6 +1734,13 @@ export async function addAdminLead(payload = {}) {
   if (!Array.isArray(localState.addedRecords.mkt)) {
     localState.addedRecords.mkt = [];
   }
+  if (Array.isArray(localState.deletedRecords) && localState.deletedRecords.length > 0) {
+    localState.deletedRecords = localState.deletedRecords.filter((del) => {
+      const delPhone = normalizePhone(del.phone || '');
+      if (normalizedPhone && delPhone === normalizedPhone) return false;
+      return true;
+    });
+  }
   localState.addedRecords.mkt.push(newRecord);
 
   // Yêu cầu 4: Khi trạng thái là Đặt hẹn HOẶC có lịch hẹn cụ thể -> thêm Data vào sheet 2) KHÁCH ĐẶT HẸN
@@ -1677,4 +1812,177 @@ export async function addAdminLead(payload = {}) {
     syncedArrived: Boolean(syncedArrived),
   };
 }
+
+/**
+ * Xóa khách hàng khỏi CRM và xóa dòng dữ liệu tương ứng trên Google Sheet (Chỉ dành cho Admin)
+ */
+export async function deleteAdminLead(payload = {}) {
+  const recordId = String(payload.recordId || payload.id || '').trim();
+  let sheetKey = String(payload.sheetKey || '').trim();
+  let rowIdx = Number(payload.sheetRowIndex || 0);
+
+  if (!sheetKey && recordId) {
+    const m = recordId.match(/^(mkt|booked|arrived)-row-(\d+)$/);
+    if (m) {
+      sheetKey = m[1];
+      if (!rowIdx) rowIdx = Number(m[2]);
+    }
+  }
+  if (!sheetKey) sheetKey = 'mkt';
+
+  if (!SHEETS_CONFIG[sheetKey]) {
+    throw new Error(`Sheet không hợp lệ: ${sheetKey}`);
+  }
+
+  const targetRec = rowIdx >= 2 ? findRecordInSheet(sheetKey, rowIdx) : null;
+  const effectivePhone = normalizePhone(payload.phone || targetRec?.phone || '');
+  const effectiveName = String(payload.name || targetRec?.name || '').trim();
+  const effectiveDataDate = String(targetRec?.dataDate || '').trim();
+
+  if (!rowIdx && !effectivePhone && !effectiveName) {
+    throw new Error('Không xác định được khách hàng cần xóa');
+  }
+
+  if (!Array.isArray(localState.deletedRecords)) {
+    localState.deletedRecords = [];
+  }
+
+  const removeFromSingleSheetLocal = (targetKey, matchFn, fallbackRow = 0) => {
+    const removedRows = [];
+
+    if (Array.isArray(localState.addedRecords[targetKey])) {
+      localState.addedRecords[targetKey] = localState.addedRecords[targetKey].filter((rec) => {
+        if (matchFn(rec)) {
+          removedRows.push(rec.sheetRowIndex);
+          return false;
+        }
+        return true;
+      });
+    }
+
+    if (Array.isArray(memoryCache.sheets?.[targetKey]?.records)) {
+      memoryCache.sheets[targetKey].records = memoryCache.sheets[targetKey].records.filter(
+        (rec) => {
+          if (matchFn(rec)) {
+            removedRows.push(rec.sheetRowIndex);
+            return false;
+          }
+          return true;
+        }
+      );
+    }
+
+    if (fallbackRow >= 2 && !removedRows.includes(fallbackRow)) {
+      removedRows.push(fallbackRow);
+    }
+
+    for (const rIdx of removedRows) {
+      delete localState.rowOverrides[`${targetKey}:${rIdx}`];
+    }
+
+    localState.deletedRecords.push({
+      sheetKey: targetKey,
+      sheetRowIndex: removedRows[0] || fallbackRow || 0,
+      phone: effectivePhone,
+      name: effectiveName,
+      dataDate: effectiveDataDate,
+      deletedAt: new Date().toISOString(),
+    });
+  };
+
+  removeFromSingleSheetLocal(
+    sheetKey,
+    (rec) => {
+      if (recordId && rec.id === recordId) return true;
+      if (rowIdx >= 2 && rec.sheetRowIndex === rowIdx) return true;
+      if (
+        !rowIdx &&
+        effectivePhone &&
+        normalizePhone(rec.phone) === effectivePhone &&
+        (!effectiveName ||
+          String(rec.name || '').trim().toLowerCase() === effectiveName.toLowerCase())
+      ) {
+        return true;
+      }
+      return false;
+    },
+    rowIdx
+  );
+
+  // Nếu xóa ở Sheet 1 (DATA NGUỒN MKT) và không còn dòng nào trùng SĐT này ở MKT,
+  // tự động dọn luôn bản ghi đã đồng bộ bên Sheet 2 (KHÁCH ĐẶT HẸN) và Sheet 3 (KHÁCH ĐÃ ĐẾN)
+  let alsoCleanLinkedSheets = false;
+  if (sheetKey === 'mkt' && effectivePhone && payload.deleteSynced !== false) {
+    const remainingMktBase = (memoryCache.sheets?.mkt?.records || []).filter(
+      (r) => !isRecordDeletedInLocalState('mkt', r, localState)
+    );
+    const remainingMktAdded = (localState.addedRecords.mkt || []).filter(
+      (r) => !isRecordDeletedInLocalState('mkt', r, localState)
+    );
+    const stillHasSamePhoneInMkt = [...remainingMktBase, ...remainingMktAdded].some(
+      (r) => normalizePhone(r.phone) === effectivePhone
+    );
+
+    if (!stillHasSamePhoneInMkt) {
+      alsoCleanLinkedSheets = true;
+      for (const linkedKey of ['booked', 'arrived']) {
+        removeFromSingleSheetLocal(
+          linkedKey,
+          (rec) => normalizePhone(rec.phone) === effectivePhone
+        );
+      }
+      if (localState.revenueByPhone && localState.revenueByPhone[effectivePhone] !== undefined) {
+        delete localState.revenueByPhone[effectivePhone];
+      }
+    }
+  }
+
+  saveLocalState(localState);
+
+  let syncedSheet = false;
+  if (!process.env.NODE_TEST_CONTEXT) {
+    try {
+      const apiDeleted = await deleteRowFromSheetViaApi(sheetKey, {
+        rowIdx,
+        phone: effectivePhone,
+        name: effectiveName,
+      });
+      if (alsoCleanLinkedSheets && effectivePhone) {
+        await Promise.all([
+          deleteRowFromSheetViaApi('booked', { phone: effectivePhone, name: effectiveName }),
+          deleteRowFromSheetViaApi('arrived', { phone: effectivePhone, name: effectiveName }),
+        ]);
+      }
+      if (apiDeleted) {
+        syncedSheet = true;
+      } else {
+        const gasRes = await postToAppsScript({
+          action: 'deleteLead',
+          sheetKey,
+          sheetName: SHEETS_CONFIG[sheetKey].name,
+          sheetRowIndex: rowIdx,
+          phone: effectivePhone,
+          name: effectiveName,
+          deleteSynced: alsoCleanLinkedSheets,
+        });
+        syncedSheet = Boolean(gasRes?.synced);
+      }
+    } catch {
+      syncedSheet = false;
+    }
+  }
+
+  return {
+    ok: true,
+    deleted: {
+      recordId: recordId || `${sheetKey}-row-${rowIdx}`,
+      sheetKey,
+      sheetRowIndex: rowIdx,
+      name: effectiveName,
+      phone: effectivePhone,
+    },
+    syncedSheet,
+  };
+}
+
 

@@ -132,6 +132,25 @@ export async function createAdminLead(payload) {
   return data;
 }
 
+export async function deleteCustomerLead(payload) {
+  const res = await fetch('/api/crm/leads', {
+    method: 'DELETE',
+    headers: buildHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (res.status === 401) {
+    setStoredAuthToken('');
+    const err = new Error(data.error || 'Vui lòng đăng nhập lại');
+    err.requireAuth = true;
+    throw err;
+  }
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'Không thể xóa dữ liệu khách hàng');
+  }
+  return data;
+}
+
 export async function triggerTelegramReminder(payload = {}) {
   const bodyObj =
     typeof payload === 'string'

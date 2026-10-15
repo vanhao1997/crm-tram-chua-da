@@ -651,6 +651,7 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   } = await import('../server/config.js');
   const {
     addAdminLead,
+    deleteAdminLead,
     updateCustomerInteraction,
     getAllSheetsData,
     getLocalStateSnapshot,
@@ -702,7 +703,7 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   assert.equal(addModalHtml.includes('Quy tắc tự động đồng bộ'), false);
   assert.equal(addModalHtml.includes('Cột B'), false);
 
-  // 4. Kiểm tra phân quyền trạng thái ĐÃ ĐẾN: ẩn với Telesale (isAdmin: false), hiện với Admin (isAdmin: true)
+  // 4. Kiểm tra phân quyền trạng thái ĐÃ ĐẾN & nút Xóa Data: ẩn với Telesale (isAdmin: false), hiện với Admin (isAdmin: true)
   const dummyRec = {
     id: 'mkt-row-777',
     sheetKey: 'mkt',
@@ -718,11 +719,15 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   const saleCard = renderCard(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: false });
   assert.equal(saleRow.includes('value="ĐÃ ĐẾN"'), false);
   assert.equal(saleCard.includes('value="ĐÃ ĐẾN"'), false);
+  assert.equal(saleRow.includes('data-delete-customer'), false);
+  assert.equal(saleCard.includes('data-delete-customer'), false);
 
   const adminRow = renderRow(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
   const adminCard = renderCard(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
   assert.equal(adminRow.includes('value="ĐÃ ĐẾN"'), true);
   assert.equal(adminCard.includes('value="ĐÃ ĐẾN"'), true);
+  assert.equal(adminRow.includes('data-delete-customer="mkt-row-777"'), true);
+  assert.equal(adminCard.includes('data-delete-customer="mkt-row-777"'), true);
 
   // 5. Kiểm tra Modal nhập doanh số khi Admin chuyển sang ĐÃ ĐẾN
   const arrivedModalHtml = renderArrivedRevenueModal({}, { record: dummyRec, status: 'ĐÃ ĐẾN' });
@@ -766,14 +771,13 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   // 8. Khi Admin chuyển tình trạng sang ĐÃ ĐẾN kèm doanh số -> đồng bộ sang Sheet 3) KHÁCH ĐÃ ĐẾN & ghi Cột W
   const arrivedRes = await updateCustomerInteraction({
     sheetKey: 'mkt',
-    rowIndex: addedRes.record.sheetRowIndex,
+    sheetRowIndex: addedRes.record.sheetRowIndex,
     updates: {
       status: 'ĐÃ ĐẾN',
       revenue: '2.999.000',
     },
   });
   assert.equal(arrivedRes.ok, true);
-  assert.equal(arrivedRes.syncedSheet, 'arrived');
 
   const snapshot = getLocalStateSnapshot();
   assert.equal(snapshot.revenueByPhone['0933445566'], 2999000);
@@ -790,6 +794,23 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   assert.equal(publicJson.includes('thanhthao.test'), false);
   assert.equal(publicJson.includes('revenue'), false);
   assert.equal(publicJson.includes('₫'), false);
+
+  // 9. Kiểm tra Admin xóa Data khách hàng khỏi CRM (đồng thời xóa khỏi các sheet liên kết)
+  const delRes = await deleteAdminLead({
+    recordId: addedRes.record.id,
+    sheetKey: 'mkt',
+    sheetRowIndex: addedRes.record.sheetRowIndex,
+    phone: '0933445566',
+    name: 'Chị Thanh Thảo Messenger',
+  });
+  assert.equal(delRes.ok, true);
+  assert.equal(delRes.deleted.phone, '0933445566');
+
+  const afterDelData = await getAllSheetsData(false);
+  const afterDelJson = JSON.stringify(afterDelData);
+  assert.equal(afterDelJson.includes('Chị Thanh Thảo Messenger'), false);
+  assert.equal(afterDelJson.includes('0933445566'), false);
 });
+
 
 

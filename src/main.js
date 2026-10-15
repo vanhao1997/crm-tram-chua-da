@@ -2,6 +2,7 @@ import {
   fetchCrmData,
   saveCustomerInteraction,
   createAdminLead,
+  deleteCustomerLead,
   triggerTelegramReminder,
   loginUser,
   logoutUser,
@@ -2568,6 +2569,14 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
             >
               📨 Gửi Telegram
             </button>
+            <button
+              type="button"
+              class="btn-delete-lead-single"
+              data-delete-customer="${escapeHtml(rec.id)}"
+              title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+            >
+              🗑️ Xóa
+            </button>
           </div>
         `
             : ''
@@ -2649,6 +2658,14 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
               title="Gửi thông tin khách này vào nhóm Telegram (Chỉ Admin)"
             >
               📨 Gửi Telegram
+            </button>
+            <button
+              type="button"
+              class="btn-delete-lead-single is-card-btn"
+              data-delete-customer="${escapeHtml(rec.id)}"
+              title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+            >
+              🗑️ Xóa
             </button>
           `
               : ''
@@ -3321,16 +3338,26 @@ function renderEditModal(data) {
           ${
             isAdmin
               ? `
-            <button
-              type="button"
-              class="btn-send-tele-single is-modal-btn"
-              data-send-telegram-customer="${escapeHtml(rec.id)}"
-              title="Gửi thông tin lịch hẹn của khách hàng này vào nhóm Telegram (Chỉ Admin)"
-            >
-              📨 Gửi Telegram khách này
-            </button>
+            <div class="modal-footer-left">
+              <button
+                type="button"
+                class="btn-send-tele-single is-modal-btn"
+                data-send-telegram-customer="${escapeHtml(rec.id)}"
+                title="Gửi thông tin lịch hẹn của khách hàng này vào nhóm Telegram (Chỉ Admin)"
+              >
+                📨 Gửi Telegram
+              </button>
+              <button
+                type="button"
+                class="btn-delete-lead-single is-modal-btn"
+                data-delete-customer="${escapeHtml(rec.id)}"
+                title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+              >
+                🗑️ Xóa Data
+              </button>
+            </div>
           `
-              : ''
+              : '<div></div>'
           }
           <div class="modal-footer-right">
             <button class="btn-clean" id="btn-cancel-modal">Hủy</button>
@@ -3882,6 +3909,63 @@ function bindEvents() {
       } finally {
         btn.disabled = false;
         btn.textContent = origText;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-delete-customer]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (state.currentUser?.role !== 'admin') {
+        notify('Chỉ tài khoản Admin mới có quyền xóa Data khách hàng');
+        return;
+      }
+      const id = btn.getAttribute('data-delete-customer');
+      const rec = findRecord(id);
+      if (!rec) return;
+
+      const displayPhone = rec.phoneDisplay || rec.phone || rec.rawPhone || 'Chưa có SĐT';
+      if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+        const confirmed = window.confirm(
+          `Bạn có chắc chắn muốn XÓA khách hàng "${rec.name || 'Khách hàng'}" (${displayPhone})?\n\nDòng dữ liệu này sẽ bị xóa khỏi CRM và xóa trực tiếp trên Google Sheet.`
+        );
+        if (!confirmed) return;
+      }
+
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang xóa...';
+      try {
+        const res = await deleteCustomerLead({
+          recordId: rec.id,
+          sheetKey: rec.sheetKey,
+          sheetRowIndex: rec.sheetRowIndex,
+          phone: rec.phone || rec.rawPhone || '',
+          name: rec.name || '',
+        });
+        state.crmData = res.crmData;
+        if (state.editingRecordId === rec.id) {
+          state.editingRecordId = null;
+        }
+        if (state.activeCareInputId === rec.id) {
+          state.activeCareInputId = null;
+        }
+        notify(`🗑️ Đã xóa khách "${rec.name}" khỏi CRM & Google Sheet!`);
+        render();
+        resolveAdminOverviewSafe()
+          .then((ov) => {
+            if (ov) state.adminOverview = ov;
+          })
+          .catch(() => {});
+      } catch (err) {
+        if (err.requireAuth) {
+          state.currentUser = null;
+          render();
+          return;
+        }
+        btn.disabled = false;
+        btn.textContent = origText;
+        notify(`Lỗi xóa khách hàng: ${err.message}`);
       }
     });
   });

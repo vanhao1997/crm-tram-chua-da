@@ -15,7 +15,7 @@ import {
   classifyStatus,
 } from './sheets-parser.js';
 import { getActiveTelesaleNames } from './auth.js';
-import { getLocalStateSnapshot } from './google-sheets.js';
+import { getLocalStateSnapshot, isRecordDeletedInLocalState } from './google-sheets.js';
 
 /**
  * ID Google Sheet Tài chính & Marketing từ repo https://github.com/vanhao1997/crm-tram-chua-da
@@ -802,9 +802,12 @@ export async function getAdminOverviewData(query = {}) {
       return next;
     };
 
-    const withOv = baseItems.map(applyOv);
+    const withOv = baseItems
+      .filter((r) => !isRecordDeletedInLocalState(sheetKey, r, localSnap))
+      .map(applyOv);
     const existingPhones = new Set(withOv.map((r) => r.phone).filter(Boolean));
     const uniqueAdded = addedList
+      .filter((r) => !isRecordDeletedInLocalState(sheetKey, r, localSnap))
       .filter((r) => !r.phone || !existingPhones.has(r.phone))
       .map((rec) => {
         const rev =
