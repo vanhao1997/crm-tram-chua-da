@@ -1,11 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   ROOT_DIR,
   SPREADSHEET_ID,
   SHEETS_CONFIG,
   DEFAULT_TELESALE_LIST,
   STATUS_OPTIONS,
+  SERVICE_OPTIONS,
+  SOURCE_OPTIONS,
   QUICK_NOTE_TEMPLATES,
   buildCsvExportUrl,
 } from './config.js';
@@ -108,6 +111,9 @@ let cachedResponseEntry = {
 
 function saveLocalState(state) {
   stateVersion++;
+  if (process.env.NODE_TEST_CONTEXT) {
+    return;
+  }
   ensureDirs();
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
 }
@@ -220,6 +226,12 @@ function applyOverrideToRecord(record, override) {
     updated.statusLabel = statusInfo.statusLabel;
     updated.statusGroup = statusInfo.statusGroup;
     updated.badgeColor = statusInfo.badgeColor;
+  }
+  if (override.revenueAmount !== undefined) {
+    updated.revenueAmount = override.revenueAmount;
+  }
+  if (override.weekday !== undefined) {
+    updated.weekday = override.weekday;
   }
   if (Array.isArray(override.careHistory)) {
     updated.careHistory = override.careHistory
@@ -382,6 +394,8 @@ function buildFullResponse(parsedSheets, fetchedAt) {
     fetchedAt: new Date(fetchedAt).toISOString(),
     telesaleList,
     statusOptions: STATUS_OPTIONS,
+    serviceOptions: SERVICE_OPTIONS,
+    sourceOptions: SOURCE_OPTIONS,
     quickNoteTemplates: QUICK_NOTE_TEMPLATES,
     sheets: mergedSheets,
   };
@@ -392,6 +406,398 @@ function buildFullResponse(parsedSheets, fetchedAt) {
     payload: sanitized,
   };
   return sanitized;
+}
+
+export function getLocalStateSnapshot() {
+  return localState;
+}
+
+export function parseAdminRevenueInput(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) && raw >= 0 ? Math.round(raw) : null;
+  const str = String(raw).trim().toLowerCase();
+  if (!str) return null;
+
+  const trMatch = str.match(/^(\d+)\s*tr(?:iệu)?\s*(\d*)$/i);
+  if (trMatch) {
+    const millions = Number(trMatch[1]) * 1000000;
+    const tailStr = trMatch[2] || '';
+    const tail = tailStr ? Number(tailStr.padEnd(6, '0').slice(0, 6)) : 0;
+    return millions + tail;
+  }
+
+  const kMatch = str.match(/^(\d+(?:[.,]\d+)?)\s*k$/i);
+  if (kMatch) {
+    return Math.round(Number(kMatch[1].replace(',', '.')) * 1000);
+  }
+
+  const digitsOnly = str.replace(/[^\d]/g, '');
+  if (!digitsOnly) return null;
+  const num = Number(digitsOnly);
+  return Number.isFinite(num) && num >= 0 ? num : null;
+}
+
+export function formatVnRevenueCell(amount) {
+  const num = parseAdminRevenueInput(amount);
+  if (num === null) return '';
+  return `${num.toLocaleString('vi-VN')} ₫`;
+}
+
+export function computeVnWeekday(vnDateOrIso) {
+  const iso = parseVnDateToIso(vnDateOrIso);
+  if (!iso) return '';
+  const d = new Date(`${iso}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = d.getUTCDay();
+  const labels = ['Chúa Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+  return labels[day] || '';
+}
+
+// ============================================================================
+// GOOGLE SHEETS REST API V4 (DIRECT SERVICE ACCOUNT WRITER FOR COOLIFY)
+// ============================================================================
+let cachedGoogleToken = {
+  accessToken: '',
+  expiresAt: 0,
+};
+
+function loadServiceAccountCredentials() {
+  try {
+    const b64 = String(process.env.GOOGLE_SERVICE_ACCOUNT_JSON_B64 || '').trim();
+    if (b64) {
+      const jsonText = Buffer.from(b64, 'base64').toString('utf8');
+      const parsed = JSON.parse(jsonText);
+      if (parsed?.client_email && parsed?.private_key) return parsed;
+    }
+    const filePath =
+      process.env.GOOGLE_SERVICE_ACCOUNT_FILE || '/run/secrets/google-service-account.json';
+    if (filePath && fs.existsSync(filePath)) {
+      const parsed = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (parsed?.client_email && parsed?.private_key) return parsed;
+    }
+  } catch {
+    // Ignore credential parse errors
+  }
+  return null;
+}
+
+async function getServiceAccountAccessToken() {
+  const now = Date.now();
+  if (cachedGoogleToken.accessToken && cachedGoogleToken.expiresAt > now + 60 * 1000) {
+    return cachedGoogleToken.accessToken;
+  }
+  const creds = loadServiceAccountCredentials();
+  if (!creds) return null;
+
+  const iat = Math.floor(now / 1000);
+  const exp = iat + 3600;
+  const headerB64 = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const claimB64 = Buffer.from(
+    JSON.stringify({
+      iss: creds.client_email,
+      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      aud: 'https://oauth2.googleapis.com/token',
+      iat,
+      exp,
+    })
+  ).toString('base64url');
+
+  const signingInput = `${headerB64}.${claimB64}`;
+  const signature = crypto
+    .createSign('RSA-SHA256')
+    .update(signingInput)
+    .sign(creds.private_key, 'base64url');
+  const jwt = `${signingInput}.${signature}`;
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }).toString(),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data?.access_token) return null;
+
+  cachedGoogleToken = {
+    accessToken: data.access_token,
+    expiresAt: now + Number(data.expires_in || 3500) * 1000,
+  };
+  return data.access_token;
+}
+
+async function sheetsApiGetValues(rangeA1) {
+  const token = await getServiceAccountAccessToken();
+  if (!token) return null;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(
+    rangeA1
+  )}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return Array.isArray(data?.values) ? data.values : [];
+}
+
+async function sheetsApiBatchUpdateValues(dataRanges) {
+  const token = await getServiceAccountAccessToken();
+  if (!token || !Array.isArray(dataRanges) || dataRanges.length === 0) return false;
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values:batchUpdate`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      valueInputOption: 'USER_ENTERED',
+      data: dataRanges,
+    }),
+  });
+  return res.ok;
+}
+
+async function upsertRowViaSheetsApi(targetSheetName, row23, overrideStatus) {
+  const existingRows = await sheetsApiGetValues(`'${targetSheetName}'!A1:G2000`);
+  if (!existingRows) return null;
+
+  const targetPhone = normalizePhone(row23[3]);
+  const copyRow = [...row23];
+  while (copyRow.length < 23) copyRow.push('');
+  if (overrideStatus) copyRow[8] = overrideStatus;
+  if (targetPhone) copyRow[3] = `'${targetPhone}`;
+
+  let targetRowIdx = -1;
+  if (targetPhone && existingRows.length >= 2) {
+    for (let i = existingRows.length - 1; i >= 1; i--) {
+      if (normalizePhone(existingRows[i]?.[3]) === targetPhone) {
+        targetRowIdx = i + 1;
+        break;
+      }
+    }
+  }
+
+  if (targetRowIdx === -1) {
+    let lastOccupied = 1;
+    for (let i = existingRows.length - 1; i >= 1; i--) {
+      const hasNameOrPhone =
+        String(existingRows[i]?.[2] || '').trim() || String(existingRows[i]?.[3] || '').trim();
+      const isSeparator = String(existingRows[i]?.[6] || '')
+        .trim()
+        .toUpperCase()
+        .startsWith('THÁNG');
+      if (hasNameOrPhone || isSeparator) {
+        lastOccupied = i + 1;
+        break;
+      }
+    }
+    targetRowIdx = lastOccupied + 1;
+  }
+
+  const batchRanges = [
+    {
+      range: `'${targetSheetName}'!B${targetRowIdx}:M${targetRowIdx}`,
+      values: [copyRow.slice(1, 13)],
+    },
+  ];
+  if (copyRow[21] || copyRow[22]) {
+    batchRanges.push({
+      range: `'${targetSheetName}'!V${targetRowIdx}:W${targetRowIdx}`,
+      values: [[copyRow[21] || '', copyRow[22] || '']],
+    });
+  }
+  await sheetsApiBatchUpdateValues(batchRanges);
+  return targetRowIdx;
+}
+
+async function syncLeadViaSheetsApi(
+  lead,
+  { syncBooked = false, syncArrived = false, revenueText = '', weekday = '' } = {}
+) {
+  try {
+    const mktName = SHEETS_CONFIG.mkt.name;
+    const rows = await sheetsApiGetValues(`'${mktName}'!A1:G2000`);
+    if (!rows) return false;
+
+    let lastCustomerRow = 2;
+    for (let i = rows.length - 1; i >= 1; i--) {
+      const hasNameOrPhone =
+        String(rows[i]?.[2] || '').trim() || String(rows[i]?.[3] || '').trim();
+      const isSeparator = String(rows[i]?.[6] || '')
+        .trim()
+        .toUpperCase()
+        .startsWith('THÁNG');
+      if (hasNameOrPhone || isSeparator) {
+        lastCustomerRow = i + 1;
+        break;
+      }
+    }
+
+    const targetRow = lastCustomerRow + 1;
+    const phoneStr = normalizePhone(lead.phone);
+    const row23 = [
+      '',
+      lead.dataDate || '',
+      lead.name || '',
+      phoneStr ? `'${phoneStr}` : '',
+      lead.service || '',
+      lead.source || 'Ads FB Mess',
+      lead.fbLink || '',
+      lead.customerInfo || '',
+      lead.status || '',
+      lead.apptTime || '',
+      lead.apptDate || '',
+      lead.telesale || '',
+      lead.noteM || '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      weekday || '',
+      revenueText || '',
+    ];
+
+    const mktBatch = [
+      {
+        range: `'${mktName}'!B${targetRow}:M${targetRow}`,
+        values: [row23.slice(1, 13)],
+      },
+    ];
+    if (weekday || revenueText) {
+      mktBatch.push({
+        range: `'${mktName}'!V${targetRow}:W${targetRow}`,
+        values: [[weekday || '', revenueText || '']],
+      });
+    }
+    await sheetsApiBatchUpdateValues(mktBatch);
+
+    if (syncBooked) {
+      const bookedStatus =
+        String(lead.status || '').toUpperCase().includes('DỜI LỊCH') ? 'DỜI LỊCH' : 'ĐẶT HẸN';
+      await upsertRowViaSheetsApi(SHEETS_CONFIG.booked.name, row23, bookedStatus);
+    }
+    if (syncArrived) {
+      await upsertRowViaSheetsApi(SHEETS_CONFIG.arrived.name, row23, 'ĐÃ ĐẾN');
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function syncInteractionViaSheetsApi({
+  sheetKey,
+  rowIdx,
+  phone,
+  updates,
+  cleanCareAppend,
+  revenueText,
+  weekday,
+}) {
+  try {
+    const sheetName = SHEETS_CONFIG[sheetKey]?.name;
+    if (!sheetName) return false;
+    const rows = await sheetsApiGetValues(`'${sheetName}'!A1:W2000`);
+    if (!rows) return false;
+
+    const targetPhone = normalizePhone(phone);
+    let actualRow = rowIdx;
+    if (actualRow >= 2 && actualRow <= rows.length && targetPhone) {
+      const rowPhone = normalizePhone(rows[actualRow - 1]?.[3]);
+      if (rowPhone !== targetPhone) {
+        actualRow = -1;
+      }
+    }
+    if (actualRow < 2 || actualRow > rows.length) {
+      if (targetPhone) {
+        for (let i = rows.length - 1; i >= 1; i--) {
+          if (normalizePhone(rows[i]?.[3]) === targetPhone) {
+            actualRow = i + 1;
+            break;
+          }
+        }
+      }
+    }
+    if (!actualRow || actualRow < 2) return false;
+
+    const currentRow = [...(rows[actualRow - 1] || [])];
+    while (currentRow.length < 23) currentRow.push('');
+
+    if (updates.customerInfo !== undefined) currentRow[7] = updates.customerInfo;
+    if (updates.status !== undefined) currentRow[8] = updates.status;
+    if (updates.apptTime !== undefined) currentRow[9] = updates.apptTime;
+    if (updates.apptDate !== undefined) currentRow[10] = updates.apptDate;
+    if (updates.telesale !== undefined) currentRow[11] = updates.telesale;
+    if (updates.noteM !== undefined) currentRow[12] = updates.noteM;
+    if (weekday) currentRow[21] = weekday;
+    if (revenueText !== undefined && revenueText !== null) currentRow[22] = revenueText;
+
+    if (Array.isArray(updates.careHistory)) {
+      const careTexts = updates.careHistory
+        .map((c) => String(c?.text ?? c ?? '').trim())
+        .filter(Boolean);
+      for (let k = 0; k < 8; k++) {
+        currentRow[13 + k] = k < careTexts.length ? careTexts[k] : '';
+      }
+    } else if (cleanCareAppend) {
+      let placed = false;
+      for (let colIdx = 12; colIdx <= 20; colIdx++) {
+        if (!String(currentRow[colIdx] || '').trim()) {
+          currentRow[colIdx] = cleanCareAppend;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) currentRow[20] = cleanCareAppend;
+    }
+
+    const batch = [
+      {
+        range: `'${sheetName}'!H${actualRow}:U${actualRow}`,
+        values: [currentRow.slice(7, 21)],
+      },
+    ];
+    if (weekday || revenueText !== undefined) {
+      batch.push({
+        range: `'${sheetName}'!V${actualRow}:W${actualRow}`,
+        values: [[currentRow[21] || '', currentRow[22] || '']],
+      });
+    }
+    await sheetsApiBatchUpdateValues(batch);
+
+    const statusUpper = String(currentRow[8] || '').trim().toUpperCase();
+    const hasApptDate = Boolean(String(currentRow[10] || '').trim());
+
+    if (
+      sheetKey === 'mkt' &&
+      (statusUpper.includes('ĐẶT HẸN') ||
+        statusUpper.includes('ĐẶT LỊCH') ||
+        statusUpper.includes('DỜI LỊCH') ||
+        hasApptDate)
+    ) {
+      const targetBookedStatus = statusUpper.includes('DỜI LỊCH') ? 'DỜI LỊCH' : 'ĐẶT HẸN';
+      await upsertRowViaSheetsApi(SHEETS_CONFIG.booked.name, currentRow, targetBookedStatus);
+    }
+
+    if (sheetKey !== 'arrived' && (statusUpper === 'ĐÃ ĐẾN' || statusUpper === 'ĐẾN VÀ VỀ')) {
+      await upsertRowViaSheetsApi(
+        SHEETS_CONFIG.arrived.name,
+        currentRow,
+        statusUpper === 'ĐẾN VÀ VỀ' ? 'ĐẾN VÀ VỀ' : 'ĐÃ ĐẾN'
+      );
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function postToAppsScript(payload) {
@@ -436,6 +842,7 @@ export async function updateCustomerInteraction({
   const overrideKey = `${sheetKey}:${rowIdx}`;
   const existingOverride = localState.rowOverrides[overrideKey] || {};
   const nowIso = new Date().toISOString();
+  const currentRecBefore = findRecordInSheet(sheetKey, rowIdx);
 
   const nextOverride = {
     ...existingOverride,
@@ -452,6 +859,32 @@ export async function updateCustomerInteraction({
   }
   if (updates.apptTime !== undefined) nextOverride.apptTime = String(updates.apptTime).trim();
   if (updates.apptDate !== undefined) nextOverride.apptDate = String(updates.apptDate).trim();
+
+  // Yêu cầu 4: Nếu nhân sự chọn Ngày hẹn cụ thể ở Sheet 1 mà Tình trạng đang trống (Chưa gọi), tự động chuyển sang ĐẶT HẸN
+  const effectiveApptDateNow = String(
+    updates.apptDate !== undefined ? updates.apptDate : currentRecBefore?.apptDate || ''
+  ).trim();
+  const effectiveStatusBeforeAuto = String(
+    updates.status !== undefined ? updates.status : currentRecBefore?.status || ''
+  ).trim();
+  if (updates.apptDate && effectiveApptDateNow && !effectiveStatusBeforeAuto) {
+    nextOverride.status = 'ĐẶT HẸN';
+    updates.status = 'ĐẶT HẸN';
+  }
+
+  // Yêu cầu 5: Xử lý Doanh số (Cột W) khi Admin chuyển sang ĐÃ ĐẾN hoặc cập nhật doanh số
+  let revenueTextForSheet;
+  let parsedRevAmount = null;
+  if (updates.revenue !== undefined) {
+    parsedRevAmount = parseAdminRevenueInput(updates.revenue);
+    nextOverride.revenueAmount = parsedRevAmount;
+    revenueTextForSheet = parsedRevAmount !== null ? formatVnRevenueCell(parsedRevAmount) : '';
+    const normP = normalizePhone(phone || currentRecBefore?.phone || '');
+    if (normP) {
+      if (!localState.revenueByPhone) localState.revenueByPhone = {};
+      localState.revenueByPhone[normP] = parsedRevAmount;
+    }
+  }
 
   if (Array.isArray(updates.careHistory)) {
     nextOverride.careHistory = updates.careHistory
@@ -482,49 +915,87 @@ export async function updateCustomerInteraction({
 
   localState.rowOverrides[overrideKey] = nextOverride;
 
-  if (localState.autoSyncSheets) {
-    const currentRec = findRecordInSheet(sheetKey, rowIdx);
-    const effectiveStatus =
-      updates.status !== undefined ? updates.status : currentRec?.status || '';
-    const statusInfo = classifyStatus(effectiveStatus);
-    const hasApptDate = Boolean((updates.apptDate ?? currentRec?.apptDate ?? '').trim());
+  const currentRec = findRecordInSheet(sheetKey, rowIdx);
+  const effectiveStatus =
+    nextOverride.status !== undefined ? nextOverride.status : currentRec?.status || '';
+  const statusInfo = classifyStatus(effectiveStatus);
+  const hasSpecificAppt = Boolean((nextOverride.apptDate ?? currentRec?.apptDate ?? '').trim());
+  const vnToday = getVnDateParts(new Date());
+  const weekdayText =
+    statusInfo.statusGroup === 'arrived'
+      ? computeVnWeekday(currentRec?.apptDate || vnToday.dateVn)
+      : '';
 
-    if (sheetKey === 'mkt' && (statusInfo.statusGroup === 'booked' || hasApptDate)) {
+  if (localState.autoSyncSheets) {
+    // Yêu cầu 4: Khi bất kỳ ai chuyển trạng thái sang Đặt hẹn HOẶC có lịch hẹn cụ thể -> thêm vào 2) KHÁCH ĐẶT HẸN
+    if (sheetKey === 'mkt' && (statusInfo.statusGroup === 'booked' || hasSpecificAppt)) {
       const targetStatus =
         statusInfo.canonicalStatus === 'DỜI LỊCH' ? 'DỜI LỊCH' : 'ĐẶT HẸN';
       syncRecordLocallyToTargetSheet('mkt', rowIdx, 'booked', targetStatus);
     }
-    if (sheetKey !== 'arrived' && statusInfo.statusGroup === 'arrived') {
-      syncRecordLocallyToTargetSheet(sheetKey, rowIdx, 'arrived', 'ĐÃ ĐẾN');
+    // Yêu cầu 5: Khi Admin chuyển sang ĐÃ ĐẾN -> chuyển qua 3) KHÁCH ĐÃ ĐẾN kèm Doanh số Cột W
+    if (statusInfo.statusGroup === 'arrived') {
+      if (sheetKey !== 'arrived') {
+        syncRecordLocallyToTargetSheet(
+          sheetKey,
+          rowIdx,
+          'arrived',
+          statusInfo.canonicalStatus === 'ĐẾN VÀ VỀ' ? 'ĐẾN VÀ VỀ' : 'ĐÃ ĐẾN',
+          {
+            revenueAmount:
+              parsedRevAmount !== null ? parsedRevAmount : existingOverride.revenueAmount ?? null,
+            weekday: weekdayText,
+          }
+        );
+      }
     }
   }
 
   saveLocalState(localState);
 
-  // Đồng bộ ngầm (non-blocking) sang Google Apps Script để phản hồi UI tức thì (< 10ms)
-  if (localState.appsScriptUrl && !process.env.NODE_TEST_CONTEXT) {
+  // Đồng bộ ngầm (non-blocking) lên Google Sheet qua cả Service Account API v4 lẫn Google Apps Script
+  if (!process.env.NODE_TEST_CONTEXT) {
+    const syncUpdates = { ...updates };
+    if (revenueTextForSheet !== undefined) {
+      syncUpdates.revenue = revenueTextForSheet;
+    }
+    if (weekdayText) {
+      syncUpdates.weekday = weekdayText;
+    }
     void (async () => {
-      await postToAppsScript({
-        action: 'updateInteraction',
+      await syncInteractionViaSheetsApi({
         sheetKey,
-        sheetName: SHEETS_CONFIG[sheetKey].name,
-        sheetRowIndex: rowIdx,
-        phone,
-        name,
-        updates,
-        autoSyncSheets: localState.autoSyncSheets,
+        rowIdx,
+        phone: phone || currentRec?.phone,
+        updates: syncUpdates,
+        cleanCareAppend,
+        revenueText: revenueTextForSheet,
+        weekday: weekdayText,
       });
 
-      if (cleanCareAppend) {
+      if (localState.appsScriptUrl) {
         await postToAppsScript({
-          action: 'appendCareNote',
+          action: 'updateInteraction',
           sheetKey,
           sheetName: SHEETS_CONFIG[sheetKey].name,
           sheetRowIndex: rowIdx,
-          phone,
-          name,
-          note: cleanCareAppend,
+          phone: phone || currentRec?.phone,
+          name: name || currentRec?.name,
+          updates: syncUpdates,
+          autoSyncSheets: localState.autoSyncSheets,
         });
+
+        if (cleanCareAppend) {
+          await postToAppsScript({
+            action: 'appendCareNote',
+            sheetKey,
+            sheetName: SHEETS_CONFIG[sheetKey].name,
+            sheetRowIndex: rowIdx,
+            phone: phone || currentRec?.phone,
+            name: name || currentRec?.name,
+            note: cleanCareAppend,
+          });
+        }
       }
     })();
   }
@@ -580,7 +1051,7 @@ function formatCustomerTelegramItemLines(item, indexNumber = null) {
   const statusText = String(item.status || item.statusLabel || 'ĐẶT HẸN').trim().toUpperCase();
   const needCall = item.statusGroup !== 'arrived' && item.statusGroup !== 'lost';
   const statusBadge = needCall
-    ? `${esc(statusText)} 🔴 <i>(Cần gọi nhắc)</i>`
+    ? `${esc(statusText)} 🔴 (Cần gọi nhắc)`
     : `${esc(statusText)} 🟢`;
   const telesaleText = item.telesale || 'Chưa phân bổ';
   const custInfoText = item.customerInfo || '—';
@@ -594,10 +1065,10 @@ function formatCustomerTelegramItemLines(item, indexNumber = null) {
     `${prefix}⏰ <b>${esc(timeText)}</b> — <b>${esc(nameText)}</b>`,
     `   📞 SĐT: <code>${esc(phoneText)}</code>`,
     `   💆 Dịch vụ: ${esc(serviceText)}`,
-    `   📌 Tình trạng: <b>${statusBadge}</b>`,
+    `   📌 Tình trạng: ${statusBadge}`,
     `   👩‍💼 Telesale: <b>${esc(telesaleText)}</b>`,
     `   ℹ️ TT Khách: ${esc(custInfoText)}`,
-    `   📝 Ghi chú: <i>${esc(allNotes || '—')}</i>`,
+    `   📝 Ghi chú: ${esc(allNotes || '—')}`,
   ];
 }
 
@@ -609,7 +1080,7 @@ export function formatBatchAppointmentsTelegramMessage(appts, targetDateVn, labe
 
   const lines = [
     `📅 <b>LỊCH HẸN KHÁCH HÀNG — ${esc(label)} (${esc(targetDateVn)})</b>`,
-    `<b>Trạm Chữa Da BSN</b> • Tổng: <b>${appts.length} khách</b> (${needCallCount} khách cần gọi nhắc)`,
+    `<b>Trạm Chữa Da BSN</b> • Tổng cộng: <b>${appts.length} khách hẹn</b> (${needCallCount} khách cần gọi nhắc)`,
     '━━━━━━━━━━━━━━━━━━━━',
   ];
 
@@ -627,9 +1098,10 @@ export function formatBatchAppointmentsTelegramMessage(appts, targetDateVn, labe
   return lines.join('\n');
 }
 
-export function formatSingleCustomerTelegramMessage(rec) {
+export function formatSingleCustomerTelegramMessage(rec, fallbackDateVn = '') {
   const esc = escapeTelegramHtml;
-  const apptDateText = rec.apptDate || rec.dataDate || getVnDateParts().dateVn;
+  const apptDateText =
+    rec.apptDate || fallbackDateVn || rec.dataDate || getVnDateParts().dateVn;
   const lines = [
     `📅 <b>LỊCH HẸN KHÁCH HÀNG — (${esc(apptDateText)})</b>`,
     `<b>Trạm Chữa Da BSN</b> • Thông tin khách lẻ`,
@@ -900,7 +1372,8 @@ export function syncRecordLocallyToTargetSheet(
   sourceSheetKey,
   sourceRowIdx,
   targetSheetKey,
-  overrideStatus
+  overrideStatus,
+  extraFields = {}
 ) {
   const sourceRec = findRecordInSheet(sourceSheetKey, sourceRowIdx);
   if (!sourceRec) return null;
@@ -924,6 +1397,12 @@ export function syncRecordLocallyToTargetSheet(
       careHistory: Array.isArray(sourceRec.careHistory) ? [...sourceRec.careHistory] : [],
       updatedAt: new Date().toISOString(),
     };
+    if (extraFields.revenueAmount !== undefined && extraFields.revenueAmount !== null) {
+      nextTargetOverride.revenueAmount = extraFields.revenueAmount;
+    }
+    if (extraFields.weekday) {
+      nextTargetOverride.weekday = extraFields.weekday;
+    }
     delete nextTargetOverride.careAdditions;
     localState.rowOverrides[key] = nextTargetOverride;
     saveLocalState(localState);
@@ -936,7 +1415,7 @@ export function syncRecordLocallyToTargetSheet(
   const statusInfo = classifyStatus(overrideStatus || sourceRec.status);
 
   if (existingAddedIdx !== -1) {
-    targetAdded[existingAddedIdx] = {
+    const mergedRec = {
       ...targetAdded[existingAddedIdx],
       ...sourceRec,
       id: `${targetSheetKey}-row-${targetAdded[existingAddedIdx].sheetRowIndex}`,
@@ -948,6 +1427,13 @@ export function syncRecordLocallyToTargetSheet(
       statusGroup: statusInfo.statusGroup,
       badgeColor: statusInfo.badgeColor,
     };
+    if (extraFields.revenueAmount !== undefined && extraFields.revenueAmount !== null) {
+      mergedRec.revenueAmount = extraFields.revenueAmount;
+    }
+    if (extraFields.weekday) {
+      mergedRec.weekday = extraFields.weekday;
+    }
+    targetAdded[existingAddedIdx] = mergedRec;
     saveLocalState(localState);
     return { targetSheetKey, sheetRowIndex: targetAdded[existingAddedIdx].sheetRowIndex };
   }
@@ -970,8 +1456,219 @@ export function syncRecordLocallyToTargetSheet(
     statusGroup: statusInfo.statusGroup,
     badgeColor: statusInfo.badgeColor,
   };
+  if (extraFields.revenueAmount !== undefined && extraFields.revenueAmount !== null) {
+    newRecord.revenueAmount = extraFields.revenueAmount;
+  }
+  if (extraFields.weekday) {
+    newRecord.weekday = extraFields.weekday;
+  }
 
   localState.addedRecords[targetSheetKey].push(newRecord);
   saveLocalState(localState);
   return { targetSheetKey, sheetRowIndex: newRowIndex };
 }
+
+function normalizeDateInputToVn(rawDate, fallbackVn = '') {
+  const s = String(rawDate || '').trim();
+  if (!s) return fallbackVn;
+  const iso = parseVnDateToIso(s);
+  if (iso) {
+    const [yyyy, mm, dd] = iso.split('-');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return s;
+}
+
+/**
+ * Thêm khách hàng mới từ tư vấn Messenger (chỉ dành cho Admin)
+ * Mapping chuẩn các cột trên Google Sheet:
+ * - Cột B: dataDate (Ngày add data)
+ * - Cột C: name (Tên khách hàng)
+ * - Cột D: phone (Số điện thoại)
+ * - Cột E: service (Loại dịch vụ: Nâng cơ 999k, Mũi sợi 1tr999, Mũi sợi 2tr999, hoặc Khác tự điền)
+ * - Cột F: source (Nguồn: Ads FB Mess, Giới thiệu, Gọi điện trực tiếp, Google, hoặc Khác tự điền)
+ * - Cột G: fbLink (Link Facebook)
+ * - Cột H: customerInfo (Note từ tư vấn Messenger)
+ * - Cột I: status (Tình trạng)
+ * - Cột J: apptTime (Giờ hẹn)
+ * - Cột K: apptDate (Ngày hẹn)
+ * - Cột L: telesale (Nhân sự Telesale phụ trách)
+ * - Cột M: noteM (Ghi chú Telesale)
+ * - Cột W: revenue (Doanh số nếu trạng thái là ĐÃ ĐẾN)
+ */
+export async function addAdminLead(payload = {}) {
+  const vnToday = getVnDateParts(new Date());
+  const dataDate = normalizeDateInputToVn(payload.dataDate, vnToday.dateVn);
+  const name = String(payload.name || '').trim() || 'Khách chưa rõ tên';
+  const rawPhone = String(payload.phone || '').trim();
+  const normalizedPhone = normalizePhone(rawPhone);
+
+  if (!normalizedPhone && (!payload.name || !String(payload.name).trim())) {
+    throw new Error('Vui lòng nhập Tên khách hàng hoặc Số điện thoại hợp lệ');
+  }
+
+  const service = String(payload.service || '').trim();
+  const source = String(payload.source || '').trim() || 'Ads FB Mess';
+  const fbLink = String(payload.fbLink || '').trim();
+  const customerInfo = String(payload.customerInfo || '').trim();
+  const apptTime = String(payload.apptTime || '').trim();
+  const apptDate = normalizeDateInputToVn(payload.apptDate, '');
+  const telesale = String(payload.telesale || '').trim().toUpperCase();
+  const noteM = String(payload.noteM || '').trim();
+
+  // Nếu có lịch hẹn cụ thể (Cột K) mà chưa chọn Tình trạng (Cột I), tự động đặt là ĐẶT HẸN
+  let rawStatus = String(payload.status || '').trim();
+  if (apptDate && !rawStatus) {
+    rawStatus = 'ĐẶT HẸN';
+  }
+  const statusInfo = classifyStatus(rawStatus);
+
+  let parsedRevAmount = null;
+  let revenueTextForSheet = '';
+  if (payload.revenue !== undefined && payload.revenue !== null && String(payload.revenue).trim() !== '') {
+    parsedRevAmount = parseAdminRevenueInput(payload.revenue);
+    if (parsedRevAmount !== null) {
+      revenueTextForSheet = formatVnRevenueCell(parsedRevAmount);
+      if (normalizedPhone) {
+        if (!localState.revenueByPhone) localState.revenueByPhone = {};
+        localState.revenueByPhone[normalizedPhone] = parsedRevAmount;
+      }
+    }
+  }
+
+  const weekdayText =
+    statusInfo.statusGroup === 'arrived'
+      ? computeVnWeekday(apptDate || dataDate || vnToday.dateVn)
+      : '';
+
+  const mktBase = memoryCache.sheets?.mkt?.records || [];
+  const mktAdded = localState.addedRecords.mkt || [];
+  const maxRow = Math.max(
+    800,
+    ...mktBase.map((r) => r.sheetRowIndex),
+    ...mktAdded.map((r) => r.sheetRowIndex)
+  );
+  const newRowIndex = maxRow + 1;
+
+  const dataDateIso = parseVnDateToIso(dataDate);
+  const apptDateIso = parseVnDateToIso(apptDate);
+  const monthNum = dataDateIso ? Number(dataDateIso.slice(5, 7)) : Number(vnToday.dateIso.slice(5, 7));
+  const currentSection = `THÁNG ${monthNum}`;
+  const monthKey = dataDateIso
+    ? `${dataDateIso.slice(5, 7)}/${dataDateIso.slice(0, 4)}`
+    : apptDateIso
+    ? `${apptDateIso.slice(5, 7)}/${apptDateIso.slice(0, 4)}`
+    : currentSection;
+
+  const newRecord = {
+    id: `mkt-row-${newRowIndex}`,
+    sheetKey: 'mkt',
+    sheetRowIndex: newRowIndex,
+    section: currentSection,
+    monthKey,
+    stt: String(mktBase.length + mktAdded.length + 1),
+    dataDate,
+    dataDateIso,
+    name,
+    phone: normalizedPhone,
+    rawPhone: rawPhone || normalizedPhone,
+    phoneDisplay: formatPhoneDisplay(normalizedPhone || rawPhone),
+    service,
+    source,
+    fbLink,
+    customerInfo,
+    status: statusInfo.status,
+    canonicalStatus: statusInfo.canonicalStatus,
+    statusLabel: statusInfo.statusLabel,
+    statusGroup: statusInfo.statusGroup,
+    badgeColor: statusInfo.badgeColor,
+    apptTime,
+    apptDate,
+    apptDateIso,
+    telesale,
+    noteM,
+    careHistory: [],
+  };
+
+  if (parsedRevAmount !== null) {
+    newRecord.revenueAmount = parsedRevAmount;
+  }
+  if (weekdayText) {
+    newRecord.weekday = weekdayText;
+  }
+
+  if (!Array.isArray(localState.addedRecords.mkt)) {
+    localState.addedRecords.mkt = [];
+  }
+  localState.addedRecords.mkt.push(newRecord);
+
+  // Yêu cầu 4: Khi trạng thái là Đặt hẹn HOẶC có lịch hẹn cụ thể -> thêm Data vào sheet 2) KHÁCH ĐẶT HẸN
+  let syncedBooked = null;
+  if (statusInfo.statusGroup === 'booked' || Boolean(apptDate)) {
+    const bookedStatus = statusInfo.canonicalStatus === 'DỜI LỊCH' ? 'DỜI LỊCH' : 'ĐẶT HẸN';
+    syncedBooked = syncRecordLocallyToTargetSheet('mkt', newRowIndex, 'booked', bookedStatus);
+  }
+
+  // Yêu cầu 5: Khi trạng thái là ĐÃ ĐẾN -> chuyển qua sheet 3) KHÁCH ĐÃ ĐẾN kèm doanh số Cột W
+  let syncedArrived = null;
+  if (statusInfo.statusGroup === 'arrived') {
+    const arrivedStatus = statusInfo.canonicalStatus === 'ĐẾN VÀ VỀ' ? 'ĐẾN VÀ VỀ' : 'ĐÃ ĐẾN';
+    syncedArrived = syncRecordLocallyToTargetSheet('mkt', newRowIndex, 'arrived', arrivedStatus, {
+      revenueAmount: parsedRevAmount,
+      weekday: weekdayText,
+    });
+  }
+
+  saveLocalState(localState);
+
+  const leadSyncPayload = {
+    stt: newRecord.stt,
+    dataDate,
+    name,
+    phone: normalizedPhone || rawPhone,
+    service,
+    source,
+    fbLink,
+    customerInfo,
+    status: statusInfo.status,
+    apptTime,
+    apptDate,
+    telesale,
+    noteM,
+    weekday: weekdayText,
+    revenueText: revenueTextForSheet,
+  };
+
+  if (!process.env.NODE_TEST_CONTEXT) {
+    void (async () => {
+      await syncLeadViaSheetsApi(leadSyncPayload, {
+        syncBooked: Boolean(syncedBooked),
+        syncArrived: Boolean(syncedArrived),
+        revenueText: revenueTextForSheet,
+        weekday: weekdayText,
+      });
+      if (localState.appsScriptUrl) {
+        await postToAppsScript({
+          action: 'addLead',
+          ...leadSyncPayload,
+          revenue: revenueTextForSheet,
+          autoSyncSheets: localState.autoSyncSheets,
+        });
+      }
+    })();
+  }
+
+  // Trả về bản ghi đã ẩn thông tin nhạy cảm (fbLink, revenue) khi phản hồi JSON
+  const cleanRecord = { ...newRecord };
+  delete cleanRecord.fbLink;
+  delete cleanRecord.revenue;
+  delete cleanRecord.revenueAmount;
+
+  return {
+    ok: true,
+    record: cleanRecord,
+    syncedBooked: Boolean(syncedBooked),
+    syncedArrived: Boolean(syncedArrived),
+  };
+}
+

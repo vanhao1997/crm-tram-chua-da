@@ -349,7 +349,7 @@ function handleAppendCareNote(payload) {
  */
 function handleAddLead(payload) {
   const sheet = getTargetSheet(payload.sheetKey || 'mkt');
-  const lead = payload.lead || {};
+  const lead = payload.lead || payload || {};
   const lastRow = Math.max(sheet.getLastRow(), 2);
   const dataRange = sheet.getRange(1, 1, lastRow, 7).getValues();
 
@@ -365,6 +365,14 @@ function handleAddLead(payload) {
 
   const targetRow = lastCustomerRow + 1;
   const phoneStr = normalizePhone(lead.phone);
+  const apptDateStr = String(lead.apptDate || '').trim();
+  const statusStr = String(lead.status || (apptDateStr ? 'ĐẶT HẸN' : '')).trim();
+  const revenueStr = String(lead.revenue || lead.revenueText || '').trim();
+  const weekdayStr = String(lead.weekday || '').trim();
+
+  if (lead.stt) {
+    sheet.getRange(targetRow, COL.STT).setValue(lead.stt);
+  }
   sheet.getRange(targetRow, COL.DATA_DATE).setValue(lead.dataDate || '');
   sheet.getRange(targetRow, COL.NAME).setValue(lead.name || '');
   sheet.getRange(targetRow, COL.PHONE).setValue(phoneStr ? "'" + phoneStr : '');
@@ -372,16 +380,51 @@ function handleAddLead(payload) {
   sheet.getRange(targetRow, COL.SOURCE).setValue(lead.source || 'Ads FB Mess');
   sheet.getRange(targetRow, COL.FB_LINK).setValue(lead.fbLink || '');
   sheet.getRange(targetRow, COL.CUSTOMER_INFO).setValue(lead.customerInfo || '');
-  sheet.getRange(targetRow, COL.STATUS).setValue(lead.status || '');
+  sheet.getRange(targetRow, COL.STATUS).setValue(statusStr);
   sheet.getRange(targetRow, COL.APPT_TIME).setValue(lead.apptTime || '');
-  sheet.getRange(targetRow, COL.APPT_DATE).setValue(lead.apptDate || '');
+  sheet.getRange(targetRow, COL.APPT_DATE).setValue(apptDateStr);
   sheet.getRange(targetRow, COL.TELESALE).setValue(lead.telesale || '');
   sheet.getRange(targetRow, COL.NOTE_M).setValue(lead.noteM || '');
+  if (weekdayStr) {
+    sheet.getRange(targetRow, COL.WEEKDAY).setValue(weekdayStr);
+  }
+  if (revenueStr) {
+    sheet.getRange(targetRow, COL.REVENUE).setValue(revenueStr);
+  }
+
+  SpreadsheetApp.flush();
+
+  const rowData = sheet.getRange(targetRow, 1, 1, 23).getValues()[0];
+  const currentStatus = String(rowData[COL.STATUS - 1] || '').trim().toUpperCase();
+  const currentApptDate = formatCellDateToVn(rowData[COL.APPT_DATE - 1]);
+  const syncedSheets = [];
+
+  if (payload.autoSyncSheets !== false) {
+    if (
+      currentStatus.indexOf('ĐẶT HẸN') !== -1 ||
+      currentStatus.indexOf('ĐẶT LỊCH') !== -1 ||
+      currentStatus.indexOf('DỜI LỊCH') !== -1 ||
+      Boolean(currentApptDate)
+    ) {
+      const targetStatus = currentStatus.indexOf('DỜI LỊCH') !== -1 ? 'DỜI LỊCH' : 'ĐẶT HẸN';
+      syncedSheets.push(upsertRowIntoTargetSheet(SHEET_NAMES.booked, rowData, targetStatus));
+    }
+    if (currentStatus === 'ĐÃ ĐẾN' || currentStatus.indexOf('ĐẾN VÀ VỀ') !== -1) {
+      syncedSheets.push(
+        upsertRowIntoTargetSheet(
+          SHEET_NAMES.arrived,
+          rowData,
+          currentStatus.indexOf('ĐẾN VÀ VỀ') !== -1 ? 'ĐẾN VÀ VỀ' : 'ĐÃ ĐẾN'
+        )
+      );
+    }
+  }
 
   return {
     ok: true,
     sheetName: sheet.getName(),
     rowIndex: targetRow,
+    syncedSheets: syncedSheets,
   };
 }
 
@@ -420,6 +463,12 @@ function upsertRowIntoTargetSheet(targetSheetName, rowData, overrideStatus) {
       if (normalizePhone(existing[i][3]) === phone) {
         const existingRowIdx = i + 1;
         targetSheet.getRange(existingRowIdx, 2, 1, 12).setValues([copyRow.slice(1, 13)]);
+        if (copyRow[COL.WEEKDAY - 1]) {
+          targetSheet.getRange(existingRowIdx, COL.WEEKDAY).setValue(copyRow[COL.WEEKDAY - 1]);
+        }
+        if (copyRow[COL.REVENUE - 1]) {
+          targetSheet.getRange(existingRowIdx, COL.REVENUE).setValue(copyRow[COL.REVENUE - 1]);
+        }
         return { sheetName: targetSheetName, rowIndex: existingRowIdx, mode: 'updated' };
       }
     }
@@ -437,6 +486,12 @@ function upsertRowIntoTargetSheet(targetSheetName, rowData, overrideStatus) {
 
   const newRowIdx = lastOccupiedRow + 1;
   targetSheet.getRange(newRowIdx, 1, 1, 13).setValues([copyRow.slice(0, 13)]);
+  if (copyRow[COL.WEEKDAY - 1]) {
+    targetSheet.getRange(newRowIdx, COL.WEEKDAY).setValue(copyRow[COL.WEEKDAY - 1]);
+  }
+  if (copyRow[COL.REVENUE - 1]) {
+    targetSheet.getRange(newRowIdx, COL.REVENUE).setValue(copyRow[COL.REVENUE - 1]);
+  }
   return { sheetName: targetSheetName, rowIndex: newRowIdx, mode: 'inserted' };
 }
 

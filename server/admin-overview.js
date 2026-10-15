@@ -15,6 +15,7 @@ import {
   classifyStatus,
 } from './sheets-parser.js';
 import { getActiveTelesaleNames } from './auth.js';
+import { getLocalStateSnapshot } from './google-sheets.js';
 
 /**
  * ID Google Sheet Tài chính & Marketing từ repo https://github.com/vanhao1997/crm-tram-chua-da
@@ -760,11 +761,78 @@ export async function getAdminOverviewData(query = {}) {
   }
 
   const { mktRes, bookedRes, arrivedRes, mktSheetRes } = overviewSourcesCache;
+  const localSnap = getLocalStateSnapshot();
+
+  function mergeSheetWithLocalState(baseItems, sheetKey) {
+    const rowOverrides = localSnap.rowOverrides || {};
+    const addedList = localSnap.addedRecords?.[sheetKey] || [];
+    const revByPhone = localSnap.revenueByPhone || {};
+
+    const applyOv = (item) => {
+      const ov = rowOverrides[`${sheetKey}:${item.sheetRowIndex}`];
+      const next = { ...item };
+      if (ov) {
+        if (ov.status !== undefined) {
+          const st = classifyStatus(ov.status);
+          next.status = st.status;
+          next.canonicalStatus = st.canonicalStatus;
+          next.statusLabel = st.statusLabel;
+          next.statusGroup = st.statusGroup;
+          next.badgeColor = st.badgeColor;
+        }
+        if (ov.telesale !== undefined) next.telesale = String(ov.telesale || '').trim().toUpperCase();
+        if (ov.apptDate !== undefined) {
+          next.apptDate = ov.apptDate;
+          next.apptDateIso = parseVnDateToIso(ov.apptDate);
+        }
+        if (ov.apptTime !== undefined) next.apptTime = ov.apptTime;
+        if (ov.noteM !== undefined) next.noteM = ov.noteM;
+        if (ov.customerInfo !== undefined) next.customerInfo = ov.customerInfo;
+        if (ov.revenueAmount !== undefined && ov.revenueAmount !== null) {
+          next.revenue = ov.revenueAmount;
+        }
+      }
+      if (
+        (next.revenue === null || next.revenue === undefined) &&
+        next.phone &&
+        revByPhone[next.phone] !== undefined
+      ) {
+        next.revenue = revByPhone[next.phone];
+      }
+      return next;
+    };
+
+    const withOv = baseItems.map(applyOv);
+    const existingPhones = new Set(withOv.map((r) => r.phone).filter(Boolean));
+    const uniqueAdded = addedList
+      .filter((r) => !r.phone || !existingPhones.has(r.phone))
+      .map((rec) => {
+        const rev =
+          rec.revenueAmount !== undefined && rec.revenueAmount !== null
+            ? rec.revenueAmount
+            : rec.phone && revByPhone[rec.phone] !== undefined
+            ? revByPhone[rec.phone]
+            : null;
+        return applyOv({
+          ...rec,
+          serviceGroup: classifyServiceGroup(rec.service),
+          revenue: rev,
+        });
+      });
+
+    return [...withOv, ...uniqueAdded];
+  }
 
   const crmData = {
-    mkt: parseAdminCrmRows(mktRes.csvText, 'mkt', knownTelesales),
-    booked: parseAdminCrmRows(bookedRes.csvText, 'booked', knownTelesales),
-    arrived: parseAdminCrmRows(arrivedRes.csvText, 'arrived', knownTelesales),
+    mkt: mergeSheetWithLocalState(parseAdminCrmRows(mktRes.csvText, 'mkt', knownTelesales), 'mkt'),
+    booked: mergeSheetWithLocalState(
+      parseAdminCrmRows(bookedRes.csvText, 'booked', knownTelesales),
+      'booked'
+    ),
+    arrived: mergeSheetWithLocalState(
+      parseAdminCrmRows(arrivedRes.csvText, 'arrived', knownTelesales),
+      'arrived'
+    ),
   };
 
   const parsedMkt = mktSheetRes.parsed;

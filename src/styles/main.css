@@ -3507,3 +3507,145 @@ textarea.is-readonly-note {
   }
 }
 
+/* ==========================================================================
+   ADMIN ADD LEAD MODAL (TƯ VẤN MESSENGER) & ARRIVED REVENUE MODAL (CỘT W)
+   ========================================================================== */
+.is-hidden {
+  display: none !important;
+}
+
+.btn-add-lead-top,
+.btn-add-lead-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toolbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.add-lead-modal-card {
+  max-width: 780px;
+  width: 95vw;
+}
+
+.arrived-revenue-modal-card {
+  max-width: 580px;
+  width: 94vw;
+}
+
+.mess-paste-helper-box {
+  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
+  border: 1.5px dashed #7dd3fc;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mess-paste-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #0369a1;
+}
+
+.btn-parse-mess {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  font-weight: 700;
+}
+
+.btn-parse-mess:hover {
+  background: #0369a1;
+  color: #ffffff;
+}
+
+.field-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.custom-other-input {
+  margin-top: 6px;
+  border-color: #0f766e !important;
+  background: #f0fdfa !important;
+}
+
+.admin-revenue-box {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%);
+  border: 1.5px solid #34d399;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.admin-revenue-box label {
+  color: #065f46 !important;
+  font-weight: 700 !important;
+}
+
+.admin-revenue-box input {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 16px !important;
+  color: #065f46;
+  background: #ffffff;
+  border: 1.5px solid #10b981;
+}
+
+.arrived-customer-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  color: #1e293b;
+}
+
+.arrived-sheet-notice {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed #cbd5e1;
+  color: #0f766e;
+  font-size: 12.5px;
+}
+
+.add-lead-sync-hint {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #475569;
+}
+
+.add-lead-sync-hint ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+@media (max-width: 768px) {
+  .field-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+

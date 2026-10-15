@@ -31,7 +31,7 @@ loadDotEnv();
 
 export const PORT = Number(process.env.PORT || 3001);
 export const HOST = process.env.HOST || '0.0.0.0';
-export const APP_VERSION = process.env.APP_VERSION || '2026.10.15';
+export const APP_VERSION = process.env.APP_VERSION || '2026.10.15-r12';
 export const SPREADSHEET_ID =
   process.env.SPREADSHEET_ID || '1HEOYV5QzcOAHSMr6x5zeuem1Vi3V9QdeTvF6lKhGLgk';
 export const DEFAULT_TELEGRAM_BOT_TOKEN =
@@ -84,14 +84,27 @@ export const STATUS_OPTIONS = [
   { value: 'Không Nghe Máy', label: 'Không Nghe Máy', group: 'unreachable', color: 'orange' },
   { value: 'Thuê Bao', label: 'Thuê Bao', group: 'unreachable', color: 'orange' },
   { value: 'DỜI LỊCH', label: 'Dời Lịch', group: 'booked', color: 'purple' },
-  { value: 'ĐÃ ĐẾN', label: 'Đã Đến', group: 'arrived', color: 'teal' },
-  { value: 'ĐẾN VÀ VỀ', label: 'Đến Và Về', group: 'arrived', color: 'indigo' },
+  { value: 'ĐÃ ĐẾN', label: 'Đã Đến', group: 'arrived', color: 'teal', adminOnly: true },
+  { value: 'ĐẾN VÀ VỀ', label: 'Đến Và Về', group: 'arrived', color: 'indigo', adminOnly: true },
   { value: 'CHƯA ĐẾN', label: 'Chưa Đến', group: 'followup', color: 'indigo' },
   { value: 'HỦY LỊCH', label: 'Hủy Lịch', group: 'lost', color: 'rose' },
   { value: 'Không Hoàn Thành', label: 'Không Hoàn Thành', group: 'lost', color: 'slate' },
   { value: 'Từ Chối', label: 'Từ Chối', group: 'lost', color: 'rose' },
   { value: 'Ở xa', label: 'Ở Xa', group: 'lost', color: 'slate' },
   { value: 'Sai Số', label: 'Sai Số', group: 'lost', color: 'red' },
+];
+
+export const SERVICE_OPTIONS = [
+  'Nâng cơ 999k',
+  'Mũi sợi 1tr999',
+  'Mũi sợi 2tr999',
+];
+
+export const SOURCE_OPTIONS = [
+  'Ads FB Mess',
+  'Giới thiệu',
+  'Gọi điện trực tiếp',
+  'Google',
 ];
 
 export const QUICK_NOTE_TEMPLATES = [

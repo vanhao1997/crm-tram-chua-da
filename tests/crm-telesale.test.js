@@ -635,3 +635,158 @@ test('Quyền Gửi Telegram chỉ hiển thị cho Admin và ẩn hoàn toàn v
   });
 });
 
+test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sheet 2 (Đặt Hẹn) & Sheet 3 (Đã Đến + Doanh số Cột W)', async () => {
+  const {
+    parseMessengerLeadText,
+    renderAddLeadModal,
+    renderArrivedRevenueModal,
+    renderRow,
+    renderCard,
+  } = await import('../src/main.js');
+  const {
+    STATUS_OPTIONS,
+    SERVICE_OPTIONS,
+    SOURCE_OPTIONS,
+    DEFAULT_TELESALE_LIST,
+  } = await import('../server/config.js');
+  const {
+    addAdminLead,
+    updateCustomerInteraction,
+    getAllSheetsData,
+    getLocalStateSnapshot,
+    parseAdminRevenueInput,
+    formatVnRevenueCell,
+  } = await import('../server/google-sheets.js');
+
+  // 1. Kiểm tra cấu hình Cột E (Loại dịch vụ) & Cột F (Nguồn)
+  assert.deepEqual(SERVICE_OPTIONS, ['Nâng cơ 999k', 'Mũi sợi 1tr999', 'Mũi sợi 2tr999']);
+  assert.deepEqual(SOURCE_OPTIONS, ['Ads FB Mess', 'Giới thiệu', 'Gọi điện trực tiếp', 'Google']);
+
+  // 2. Kiểm tra bóc tách nhanh nội dung tư vấn từ Messenger
+  const parsedMess = parseMessengerLeadText(
+    'Chị Lan Hương 0918273645 tư vấn Mũi sợi 2tr999 https://www.facebook.com/profile.php?id=1000999 mũi chưa từng làm, hẹn mai 10h qua'
+  );
+  assert.equal(parsedMess.phone, '0918273645');
+  assert.equal(parsedMess.service, 'Mũi sợi 2tr999');
+  assert.equal(parsedMess.fbLink, 'https://www.facebook.com/profile.php?id=1000999');
+  assert.equal(parsedMess.customerInfo.includes('mũi chưa từng làm'), true);
+
+  // 3. Kiểm tra giao diện Modal Thêm Data (Cột B -> Cột K + Khác tự điền)
+  const addModalHtml = renderAddLeadModal({
+    serviceOptions: SERVICE_OPTIONS,
+    sourceOptions: SOURCE_OPTIONS,
+    statusOptions: STATUS_OPTIONS,
+    telesaleList: DEFAULT_TELESALE_LIST,
+  });
+  assert.equal(addModalHtml.includes('id="add-lead-datadate"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-name"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-phone"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-service-select"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-service-custom"'), true);
+  assert.equal(addModalHtml.includes('Nâng cơ 999k'), true);
+  assert.equal(addModalHtml.includes('Mũi sợi 1tr999'), true);
+  assert.equal(addModalHtml.includes('Mũi sợi 2tr999'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-source-select"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-source-custom"'), true);
+  assert.equal(addModalHtml.includes('Ads FB Mess'), true);
+  assert.equal(addModalHtml.includes('Giới thiệu'), true);
+  assert.equal(addModalHtml.includes('Gọi điện trực tiếp'), true);
+  assert.equal(addModalHtml.includes('Google'), true);
+  assert.equal(addModalHtml.includes('value="__OTHER__"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-fblink"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-custinfo"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-status"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-apptdate"'), true);
+  assert.equal(addModalHtml.includes('id="add-lead-appttime"'), true);
+
+  // 4. Kiểm tra phân quyền trạng thái ĐÃ ĐẾN: ẩn với Telesale (isAdmin: false), hiện với Admin (isAdmin: true)
+  const dummyRec = {
+    id: 'mkt-row-777',
+    sheetKey: 'mkt',
+    sheetRowIndex: 777,
+    dataDate: '15/10/2026',
+    name: 'Khách Test Quyền',
+    phone: '0901112233',
+    status: 'ĐẶT HẸN',
+    canonicalStatus: 'ĐẶT HẸN',
+    statusGroup: 'booked',
+  };
+  const saleRow = renderRow(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: false });
+  const saleCard = renderCard(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: false });
+  assert.equal(saleRow.includes('value="ĐÃ ĐẾN"'), false);
+  assert.equal(saleCard.includes('value="ĐÃ ĐẾN"'), false);
+
+  const adminRow = renderRow(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
+  const adminCard = renderCard(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
+  assert.equal(adminRow.includes('value="ĐÃ ĐẾN"'), true);
+  assert.equal(adminCard.includes('value="ĐÃ ĐẾN"'), true);
+
+  // 5. Kiểm tra Modal nhập doanh số Cột W khi Admin chuyển sang ĐÃ ĐẾN
+  const arrivedModalHtml = renderArrivedRevenueModal({}, { record: dummyRec, status: 'ĐÃ ĐẾN' });
+  assert.equal(arrivedModalHtml.includes('id="arrived-revenue-input"'), true);
+  assert.equal(arrivedModalHtml.includes('Cột W'), true);
+
+  // 6. Kiểm tra chuẩn hóa tiền doanh số Cột W
+  assert.equal(parseAdminRevenueInput('2.999.000'), 2999000);
+  assert.equal(parseAdminRevenueInput('1tr999'), 1999000);
+  assert.equal(parseAdminRevenueInput('999k'), 999000);
+  assert.equal(formatVnRevenueCell(2999000), '2.999.000 ₫');
+
+  // 7. Kiểm tra addAdminLead + tự động thêm sang Sheet 2) KHÁCH ĐẶT HẸN khi có lịch hẹn cụ thể (Cột K)
+  const addedRes = await addAdminLead({
+    dataDate: '15/10/2026',
+    name: 'Chị Thanh Thảo Messenger',
+    phone: '0933445566',
+    service: 'Mũi sợi 2tr999',
+    source: 'Ads FB Mess',
+    fbLink: 'https://facebook.com/thanhthao.test',
+    customerInfo: 'Tư vấn từ Mess: mũi thấp, muốn làm tự nhiên',
+    status: '',
+    apptDate: '2026-10-18',
+    apptTime: '10:30',
+    telesale: 'THỊNH',
+    noteM: 'Khách chốt lịch qua Mess',
+  });
+  assert.equal(addedRes.ok, true);
+  assert.equal(addedRes.record.name, 'Chị Thanh Thảo Messenger');
+  assert.equal(addedRes.record.phone, '0933445566');
+  assert.equal(addedRes.record.service, 'Mũi sợi 2tr999');
+  assert.equal(addedRes.record.source, 'Ads FB Mess');
+  assert.equal(addedRes.record.customerInfo, 'Tư vấn từ Mess: mũi thấp, muốn làm tự nhiên');
+  // Vì có apptDate (Cột K) nên tự động chuyển thành ĐẶT HẸN và đồng bộ sang Sheet 2 (booked)
+  assert.equal(addedRes.record.canonicalStatus, 'ĐẶT HẸN');
+  assert.equal(addedRes.syncedBooked, true);
+  // Bảo mật: không trả về fbLink hay revenue trong public record
+  assert.equal(addedRes.record.fbLink, undefined);
+  assert.equal(addedRes.record.revenue, undefined);
+
+  // 8. Khi Admin chuyển tình trạng sang ĐÃ ĐẾN kèm doanh số -> đồng bộ sang Sheet 3) KHÁCH ĐÃ ĐẾN & ghi Cột W
+  const arrivedRes = await updateCustomerInteraction({
+    sheetKey: 'mkt',
+    rowIndex: addedRes.record.sheetRowIndex,
+    updates: {
+      status: 'ĐÃ ĐẾN',
+      revenue: '2.999.000',
+    },
+  });
+  assert.equal(arrivedRes.ok, true);
+  assert.equal(arrivedRes.syncedSheet, 'arrived');
+
+  const snapshot = getLocalStateSnapshot();
+  assert.equal(snapshot.revenueByPhone['0933445566'], 2999000);
+  const arrivedList = snapshot.addedRecords?.arrived || [];
+  assert.equal(
+    arrivedList.some((r) => r.phone === '0933445566' && r.revenueAmount === 2999000),
+    true
+  );
+
+  // Đảm bảo getAllSheetsData vẫn không lộ fbLink, revenue hay ký hiệu ₫ cho Telesale
+  const publicData = await getAllSheetsData(false);
+  const publicJson = JSON.stringify(publicData);
+  assert.equal(publicJson.includes('Chị Thanh Thảo Messenger'), true);
+  assert.equal(publicJson.includes('thanhthao.test'), false);
+  assert.equal(publicJson.includes('revenue'), false);
+  assert.equal(publicJson.includes('₫'), false);
+});
+
+

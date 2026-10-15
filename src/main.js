@@ -1,6 +1,7 @@
 import {
   fetchCrmData,
   saveCustomerInteraction,
+  createAdminLead,
   triggerTelegramReminder,
   loginUser,
   logoutUser,
@@ -54,6 +55,8 @@ const state = {
     pageSize: 30,
   },
   editingRecordId: null,
+  addLeadModalOpen: false,
+  arrivedModal: null, // { recordId, status }
   activeCareInputId: null,
   toasts: [],
 };
@@ -276,7 +279,15 @@ function findRecord(id) {
   return null;
 }
 
-function renderStatusSelectOptions(rec, statusOptions = []) {
+export function isArrivedStatusValue(val) {
+  const upper = String(val || '')
+    .normalize('NFC')
+    .trim()
+    .toUpperCase();
+  return upper === 'ĐÃ ĐẾN' || upper.includes('ĐẾN VÀ VỀ');
+}
+
+function renderStatusSelectOptions(rec, statusOptions = [], isAdmin = false) {
   const options = Array.isArray(statusOptions) ? statusOptions : [];
   const curCanon = String(rec?.canonicalStatus || '')
     .normalize('NFC')
@@ -297,6 +308,19 @@ function renderStatusSelectOptions(rec, statusOptions = []) {
       const selected =
         (opt.value === '' && rec?.statusGroup === 'new') ||
         (opt.value !== '' && (optUpper === curCanon || optUpper === curRaw));
+      const isAdminOnlyOpt =
+        Boolean(opt.adminOnly) || opt.group === 'arrived' || isArrivedStatusValue(opt.value);
+
+      if (!isAdmin && isAdminOnlyOpt) {
+        if (selected) {
+          hasMatch = true;
+          return `<option value="${escapeHtml(opt.value)}" selected disabled>${escapeHtml(
+            opt.label
+          )} (Chỉ Admin)</option>`;
+        }
+        return '';
+      }
+
       if (selected) hasMatch = true;
       return `<option value="${escapeHtml(opt.value)}" ${selected ? 'selected' : ''}>${escapeHtml(
         opt.label
@@ -1575,6 +1599,20 @@ function render() {
         </div>
 
         <div class="topbar-right">
+          ${
+            isAdmin
+              ? `
+            <button
+              type="button"
+              class="btn-clean btn-primary-clean btn-add-lead-top"
+              data-open-add-lead="1"
+              title="Thêm Data khách hàng từ nội dung tư vấn trên Messenger (Chỉ Admin)"
+            >
+              ➕ Thêm Data (Messenger)
+            </button>
+          `
+              : ''
+          }
           <div class="user-session-pill" title="Tài khoản đang đăng nhập">
             <span class="user-role-dot ${isAdmin ? 'is-admin' : 'is-telesale'}"></span>
             <span class="user-session-name">${escapeHtml(
@@ -1854,6 +1892,20 @@ function render() {
           </div>
 
           <div class="toolbar-meta">
+            ${
+              isAdmin
+                ? `
+              <button
+                type="button"
+                class="btn-clean btn-primary-clean btn-add-lead-toolbar"
+                id="btn-open-add-lead"
+                data-open-add-lead="1"
+              >
+                ➕ Thêm Data (Messenger)
+              </button>
+            `
+                : ''
+            }
             <span><strong>${filtered.length}</strong> khách hàng</span>
           </div>
         </div>
@@ -1944,6 +1996,8 @@ function render() {
     </main>
 
     ${state.editingRecordId ? renderEditModal(data) : ''}
+    ${isAdmin && state.addLeadModalOpen ? renderAddLeadModal(data) : ''}
+    ${isAdmin && state.arrivedModal ? renderArrivedRevenueModal(data, state.arrivedModal) : ''}
   `;
 
   bindEvents();
@@ -2525,7 +2579,7 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
           class="pill-select pill-${tone}"
           data-status-select="${escapeHtml(rec.id)}"
         >
-          ${renderStatusSelectOptions(rec, statusOptions)}
+          ${renderStatusSelectOptions(rec, statusOptions, isAdmin)}
         </select>
       </td>
 
@@ -2637,7 +2691,7 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
             class="pill-select card-select pill-${tone}"
             data-status-select="${escapeHtml(rec.id)}"
           >
-            ${renderStatusSelectOptions(rec, statusOptions)}
+            ${renderStatusSelectOptions(rec, statusOptions, isAdmin)}
           </select>
         </div>
 
@@ -2711,6 +2765,373 @@ export function renderCockpitDetail(rec) {
   `;
 }
 
+export function parseMessengerLeadText(rawText = '') {
+  const text = String(rawText || '').trim();
+  if (!text) {
+    return { name: '', phone: '', service: '', fbLink: '', customerInfo: '' };
+  }
+
+  let fbLink = '';
+  const fbMatch = text.match(
+    /https?:\/\/(?:www\.|m\.|mbasic\.|web\.)?(?:facebook\.com|fb\.com)\/\S+/i
+  );
+  if (fbMatch) {
+    fbLink = fbMatch[0].replace(/[),.]+$/, '');
+  }
+
+  let phone = '';
+  const textWithoutUrls = text.replace(/https?:\/\/\S+/gi, ' ');
+  const phoneMatch = textWithoutUrls.match(/(?:\+?84|0)\d(?:[\s.\-]?\d){8,9}\b/);
+  if (phoneMatch) {
+    let digits = phoneMatch[0].replace(/\D/g, '');
+    if (digits.startsWith('84') && digits.length === 11) {
+      digits = `0${digits.slice(2)}`;
+    }
+    phone = digits;
+  }
+
+  let service = '';
+  const lower = text.toLocaleLowerCase('vi-VN');
+  if (lower.includes('999') || lower.includes('nâng cơ')) {
+    service = 'Nâng cơ 999k';
+  } else if (lower.includes('1tr999') || lower.includes('1.999') || lower.includes('1999')) {
+    service = 'Mũi sợi 1tr999';
+  } else if (lower.includes('2tr999') || lower.includes('2.999') || lower.includes('2999')) {
+    service = 'Mũi sợi 2tr999';
+  }
+
+  let name = '';
+  const nameLineMatch = textWithoutUrls.match(
+    /(?:tên(?:\s*kh(?:ách)?)?|khách(?:\s*hàng)?|họ\s*tên)\s*[:\-]\s*([^\n,;0-9]{2,40})/i
+  );
+  if (nameLineMatch) {
+    name = nameLineMatch[1].trim();
+  } else {
+    const honorificMatch = textWithoutUrls.match(
+      /\b((?:chị|anh|cô|chú|bác|em|khách)\s+[A-ZÀ-Ỹa-zà-ỹ]+(?:\s+[A-ZÀ-Ỹa-zà-ỹ]+){0,3})/
+    );
+    if (honorificMatch) {
+      name = honorificMatch[1].trim();
+    }
+  }
+
+  const cleanedNotes = text
+    .replace(fbLink, '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .join(' · ');
+
+  return {
+    name,
+    phone,
+    service,
+    fbLink,
+    customerInfo: cleanedNotes || text,
+  };
+}
+
+const REVENUE_PRESET_AMOUNTS = [
+  { value: '999.000', label: '999k (Nâng cơ)' },
+  { value: '1.999.000', label: '1tr999 (Mũi sợi)' },
+  { value: '2.999.000', label: '2tr999 (Mũi sợi)' },
+  { value: '5.000.000', label: '5.000.000' },
+  { value: '10.000.000', label: '10.000.000' },
+  { value: '15.000.000', label: '15.000.000' },
+];
+
+export function renderAddLeadModal(data = {}) {
+  const todayIso = getLocalIsoDate(0);
+  const serviceOptions =
+    Array.isArray(data.serviceOptions) && data.serviceOptions.length > 0
+      ? data.serviceOptions
+      : ['Nâng cơ 999k', 'Mũi sợi 1tr999', 'Mũi sợi 2tr999'];
+  const sourceOptions =
+    Array.isArray(data.sourceOptions) && data.sourceOptions.length > 0
+      ? data.sourceOptions
+      : ['Ads FB Mess', 'Giới thiệu', 'Gọi điện trực tiếp', 'Google'];
+  const statusOptions = Array.isArray(data.statusOptions) ? data.statusOptions : [];
+  const telesaleList = Array.isArray(data.telesaleList) ? data.telesaleList : [];
+
+  return `
+    <div class="modal-overlay" id="add-lead-modal-overlay">
+      <div class="modal-card modal-card-wide add-lead-modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header add-lead-modal-header">
+          <div class="modal-header-main">
+            <span class="modal-header-title">➕ Thêm Data Khách Hàng Mới (Từ Tư Vấn Messenger)</span>
+            <span class="note-admin-badge">Lưu trực tiếp vào Google Sheet</span>
+          </div>
+          <button type="button" class="btn-clean" id="btn-close-add-lead">✕</button>
+        </div>
+
+        <form id="add-lead-form" class="modal-body add-lead-form-body">
+          <div class="mess-paste-helper-box">
+            <div class="mess-paste-header">
+              <strong>💬 Dán nhanh nội dung tư vấn từ Messenger (Tùy chọn)</strong>
+              <button type="button" class="btn-clean btn-sm btn-parse-mess" id="btn-parse-messenger">
+                ✨ Tự động tách SĐT, Dịch vụ, Link FB & Note
+              </button>
+            </div>
+            <textarea
+              id="add-lead-mess-raw"
+              rows="2"
+              placeholder="Dán tin nhắn hoặc tóm tắt tư vấn từ Messenger vào đây (VD: Chị Lan 0912345678 tư vấn Mũi sợi 2tr999 https://facebook.com/... mũi chưa từng làm, hẹn mai 10h qua) rồi bấm nút Tách tự động..."
+            ></textarea>
+          </div>
+
+          <div class="field-row-3">
+            <div class="field-group">
+              <label for="add-lead-datadate">Cột B — Ngày add data *</label>
+              <input
+                type="date"
+                id="add-lead-datadate"
+                value="${escapeHtml(todayIso)}"
+                required
+              />
+            </div>
+
+            <div class="field-group">
+              <label for="add-lead-name">Cột C — Tên khách hàng *</label>
+              <input
+                type="text"
+                id="add-lead-name"
+                placeholder="VD: Chị Nguyễn Thị Lan"
+                required
+              />
+            </div>
+
+            <div class="field-group">
+              <label for="add-lead-phone">Cột D — Số điện thoại *</label>
+              <input
+                type="tel"
+                id="add-lead-phone"
+                placeholder="VD: 0912345678"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="field-row-2">
+            <div class="field-group">
+              <label for="add-lead-service-select">Cột E — Loại dịch vụ *</label>
+              <select id="add-lead-service-select">
+                ${serviceOptions
+                  .map(
+                    (svc) =>
+                      `<option value="${escapeHtml(svc)}">${escapeHtml(svc)}</option>`
+                  )
+                  .join('')}
+                <option value="__OTHER__">Khác (Admin tự điền)...</option>
+              </select>
+              <input
+                type="text"
+                id="add-lead-service-custom"
+                class="custom-other-input is-hidden"
+                placeholder="Nhập loại dịch vụ khác vào Cột E..."
+              />
+            </div>
+
+            <div class="field-group">
+              <label for="add-lead-source-select">Cột F — Nguồn *</label>
+              <select id="add-lead-source-select">
+                ${sourceOptions
+                  .map(
+                    (src, idx) =>
+                      `<option value="${escapeHtml(src)}" ${idx === 0 ? 'selected' : ''}>${escapeHtml(
+                        src
+                      )}</option>`
+                  )
+                  .join('')}
+                <option value="__OTHER__">Khác (Admin tự điền)...</option>
+              </select>
+              <input
+                type="text"
+                id="add-lead-source-custom"
+                class="custom-other-input is-hidden"
+                placeholder="Nhập nguồn khách khác vào Cột F..."
+              />
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="add-lead-fblink">Cột G — Link Facebook</label>
+            <input
+              type="text"
+              id="add-lead-fblink"
+              placeholder="VD: https://www.facebook.com/profile.php?id=... (Chỉ lưu trên Google Sheet, ẩn với Telesale)"
+            />
+          </div>
+
+          <div class="field-group">
+            <label for="add-lead-custinfo">Cột H — Note từ tư vấn (Nội dung tư vấn Messenger)</label>
+            <textarea
+              id="add-lead-custinfo"
+              rows="2"
+              placeholder="VD: Chị Lan 1985, mũi chưa từng làm, muốn nâng cao tự nhiên, đã gửi feedback qua Mess..."
+            ></textarea>
+          </div>
+
+          <div class="field-row-3">
+            <div class="field-group">
+              <label for="add-lead-status">Cột I — Tình trạng</label>
+              <select id="add-lead-status">
+                ${statusOptions
+                  .map(
+                    (opt) =>
+                      `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`
+                  )
+                  .join('')}
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="add-lead-apptdate">Cột K — Ngày hẹn</label>
+              <input
+                type="date"
+                id="add-lead-apptdate"
+              />
+            </div>
+
+            <div class="field-group">
+              <label for="add-lead-appttime">Cột J — Giờ hẹn</label>
+              <input
+                type="text"
+                id="add-lead-appttime"
+                placeholder="VD: 09:30, 14h"
+              />
+            </div>
+          </div>
+
+          <div class="field-row-2">
+            <div class="field-group">
+              <label for="add-lead-telesale">Cột L — Phân bổ Telesale phụ trách</label>
+              <select id="add-lead-telesale">
+                ${renderTelesaleSelectOptions('', telesaleList)}
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="add-lead-notem">Cột M — Ghi chú Telesale (Tùy chọn)</label>
+              <input
+                type="text"
+                id="add-lead-notem"
+                placeholder="Ghi chú thêm cho Telesale..."
+              />
+            </div>
+          </div>
+
+          <div class="field-group admin-revenue-box is-hidden" id="add-lead-revenue-wrap">
+            <label for="add-lead-revenue">💰 Cột W — Doanh số thực thu (VNĐ · Tự động chuyển sang Sheet 3 KHÁCH ĐÃ ĐẾN)</label>
+            <div class="quick-care-chips">
+              ${REVENUE_PRESET_AMOUNTS.map(
+                (p) =>
+                  `<button type="button" class="quick-care-chip" data-add-lead-rev-chip="${escapeHtml(
+                    p.value
+                  )}">+ ${escapeHtml(p.label)}</button>`
+              ).join('')}
+            </div>
+            <input
+              type="text"
+              id="add-lead-revenue"
+              placeholder="Nhập số tiền doanh số ghi vào Cột W (VD: 2.999.000)..."
+            />
+          </div>
+
+          <div class="add-lead-sync-hint">
+            <span>📌 <strong>Quy tắc tự động đồng bộ Google Sheet:</strong></span>
+            <ul>
+              <li>Lưu đầy đủ Cột B → Cột K vào Sheet <strong>1) DATA NGUỒN MKT</strong>.</li>
+              <li>Nếu chọn Tình trạng <strong>Đặt Hẹn</strong> hoặc có nhập <strong>Ngày hẹn cụ thể (Cột K)</strong> → Tự động thêm sang Sheet <strong>2) KHÁCH ĐẶT HẸN</strong>.</li>
+              <li>Nếu chọn <strong>Đã Đến</strong> → Tự động chuyển sang Sheet <strong>3) KHÁCH ĐÃ ĐẾN</strong> kèm Doanh số ở <strong>Cột W</strong>.</li>
+            </ul>
+          </div>
+
+          <div class="modal-footer">
+            <div></div>
+            <div class="modal-footer-right">
+              <button type="button" class="btn-clean" id="btn-cancel-add-lead">Hủy</button>
+              <button type="submit" class="btn-clean btn-primary-clean" id="btn-submit-add-lead">
+                💾 Lưu Data vào Google Sheet
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+export function renderArrivedRevenueModal(data = {}, modalInfo = {}) {
+  const rec = modalInfo?.record || findRecord(modalInfo?.recordId);
+  if (!rec) return '';
+  const targetStatus = modalInfo?.status || 'ĐÃ ĐẾN';
+  const displayPhone = rec.phoneDisplay || rec.phone || rec.rawPhone || '—';
+
+  return `
+    <div class="modal-overlay" id="arrived-modal-overlay">
+      <div class="modal-card arrived-revenue-modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header arrived-modal-header">
+          <div class="modal-header-main">
+            <span class="modal-header-title">✅ Xác Nhận Khách Đã Đến & Ghi Doanh Số (Cột W)</span>
+            <span class="note-admin-badge">Chỉ dành cho Admin</span>
+          </div>
+          <button type="button" class="btn-clean" id="btn-close-arrived-modal">✕</button>
+        </div>
+
+        <form id="arrived-revenue-form" class="modal-body">
+          <div class="arrived-customer-summary">
+            <div>
+              <strong>👤 Khách hàng:</strong> ${escapeHtml(rec.name || 'Khách hàng')} · <code>${escapeHtml(
+                displayPhone
+              )}</code>
+            </div>
+            <div>
+              <strong>💆 Dịch vụ:</strong> ${escapeHtml(rec.service || '—')} · <strong>👩‍💼 Telesale:</strong> ${escapeHtml(
+                rec.telesale || 'Chưa phân bổ'
+              )}
+            </div>
+            <div class="arrived-sheet-notice">
+              ➡️ Khi xác nhận <strong>${escapeHtml(
+                targetStatus
+              )}</strong>, hệ thống sẽ tự động chuyển khách sang Sheet <strong>3) KHÁCH ĐÃ ĐẾN</strong> và ghi Doanh số vào <strong>Cột W</strong> trên Google Sheet.
+            </div>
+          </div>
+
+          <div class="field-group admin-revenue-box">
+            <label for="arrived-revenue-input">💰 Doanh số thực thu ghi vào Cột W (VNĐ) *</label>
+            <div class="quick-care-chips">
+              ${REVENUE_PRESET_AMOUNTS.map(
+                (p) =>
+                  `<button type="button" class="quick-care-chip" data-arrived-rev-chip="${escapeHtml(
+                    p.value
+                  )}">+ ${escapeHtml(p.label)}</button>`
+              ).join('')}
+              <button type="button" class="quick-care-chip" data-arrived-rev-chip="0">0 VNĐ (Tư vấn / Chưa thu)</button>
+            </div>
+            <input
+              type="text"
+              id="arrived-revenue-input"
+              placeholder="Nhập doanh số thực thu (VD: 2.999.000 hoặc 13000000)..."
+              value="${escapeHtml(modalInfo?.defaultRevenue || '')}"
+              required
+            />
+          </div>
+
+          <div class="modal-footer">
+            <div></div>
+            <div class="modal-footer-right">
+              <button type="button" class="btn-clean" id="btn-cancel-arrived-modal">Hủy</button>
+              <button type="submit" class="btn-clean btn-primary-clean" id="btn-confirm-arrived-revenue">
+                ✅ Chuyển sang KHÁCH ĐÃ ĐẾN & Lưu Doanh Số
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
 function renderEditModal(data) {
   const rec = findRecord(state.editingRecordId);
   if (!rec) return '';
@@ -2722,6 +3143,8 @@ function renderEditModal(data) {
   const isTelesale = !isAdmin && state.currentUser?.role === 'telesale';
   const hasFirstNote = Boolean(String(rec.noteM || '').trim());
   const isFirstNoteReadonly = isTelesale && hasFirstNote;
+  const isCurrentlyArrived =
+    rec.statusGroup === 'arrived' || isArrivedStatusValue(rec.status || rec.canonicalStatus);
 
   return `
     <div class="modal-overlay" id="modal-overlay">
@@ -2747,21 +3170,46 @@ function renderEditModal(data) {
         <div class="modal-body">
           <div class="field-row-2">
             <div class="field-group">
-              <label>Tình trạng</label>
+              <label>Tình trạng (Cột I)</label>
               <select id="modal-status">
-                ${renderStatusSelectOptions(rec, data.statusOptions || [])}
+                ${renderStatusSelectOptions(rec, data.statusOptions || [], isAdmin)}
               </select>
             </div>
             <div class="field-group">
-              <label>Telesale phụ trách</label>
+              <label>Telesale phụ trách (Cột L)</label>
               <select id="modal-telesale">
                 ${renderTelesaleSelectOptions(rec.telesale, data.telesaleList || [])}
               </select>
             </div>
           </div>
 
+          ${
+            isAdmin
+              ? `
+            <div class="field-group admin-revenue-box ${
+              isCurrentlyArrived ? '' : 'is-hidden'
+            }" id="modal-revenue-wrap">
+              <label for="modal-revenue">💰 Doanh số thực thu — Cột W (Chỉ Admin · Tự động sang Sheet 3 KHÁCH ĐÃ ĐẾN)</label>
+              <div class="quick-care-chips">
+                ${REVENUE_PRESET_AMOUNTS.map(
+                  (p) =>
+                    `<button type="button" class="quick-care-chip" data-modal-rev-chip="${escapeHtml(
+                      p.value
+                    )}">+ ${escapeHtml(p.label)}</button>`
+                ).join('')}
+              </div>
+              <input
+                type="text"
+                id="modal-revenue"
+                placeholder="Nhập doanh số thực thu ghi vào Cột W (VD: 2.999.000 hoặc 13000000)..."
+              />
+            </div>
+          `
+              : ''
+          }
+
           <div class="field-group">
-            <label>Thông tin khách hàng (Tên gọi, Năm sinh, Khu vực)</label>
+            <label>Thông tin khách hàng / Note từ tư vấn (Cột H)</label>
             <input
               type="text"
               id="modal-custinfo"
@@ -2772,7 +3220,7 @@ function renderEditModal(data) {
 
           <div class="field-row-2">
             <div class="field-group">
-              <label>Ngày hẹn</label>
+              <label>Ngày hẹn (Cột K)</label>
               <input
                 type="date"
                 id="modal-apptdate"
@@ -2780,7 +3228,7 @@ function renderEditModal(data) {
               />
             </div>
             <div class="field-group">
-              <label>Giờ hẹn</label>
+              <label>Giờ hẹn (Cột J)</label>
               <input
                 type="text"
                 id="modal-appttime"
@@ -3592,10 +4040,50 @@ function bindEvents() {
     });
   });
 
+  const inferDefaultRevenueByService = (serviceText = '') => {
+    const lower = String(serviceText || '').toLocaleLowerCase('vi-VN');
+    if (lower.includes('999')) return '999.000';
+    if (lower.includes('1tr999') || lower.includes('1.999') || lower.includes('1999')) {
+      return '1.999.000';
+    }
+    if (lower.includes('2tr999') || lower.includes('2.999') || lower.includes('2999')) {
+      return '2.999.000';
+    }
+    return '';
+  };
+
   document.querySelectorAll('[data-status-select]').forEach((sel) => {
     sel.addEventListener('change', (e) => {
       const id = sel.getAttribute('data-status-select');
-      quickSave(id, { status: e.target.value }, 'Đã lưu tình trạng');
+      const nextStatus = e.target.value;
+      const rec = findRecord(id);
+
+      if (isArrivedStatusValue(nextStatus)) {
+        if (state.currentUser?.role !== 'admin') {
+          notify('Chỉ tài khoản Admin mới có quyền chuyển trạng thái khách sang ĐÃ ĐẾN');
+          render();
+          return;
+        }
+        state.arrivedModal = {
+          recordId: id,
+          status: nextStatus,
+          defaultRevenue: inferDefaultRevenueByService(rec?.service),
+        };
+        render();
+        const revInput = document.getElementById('arrived-revenue-input');
+        if (revInput) {
+          revInput.focus();
+          revInput.select();
+        }
+        return;
+      }
+
+      const upperNext = String(nextStatus || '').trim().toUpperCase();
+      const saveMsg =
+        upperNext === 'ĐẶT HẸN' || upperNext === 'DỜI LỊCH'
+          ? 'Đã chuyển Đặt hẹn & đồng bộ sang Sheet 2) KHÁCH ĐẶT HẸN'
+          : 'Đã lưu tình trạng';
+      quickSave(id, { status: nextStatus }, saveMsg);
     });
   });
 
@@ -3613,7 +4101,10 @@ function bindEvents() {
     picker.addEventListener('change', (e) => {
       const id = picker.getAttribute('data-date-picker');
       const vnDate = isoToVnDate(e.target.value);
-      quickSave(id, { apptDate: vnDate }, 'Đã lưu ngày hẹn');
+      const saveMsg = vnDate
+        ? 'Đã lưu ngày hẹn & đồng bộ sang Sheet 2) KHÁCH ĐẶT HẸN'
+        : 'Đã cập nhật ngày hẹn';
+      quickSave(id, { apptDate: vnDate }, saveMsg);
     });
   });
 
@@ -3898,6 +4389,34 @@ function bindEvents() {
   document.getElementById('btn-close-modal')?.addEventListener('click', closeModal);
   document.getElementById('btn-cancel-modal')?.addEventListener('click', closeModal);
 
+  document.getElementById('modal-status')?.addEventListener('change', (e) => {
+    if (state.currentUser?.role !== 'admin') return;
+    const revWrap = document.getElementById('modal-revenue-wrap');
+    const revInput = document.getElementById('modal-revenue');
+    if (!revWrap) return;
+    if (isArrivedStatusValue(e.target.value)) {
+      revWrap.classList.remove('is-hidden');
+      const rec = findRecord(state.editingRecordId);
+      if (revInput && !revInput.value.trim()) {
+        revInput.value = inferDefaultRevenueByService(rec?.service);
+      }
+      revInput?.focus();
+    } else {
+      revWrap.classList.add('is-hidden');
+    }
+  });
+
+  document.querySelectorAll('[data-modal-rev-chip]').forEach((chipBtn) => {
+    chipBtn.addEventListener('click', () => {
+      const val = chipBtn.getAttribute('data-modal-rev-chip') || '';
+      const revInput = document.getElementById('modal-revenue');
+      if (revInput) {
+        revInput.value = val;
+        revInput.focus();
+      }
+    });
+  });
+
   document.getElementById('btn-modal-clear-notem')?.addEventListener('click', () => {
     const noteEl = document.getElementById('modal-notem');
     if (noteEl) {
@@ -3946,6 +4465,13 @@ function bindEvents() {
     const updatesPayload = { status, telesale, customerInfo, apptTime, apptDate, noteM };
 
     if (state.currentUser?.role === 'admin') {
+      const modalRevenueVal = document.getElementById('modal-revenue')?.value?.trim() || '';
+      if (modalRevenueVal !== '' || isArrivedStatusValue(status)) {
+        if (modalRevenueVal !== '') {
+          updatesPayload.revenue = modalRevenueVal;
+        }
+      }
+
       const modalCareListEl = document.getElementById('modal-care-list');
       if (modalCareListEl) {
         const origCare = Array.isArray(rec?.careHistory) ? rec.careHistory : [];
@@ -3986,9 +4512,269 @@ function bindEvents() {
     await quickSave(
       id,
       updatesPayload,
-      appendCare ? 'Đã lưu thông tin & thêm lần liên hệ mới' : 'Đã lưu thông tin khách hàng',
+      isArrivedStatusValue(status)
+        ? 'Đã chuyển sang Sheet 3) KHÁCH ĐÃ ĐẾN & lưu doanh số Cột W'
+        : appendCare
+        ? 'Đã lưu thông tin & thêm lần liên hệ mới'
+        : 'Đã lưu thông tin khách hàng',
       appendCare
     );
+    if (state.currentUser?.role === 'admin' && isArrivedStatusValue(status)) {
+      resolveAdminOverviewSafe()
+        .then((ov) => {
+          if (ov) state.adminOverview = ov;
+        })
+        .catch(() => {});
+    }
+  });
+
+  // =========================================================================
+  // SỰ KIỆN MODAL XÁC NHẬN ĐÃ ĐẾN & NHẬP DOANH SỐ CỘT W (CHỈ ADMIN)
+  // =========================================================================
+  const closeArrivedModal = () => {
+    state.arrivedModal = null;
+    render();
+  };
+
+  document.getElementById('arrived-modal-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'arrived-modal-overlay') {
+      closeArrivedModal();
+    }
+  });
+  document.getElementById('btn-close-arrived-modal')?.addEventListener('click', closeArrivedModal);
+  document.getElementById('btn-cancel-arrived-modal')?.addEventListener('click', closeArrivedModal);
+
+  document.querySelectorAll('[data-arrived-rev-chip]').forEach((chipBtn) => {
+    chipBtn.addEventListener('click', () => {
+      const val = chipBtn.getAttribute('data-arrived-rev-chip') || '';
+      const revInput = document.getElementById('arrived-revenue-input');
+      if (revInput) {
+        revInput.value = val;
+        revInput.focus();
+      }
+    });
+  });
+
+  document.getElementById('arrived-revenue-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!state.arrivedModal || state.currentUser?.role !== 'admin') return;
+    const { recordId, status } = state.arrivedModal;
+    const revenueVal = document.getElementById('arrived-revenue-input')?.value?.trim() || '0';
+    const confirmBtn = document.getElementById('btn-confirm-arrived-revenue');
+    if (confirmBtn) {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Đang lưu...';
+    }
+    state.arrivedModal = null;
+    await quickSave(
+      recordId,
+      { status: status || 'ĐÃ ĐẾN', revenue: revenueVal },
+      'Đã chuyển sang Sheet 3) KHÁCH ĐÃ ĐẾN & ghi doanh số vào Cột W!'
+    );
+    resolveAdminOverviewSafe()
+      .then((ov) => {
+        if (ov) state.adminOverview = ov;
+      })
+      .catch(() => {});
+  });
+
+  // =========================================================================
+  // SỰ KIỆN MODAL THÊM DATA KHÁCH HÀNG TỪ MESSENGER (CHỈ ADMIN)
+  // =========================================================================
+  document.querySelectorAll('[data-open-add-lead]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (state.currentUser?.role !== 'admin') return;
+      state.addLeadModalOpen = true;
+      render();
+      document.getElementById('add-lead-name')?.focus();
+    });
+  });
+
+  const closeAddLeadModal = () => {
+    state.addLeadModalOpen = false;
+    render();
+  };
+
+  document.getElementById('add-lead-modal-overlay')?.addEventListener('click', (e) => {
+    if (e.target.id === 'add-lead-modal-overlay') {
+      closeAddLeadModal();
+    }
+  });
+  document.getElementById('btn-close-add-lead')?.addEventListener('click', closeAddLeadModal);
+  document.getElementById('btn-cancel-add-lead')?.addEventListener('click', closeAddLeadModal);
+
+  document.getElementById('btn-parse-messenger')?.addEventListener('click', () => {
+    const rawText = document.getElementById('add-lead-mess-raw')?.value || '';
+    if (!rawText.trim()) {
+      notify('Vui lòng dán nội dung tư vấn từ Messenger vào ô trên trước');
+      return;
+    }
+    const parsed = parseMessengerLeadText(rawText);
+    const nameEl = document.getElementById('add-lead-name');
+    const phoneEl = document.getElementById('add-lead-phone');
+    const fbEl = document.getElementById('add-lead-fblink');
+    const custInfoEl = document.getElementById('add-lead-custinfo');
+    const svcSelectEl = document.getElementById('add-lead-service-select');
+
+    if (parsed.name && nameEl && !nameEl.value.trim()) {
+      nameEl.value = parsed.name;
+    }
+    if (parsed.phone && phoneEl) {
+      phoneEl.value = parsed.phone;
+    }
+    if (parsed.fbLink && fbEl) {
+      fbEl.value = parsed.fbLink;
+    }
+    if (parsed.customerInfo && custInfoEl) {
+      custInfoEl.value = parsed.customerInfo;
+    }
+    if (parsed.service && svcSelectEl) {
+      svcSelectEl.value = parsed.service;
+      document.getElementById('add-lead-service-custom')?.classList.add('is-hidden');
+    }
+    notify('Đã tự động tách thông tin từ nội dung tư vấn Messenger!');
+  });
+
+  document.getElementById('add-lead-service-select')?.addEventListener('change', (e) => {
+    const customInput = document.getElementById('add-lead-service-custom');
+    if (!customInput) return;
+    if (e.target.value === '__OTHER__') {
+      customInput.classList.remove('is-hidden');
+      customInput.required = true;
+      customInput.focus();
+    } else {
+      customInput.classList.add('is-hidden');
+      customInput.required = false;
+    }
+  });
+
+  document.getElementById('add-lead-source-select')?.addEventListener('change', (e) => {
+    const customInput = document.getElementById('add-lead-source-custom');
+    if (!customInput) return;
+    if (e.target.value === '__OTHER__') {
+      customInput.classList.remove('is-hidden');
+      customInput.required = true;
+      customInput.focus();
+    } else {
+      customInput.classList.add('is-hidden');
+      customInput.required = false;
+    }
+  });
+
+  document.getElementById('add-lead-status')?.addEventListener('change', (e) => {
+    const revWrap = document.getElementById('add-lead-revenue-wrap');
+    const revInput = document.getElementById('add-lead-revenue');
+    if (!revWrap) return;
+    if (isArrivedStatusValue(e.target.value)) {
+      revWrap.classList.remove('is-hidden');
+      const svcSel = document.getElementById('add-lead-service-select')?.value || '';
+      if (revInput && !revInput.value.trim()) {
+        revInput.value = inferDefaultRevenueByService(svcSel);
+      }
+      revInput?.focus();
+    } else {
+      revWrap.classList.add('is-hidden');
+    }
+  });
+
+  document.querySelectorAll('[data-add-lead-rev-chip]').forEach((chipBtn) => {
+    chipBtn.addEventListener('click', () => {
+      const val = chipBtn.getAttribute('data-add-lead-rev-chip') || '';
+      const revInput = document.getElementById('add-lead-revenue');
+      if (revInput) {
+        revInput.value = val;
+        revInput.focus();
+      }
+    });
+  });
+
+  document.getElementById('add-lead-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (state.currentUser?.role !== 'admin') return;
+
+    const rawDataDateIso = document.getElementById('add-lead-datadate')?.value || '';
+    const dataDate = isoToVnDate(rawDataDateIso);
+    const name = document.getElementById('add-lead-name')?.value?.trim() || '';
+    const phone = document.getElementById('add-lead-phone')?.value?.trim() || '';
+
+    const svcSelectVal = document.getElementById('add-lead-service-select')?.value || '';
+    const svcCustomVal = document.getElementById('add-lead-service-custom')?.value?.trim() || '';
+    const service = svcSelectVal === '__OTHER__' ? svcCustomVal : svcSelectVal;
+
+    if (svcSelectVal === '__OTHER__' && !service) {
+      notify('Vui lòng nhập tên dịch vụ khác vào Cột E');
+      document.getElementById('add-lead-service-custom')?.focus();
+      return;
+    }
+
+    const srcSelectVal = document.getElementById('add-lead-source-select')?.value || '';
+    const srcCustomVal = document.getElementById('add-lead-source-custom')?.value?.trim() || '';
+    const source = srcSelectVal === '__OTHER__' ? srcCustomVal : srcSelectVal;
+
+    if (srcSelectVal === '__OTHER__' && !source) {
+      notify('Vui lòng nhập nguồn khách khác vào Cột F');
+      document.getElementById('add-lead-source-custom')?.focus();
+      return;
+    }
+
+    const fbLink = document.getElementById('add-lead-fblink')?.value?.trim() || '';
+    const customerInfo = document.getElementById('add-lead-custinfo')?.value?.trim() || '';
+    const status = document.getElementById('add-lead-status')?.value || '';
+    const rawApptDateIso = document.getElementById('add-lead-apptdate')?.value || '';
+    const apptDate = isoToVnDate(rawApptDateIso);
+    const apptTime = document.getElementById('add-lead-appttime')?.value?.trim() || '';
+    const telesale = document.getElementById('add-lead-telesale')?.value || '';
+    const noteM = document.getElementById('add-lead-notem')?.value?.trim() || '';
+    const revenue = document.getElementById('add-lead-revenue')?.value?.trim() || '';
+
+    const submitBtn = document.getElementById('btn-submit-add-lead');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ Đang lưu vào Google Sheet...';
+    }
+
+    try {
+      const res = await createAdminLead({
+        dataDate,
+        name,
+        phone,
+        service,
+        source,
+        fbLink,
+        customerInfo,
+        status,
+        apptDate,
+        apptTime,
+        telesale,
+        noteM: noteM ? ensureNoteTimestampPrefix(noteM) : '',
+        revenue: isArrivedStatusValue(status) ? revenue : undefined,
+      });
+
+      state.crmData = res.crmData;
+      state.addLeadModalOpen = false;
+      state.pagination.page = 1;
+
+      if (res.syncedArrived) {
+        notify(`Đã thêm khách "${name}" vào Sheet 1 & Sheet 3) KHÁCH ĐÃ ĐẾN kèm Doanh số Cột W!`);
+      } else if (res.syncedBooked) {
+        notify(`Đã thêm khách "${name}" vào Sheet 1 & đồng bộ sang Sheet 2) KHÁCH ĐẶT HẸN!`);
+      } else {
+        notify(`Đã thêm khách "${name}" vào Sheet 1) DATA NGUỒN MKT!`);
+      }
+      render();
+
+      resolveAdminOverviewSafe()
+        .then((ov) => {
+          if (ov) state.adminOverview = ov;
+        })
+        .catch(() => {});
+    } catch (err) {
+      notify(`Lỗi thêm khách hàng: ${err.message}`);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💾 Lưu Data vào Google Sheet';
+      }
+    }
   });
 }
 
@@ -4013,7 +4799,15 @@ async function init() {
       const isEditing =
         active &&
         (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT');
-      if (isEditing || state.editingRecordId || state.refreshing) return;
+      if (
+        isEditing ||
+        state.editingRecordId ||
+        state.addLeadModalOpen ||
+        state.arrivedModal ||
+        state.refreshing
+      ) {
+        return;
+      }
       try {
         state.crmData = await fetchCrmData(false);
         render();
@@ -4040,9 +4834,17 @@ async function init() {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && state.editingRecordId) {
-      state.editingRecordId = null;
-      render();
+    if (e.key === 'Escape') {
+      if (state.arrivedModal) {
+        state.arrivedModal = null;
+        render();
+      } else if (state.addLeadModalOpen) {
+        state.addLeadModalOpen = false;
+        render();
+      } else if (state.editingRecordId) {
+        state.editingRecordId = null;
+        render();
+      }
     }
   });
   let lastMobileState = isMobileViewport();

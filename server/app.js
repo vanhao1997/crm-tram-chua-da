@@ -7,10 +7,12 @@ import { ROOT_DIR, APP_VERSION } from './config.js';
 import {
   getAllSheetsData,
   updateCustomerInteraction,
+  addAdminLead,
   sendTelegramReminder,
   getTelegramScheduleConfig,
   updateTelegramScheduleConfig,
 } from './google-sheets.js';
+import { classifyStatus } from './sheets-parser.js';
 import {
   authenticateUser,
   extractRequestUser,
@@ -373,6 +375,23 @@ export async function handleRequest(req, res) {
         );
       }
 
+      if (pathname === '/api/admin/leads' && req.method === 'POST') {
+        const body = await readJsonBody(req);
+        const created = await addAdminLead(body);
+        const data = await getAllSheetsData(false);
+        const scopedData = filterCrmDataForUser(data, currentUser);
+        return sendJson(
+          res,
+          201,
+          {
+            ...created,
+            crmData: scopedData,
+          },
+          {},
+          req
+        );
+      }
+
       return sendJson(res, 404, { ok: false, error: 'Không tìm thấy API Admin' });
     }
 
@@ -399,6 +418,29 @@ export async function handleRequest(req, res) {
         return sendJson(res, 200, scopedData, {}, req);
       }
 
+      if (pathname === '/api/crm/leads' && req.method === 'POST') {
+        if (currentUser.role !== 'admin') {
+          return sendJson(res, 403, {
+            ok: false,
+            error: 'Chỉ tài khoản Admin mới có quyền thêm Data khách hàng mới',
+          });
+        }
+        const body = await readJsonBody(req);
+        const created = await addAdminLead(body);
+        const data = await getAllSheetsData(false);
+        const scopedData = filterCrmDataForUser(data, currentUser);
+        return sendJson(
+          res,
+          201,
+          {
+            ...created,
+            crmData: scopedData,
+          },
+          {},
+          req
+        );
+      }
+
       if (pathname === '/api/crm/interaction' && (req.method === 'POST' || req.method === 'PUT')) {
         if (currentUser.role !== 'admin' && currentUser.permissions?.canEdit === false) {
           return sendJson(res, 403, {
@@ -412,6 +454,29 @@ export async function handleRequest(req, res) {
             ok: false,
             error: 'Chỉ tài khoản Admin mới có quyền chỉnh sửa hoặc xóa lịch sử ghi chú đã lưu',
           });
+        }
+        if (currentUser.role !== 'admin') {
+          if (body?.updates?.status !== undefined) {
+            const rawTargetStatus = String(body.updates.status || '').trim();
+            const upperStatus = rawTargetStatus.toUpperCase();
+            const statusInfo = classifyStatus(rawTargetStatus);
+            if (
+              statusInfo.statusGroup === 'arrived' ||
+              upperStatus === 'ĐÃ ĐẾN' ||
+              upperStatus.includes('ĐẾN VÀ VỀ')
+            ) {
+              return sendJson(res, 403, {
+                ok: false,
+                error: 'Chỉ tài khoản Admin mới có quyền chuyển trạng thái khách sang ĐÃ ĐẾN',
+              });
+            }
+          }
+          if (body?.updates?.revenue !== undefined) {
+            return sendJson(res, 403, {
+              ok: false,
+              error: 'Chỉ tài khoản Admin mới có quyền nhập doanh số',
+            });
+          }
         }
         const updateResult = await updateCustomerInteraction(body);
         const data = await getAllSheetsData(false);
