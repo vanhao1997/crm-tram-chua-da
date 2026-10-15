@@ -3220,7 +3220,8 @@ textarea.is-readonly-note {
 /* ================================================================
    ADMIN-ONLY TELEGRAM BUTTONS & 08:00 AM SCHEDULE BADGE
    ================================================================ */
-.admin-tele-row-wrap {
+.admin-tele-row-wrap,
+.admin-date-row-wrap {
   margin-top: 6px;
   display: flex;
   align-items: center;

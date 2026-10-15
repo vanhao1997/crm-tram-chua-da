@@ -2332,11 +2332,6 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
             <span class="note-count-badge is-zero">⚪ Chưa LH (0 lần)</span>
           `
           }
-          ${
-            isAdmin && log.totalContacts > 0
-              ? `<span class="note-admin-badge" title="Admin có thể sửa trực tiếp hoặc xóa bất kỳ ghi chú bị lỗi nào">🛡️ Admin Sửa/Xóa</span>`
-              : ''
-          }
         </div>
       </div>
 
@@ -2368,25 +2363,8 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
               }
             </div>
             ${
-              isAdmin
-                ? `
-              <div class="note-admin-actions">
-                <button
-                  type="button"
-                  class="btn-note-admin-save"
-                  data-admin-save-notem="${escapeHtml(rec.id)}"
-                  title="Lưu chỉnh sửa ghi chú Lần 1"
-                >💾 Lưu</button>
-                <button
-                  type="button"
-                  class="btn-note-admin-delete"
-                  data-admin-delete-notem="${escapeHtml(rec.id)}"
-                  title="Xóa ghi chú Lần 1 bị lỗi"
-                >🗑️ Xóa</button>
-              </div>
-            `
-                : isFirstNoteReadonly
-                ? `<span class="note-locked-badge" title="Ghi chú đã lưu. Bấm '+ Ghi Lần ${nextStepNum}' để thêm mới hoặc nhờ Admin sửa nếu ghi nhầm.">🔒 Đã khóa sửa</span>`
+              isFirstNoteReadonly
+                ? `<span class="note-locked-badge" title="Ghi chú đã lưu. Bấm 'Thêm ghi chú' để thêm mới hoặc nhờ Admin sửa nếu ghi nhầm.">🔒 Đã khóa sửa</span>`
                 : ''
             }
           </div>
@@ -2401,7 +2379,7 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
           data-note-input="${escapeHtml(rec.id)}"
           ${
             isFirstNoteReadonly
-              ? `readonly title="Chỉ Admin mới có quyền sửa ghi chú đã lưu. Vui lòng bấm '+ Ghi Lần ${nextStepNum}' để ghi lần liên hệ mới."`
+              ? `readonly title="Chỉ Admin mới có quyền sửa ghi chú đã lưu. Vui lòng bấm 'Thêm ghi chú' để ghi lần liên hệ mới."`
               : ''
           }
           placeholder="${
@@ -2439,28 +2417,6 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
                       : ''
                   }
                 </div>
-                ${
-                  isAdmin
-                    ? `
-                  <div class="note-admin-actions">
-                    <button
-                      type="button"
-                      class="btn-note-admin-save"
-                      data-care-save="${escapeHtml(rec.id)}"
-                      data-care-index="${entry.careIndex}"
-                      title="Lưu chỉnh sửa ${escapeHtml(entry.label)}"
-                    >💾 Lưu</button>
-                    <button
-                      type="button"
-                      class="btn-note-admin-delete"
-                      data-care-delete="${escapeHtml(rec.id)}"
-                      data-care-index="${entry.careIndex}"
-                      title="Xóa ghi chú ${escapeHtml(entry.label)} bị lỗi"
-                    >🗑️ Xóa</button>
-                  </div>
-                `
-                    : ''
-                }
               </div>
               ${
                 isAdmin
@@ -2494,10 +2450,10 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
           type="button"
           class="btn-add-care-footer"
           data-toggle-care="${escapeHtml(rec.id)}"
-          title="Bấm để mở khung nhập Note cho lần liên hệ thứ ${nextStepNum}"
+          title="Thêm ghi chú"
         >
           <span class="btn-add-care-footer-plus">＋</span>
-          <span>+ Ghi Lần ${nextStepNum} (Thêm ghi chú liên hệ mới)</span>
+          <span>Thêm ghi chú</span>
         </button>
       `
           : ''
@@ -2515,7 +2471,25 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
 
   return `
     <tr class="${isNew ? 'is-new-lead' : ''}">
-      <td class="cell-date">${escapeHtml(rec.dataDate || '—')}</td>
+      <td class="cell-date">
+        <div class="cell-date-val">${escapeHtml(rec.dataDate || '—')}</div>
+        ${
+          isAdmin
+            ? `
+          <div class="admin-date-row-wrap">
+            <button
+              type="button"
+              class="btn-delete-lead-single"
+              data-delete-customer="${escapeHtml(rec.id)}"
+              title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+            >
+              🗑️ Xóa
+            </button>
+          </div>
+        `
+            : ''
+        }
+      </td>
 
       <td class="cell-customer">
         <div class="customer-name" data-edit-record="${escapeHtml(rec.id)}">
@@ -2568,14 +2542,6 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
               title="Gửi thông tin khách này vào nhóm Telegram (Chỉ Admin)"
             >
               📨 Gửi Telegram
-            </button>
-            <button
-              type="button"
-              class="btn-delete-lead-single"
-              data-delete-customer="${escapeHtml(rec.id)}"
-              title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
-            >
-              🗑️ Xóa
             </button>
           </div>
         `
@@ -3228,9 +3194,7 @@ function renderEditModal(data) {
             <div class="modal-field-label-row">
               <label>Ghi chú gốc (Lần 1)</label>
               ${
-                isAdmin && hasFirstNote
-                  ? `<button type="button" class="btn-note-admin-delete" id="btn-modal-clear-notem">🗑️ Xóa Lần 1</button>`
-                  : isFirstNoteReadonly
+                isFirstNoteReadonly
                   ? `<span class="note-locked-badge">🔒 Chỉ Admin mới sửa được ghi chú đã lưu</span>`
                   : ''
               }
@@ -3246,9 +3210,7 @@ function renderEditModal(data) {
             log.careEntries.length > 0
               ? `
             <div class="field-group">
-              <label>Lịch sử các lần liên hệ tiếp theo (${log.careEntries.length} lần Care)${
-                isAdmin ? ' · 🛡️ Admin có thể sửa hoặc xóa từng lần' : ''
-              }</label>
+              <label>Lịch sử các lần liên hệ tiếp theo (${log.careEntries.length} lần Care)</label>
               <div class="care-timeline-list is-modal-timeline" id="modal-care-list">
                 ${log.careEntries
                   .map(
@@ -3275,18 +3237,6 @@ function renderEditModal(data) {
                             : ''
                         }
                       </div>
-                      ${
-                        isAdmin
-                          ? `
-                        <button
-                          type="button"
-                          class="btn-note-admin-delete"
-                          data-modal-care-delete="${entry.careIndex}"
-                          title="Xóa ghi chú này"
-                        >🗑️ Xóa</button>
-                      `
-                          : ''
-                      }
                     </div>
                     ${
                       isAdmin

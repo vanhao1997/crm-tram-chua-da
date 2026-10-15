@@ -499,7 +499,8 @@ test('analyzeContactLogs & Timeline Ghi chú bóc tách chính xác số lần l
   assert.equal(rowHtml.includes('Lần 1'), true);
   assert.equal(rowHtml.includes('Lần 2'), true);
   assert.equal(rowHtml.includes('Lần 3'), true);
-  assert.equal(rowHtml.includes('+ Ghi Lần 4'), true);
+  assert.equal(rowHtml.includes('<span>Thêm ghi chú</span>'), true);
+  assert.equal(rowHtml.includes('+ Ghi Lần'), false);
 
   const cardHtml = renderCard(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST);
   assert.equal(cardHtml.includes('Đã LH <strong>3 lần</strong>'), true);
@@ -525,17 +526,17 @@ test('Admin có toàn quyền chỉnh sửa & xóa mọi ghi chú (Lần 1 và L
   };
 
   // Khi render cho Admin (isAdmin: true):
-  // - Có nút Lưu & Xóa cho Lần 1 (noteM)
-  // - Mỗi dòng Care (Lần 2, Lần 3...) đều có ô input sửa trực tiếp (data-care-edit-input) + nút Lưu & Xóa
+  // - Đã bỏ các nút Lưu & Xóa rườm rà ở từng dòng ghi chú
+  // - Vẫn có ô input sửa trực tiếp (data-care-edit-input) cho Lần 2, Lần 3...
   const adminHtml = renderNoteTimelineBlock(sampleRec, false, { isAdmin: true });
-  assert.equal(adminHtml.includes('🛡️ Admin Sửa/Xóa'), true);
-  assert.equal(adminHtml.includes('data-admin-save-notem="mkt-row-832"'), true);
-  assert.equal(adminHtml.includes('data-admin-delete-notem="mkt-row-832"'), true);
+  assert.equal(adminHtml.includes('🛡️ Admin Sửa/Xóa'), false);
+  assert.equal(adminHtml.includes('data-admin-save-notem="mkt-row-832"'), false);
+  assert.equal(adminHtml.includes('data-admin-delete-notem="mkt-row-832"'), false);
   assert.equal(adminHtml.includes('data-care-edit-input="mkt-row-832"'), true);
-  assert.equal(adminHtml.includes('data-care-save="mkt-row-832"'), true);
-  assert.equal(adminHtml.includes('data-care-delete="mkt-row-832"'), true);
+  assert.equal(adminHtml.includes('data-care-save="mkt-row-832"'), false);
+  assert.equal(adminHtml.includes('data-care-delete="mkt-row-832"'), false);
 
-  // Khi render cho Telesale (isAdmin: false): không hiện nút xóa hay ô sửa lịch sử Care
+  // Khi render cho Telesale (isAdmin: false): không hiện ô sửa lịch sử Care
   const saleHtml = renderNoteTimelineBlock(sampleRec, false, { isAdmin: false });
   assert.equal(saleHtml.includes('data-care-edit-input='), false);
   assert.equal(saleHtml.includes('data-care-delete='), false);
@@ -726,6 +727,7 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   const adminCard = renderCard(dummyRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
   assert.equal(adminRow.includes('value="ĐÃ ĐẾN"'), true);
   assert.equal(adminCard.includes('value="ĐÃ ĐẾN"'), true);
+  assert.equal(adminRow.includes('admin-date-row-wrap'), true);
   assert.equal(adminRow.includes('data-delete-customer="mkt-row-777"'), true);
   assert.equal(adminCard.includes('data-delete-customer="mkt-row-777"'), true);
 
