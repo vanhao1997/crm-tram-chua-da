@@ -1,0 +1,17 @@
+{
+  "name": "crm-bsn-telesale",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CRM chuyên biệt cho đội ngũ Telesale - Trạm Chữa Da BSN (Đồng bộ Google Sheets 3 Tab)",
+  "type": "module",
+  "scripts": {
+    "dev": "node server/index.js",
+    "start": "node server/index.js",
+    "watch": "node --watch server/index.js",
+    "build": "vite build",
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

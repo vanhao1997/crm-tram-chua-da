@@ -1,0 +1,30 @@
+# Original User Request
+
+## Initial Request — 2026-10-14T10:23:06Z
+
+This is a single self-contained fix; keep it small and focused. Optimize the UI/UX and responsive interaction design of the **CRM Telesale — Trạm Chữa Da BSN** web application so the Telesale team can seamlessly filter, call, update lead status (Col I), pick appointment dates/times (Col K, J), assign 5 Telesale staff (Col L), and record consultation notes (Col M) across **PC (Desktop), iPad (Tablet), and iPhone (Mobile)** viewports, while strictly keeping Google Sheet links and revenue data hidden.
+
+Working directory: c:\Users\PC\.gemini\antigravity\scratch\crm-bsn
+Integrity mode: development
+
+## Requirements
+
+### R1. Responsive Multi-Device UI/UX (PC, iPad, iPhone)
+- **Desktop / PC (`>= 1024px`)**: Present a clean, minimalist data table where Telesale staff can view customer details, click-to-call/Zalo/copy phone numbers, and edit Status (Col I), Calendar Appointment Date & Time (Col K, J), 5-person Telesale assignment (Col L), and Consultation Note (Col M) inline.
+- **Tablet / iPad (`768px – 1023px`)**: Adapt header tabs, filter controls, and table layout for comfortable touch interaction in both portrait and landscape orientations without awkward clipping or tiny touch targets.
+- **Mobile / iPhone (`< 768px`)**: Automatically render leads as a clean **Mobile Card View** (no horizontal table scrolling required) where each customer card displays date, name, service, customer info, prominent 1-tap Call (`tel:`) and Zalo (`zalo.me`) buttons, touch-friendly dropdowns for Status (Col I) and 5 Telesale staff (Col L), a native calendar date picker (`<input type="date">`) + time input for Appointment Date/Time (Col K, J), and an auto-saving Note input (Col M). Ensure iOS Safari does not auto-zoom on form focus (`font-size >= 16px` on mobile inputs/selects) and respects safe-area insets.
+
+### R2. Core Telesale Workflow & Data Privacy
+- Preserve all 3 sheet tabs (`1) Data Nguồn MKT`, `2) Khách Đặt Hẹn`, `3) Khách Đã Đến`), official Trạm Chữa Da BSN branding (`/brandmark.webp`), search & filter toolbar, quick edit modal for customer info/appointments, and automatic saving to the backend (`/api/crm/interaction`).
+- Strictly maintain zero exposure of Google Sheet URLs/IDs and Revenue data (Col W / `₫`) across both UI and API responses.
+
+## Acceptance Criteria
+
+### Responsive Layout & Touch Ergonomics
+- [ ] On iPhone viewports (`375x812`, `390x844`), customer records render as vertical cards without horizontal page overflow (`document.documentElement.scrollWidth <= window.innerWidth`), and every card exposes direct controls for Call/Zalo, Status (Col I), Calendar Date Picker + Time (Col K, J), Telesale 5-person select (Col L), and Note M (Col M).
+- [ ] On iPhone viewports (`< 768px`), all `<input>`, `<select>`, and `<textarea>` elements use a computed `font-size` of at least `16px` to prevent iOS Safari focus zoom, and interactive controls have a minimum height of `40px`.
+- [ ] On iPad (`768x1024`, `1024x768`) and PC (`1440x900`) viewports, the minimalist table layout, top navigation tabs, and filter toolbar render cleanly with all inline editors (Status, Calendar Date Picker, Time, Telesale, Note M) functioning and syncing via `/api/crm/interaction`.
+
+### Data Privacy & Regression Checks
+- [ ] Neither the rendered DOM nor `/api/crm/data` JSON responses contain `docs.google.com`, the spreadsheet ID, `revenue`, or the `₫` currency symbol.
+- [ ] All unit tests in `tests/crm-telesale.test.js` pass.

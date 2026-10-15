@@ -1,0 +1,112 @@
+[
+  {
+    "id": "usr-admin",
+    "username": "admin",
+    "passwordHash": "5cbc2315cd9450cc112d919a90869cd1:79b1d8663739aea7e469824ae2dc89ba6a497205afd325afbe941c6d8e8971c8f033564d70c251571b75a05b5ac7b188f34e386de6ab31f1d3689f145bbe2449",
+    "passwordDisplay": "bsn@2026",
+    "telesaleName": "ADMIN",
+    "fullName": "Quản trị viên CRM",
+    "role": "admin",
+    "active": true,
+    "permissions": {
+      "accessCrm": true,
+      "canEdit": true,
+      "canSendTelegram": true,
+      "dataScope": "all"
+    },
+    "createdAt": "2026-10-15T02:56:15.278Z",
+    "updatedAt": "2026-10-15T02:56:15.278Z",
+    "lastLoginAt": "2026-10-15T02:56:39.279Z"
+  },
+  {
+    "id": "usr-sale-1",
+    "username": "thinh",
+    "passwordHash": "70796f6163815deb9e4616826872581b:671f27f910bfe218a5e8e55053e2bfa2c20d01d28a890ec03684a97f768cfcfcec55cf698df6c0e31b6d5e16ea44c6ed4eb7a8811a2156a35bedad296f863d9b",
+    "passwordDisplay": "123456",
+    "telesaleName": "THỊNH",
+    "fullName": "Telesale THỊNH",
+    "role": "telesale",
+    "active": true,
+    "permissions": {
+      "accessCrm": true,
+      "canEdit": true,
+      "canSendTelegram": true,
+      "dataScope": "all"
+    },
+    "createdAt": "2026-10-15T02:56:15.278Z",
+    "updatedAt": "2026-10-15T02:56:15.278Z"
+  },
+  {
+    "id": "usr-sale-2",
+    "username": "phu",
+    "passwordHash": "fc95c6606bd2258978d1fce313f0ea7a:5b94186fb9adc93c255d448be528e1833e1336a243a81ea48b8ea5ce39d9f3aaa1348a44853dbbc8151fa5e852cf8def2a9a274c533a3075441b00676263bc68",
+    "passwordDisplay": "123456",
+    "telesaleName": "PHÚ",
+    "fullName": "Telesale PHÚ",
+    "role": "telesale",
+    "active": true,
+    "permissions": {
+      "accessCrm": true,
+      "canEdit": true,
+      "canSendTelegram": true,
+      "dataScope": "all"
+    },
+    "createdAt": "2026-10-15T02:56:15.278Z",
+    "updatedAt": "2026-10-15T02:56:15.278Z",
+    "lastLoginAt": "2026-10-15T04:57:55.767Z"
+  },
+  {
+    "id": "usr-sale-3",
+    "username": "sale3",
+    "passwordHash": "3774e4ced846d9b3123ab60c93bb5372:b21c4e0ac64d1b356966ead3559b55f94a45301834ae44838a7dd94717d92c475d97da5cda4c775499739f0ea613e01ccc1e6213195bae64e99754de0b49ce5d",
+    "passwordDisplay": "123456",
+    "telesaleName": "TELESALE 3",
+    "fullName": "Telesale TELESALE 3",
+    "role": "telesale",
+    "active": true,
+    "permissions": {
+      "accessCrm": true,
+      "canEdit": true,
+      "canSendTelegram": true,
+      "dataScope": "all"
+    },
+    "createdAt": "2026-10-15T02:56:15.278Z",
+    "updatedAt": "2026-10-15T02:56:15.278Z"
+  },
+  {
+    "id": "usr-sale-4",
+    "username": "sale4",
+    "passwordHash": "4c403cb5df6ef2a3739d7e1650d448bb:5a2a1f45078f43abf684646478fb71c46dc80c7f3e6c5170307e98da6d7da7cd15c59b44dc543a323cd9e2d760cabb785d10fd5fe6bfc84ba2b3551c79d4b691",
+    "passwordDisplay": "123456",
+    "telesaleName": "TELESALE 4",
+    "fullName": "Telesale TELESALE 4",
+    "role": "telesale",
+    "active": true,
+    "permissions": {
+      "accessCrm": true,
+      "canEdit": true,
+      "canSendTelegram": true,
+      "dataScope": "all"
+    },
+    "createdAt": "2026-10-15T02:56:15.278Z",
+    "updatedAt": "2026-10-15T02:56:15.278Z"
+  },
+  {
+    "id": "usr-sale-5",
+    "username": "sale5",
+    "passwordHash": "2f6283dc0134cacc12ee380f00d56f37:44c41ffe1cf0805999fa781059b719a64a4feb935a4d19e0274cf5fd7d0f302e29851cd868dce256cbbd9921b77cb10bf625cdc9201e530a7ea45d7ef94415db",
+    "passwordDisplay": "123456",
+    "telesaleName": "TELESALE 5",
+    "fullName": "Telesale TELESALE 5",
+    "role": "telesale",
+    "active": true,
+    "permissions": {
+      "accessCrm": true,
+      "canEdit": true,
+      "canSendTelegram": true,
+      "dataScope": "all"
+    },
+    "createdAt": "2026-10-15T02:56:15.278Z",
+    "updatedAt": "2026-10-15T02:56:15.278Z"
+  }
+]
