@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import {
   ROOT_DIR,
   SPREADSHEET_ID,
+  DEFAULT_APPS_SCRIPT_URL,
   SHEETS_CONFIG,
   DEFAULT_TELESALE_LIST,
   STATUS_OPTIONS,
@@ -45,7 +46,7 @@ function loadLocalState() {
   ensureDirs();
   const defaultState = {
     telesaleList: [...DEFAULT_TELESALE_LIST],
-    appsScriptUrl: process.env.GOOGLE_APPS_SCRIPT_URL || '',
+    appsScriptUrl: process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL || '',
     autoSyncSheets: true,
     telegramSchedule: {
       enabled: true,
@@ -83,7 +84,8 @@ function loadLocalState() {
       ...defaultState,
       ...raw,
       telesaleList: list,
-      appsScriptUrl: raw.appsScriptUrl || process.env.GOOGLE_APPS_SCRIPT_URL || '',
+      appsScriptUrl:
+        raw.appsScriptUrl || process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL || '',
       telegramSchedule: {
         enabled: rawSched.enabled !== undefined ? Boolean(rawSched.enabled) : true,
         sendTime: normalizeTelegramSendTime(rawSched.sendTime || '08:00'),
@@ -609,8 +611,8 @@ async function upsertRowViaSheetsApi(targetSheetName, row23, overrideStatus) {
       values: [[copyRow[21] || '', copyRow[22] || '']],
     });
   }
-  await sheetsApiBatchUpdateValues(batchRanges);
-  return targetRowIdx;
+  const ok = await sheetsApiBatchUpdateValues(batchRanges);
+  return ok ? targetRowIdx : null;
 }
 
 async function syncLeadViaSheetsApi(
@@ -676,7 +678,8 @@ async function syncLeadViaSheetsApi(
         values: [[weekday || '', revenueText || '']],
       });
     }
-    await sheetsApiBatchUpdateValues(mktBatch);
+    const updatedOk = await sheetsApiBatchUpdateValues(mktBatch);
+    if (!updatedOk) return false;
 
     if (syncBooked) {
       const bookedStatus =
@@ -770,7 +773,8 @@ async function syncInteractionViaSheetsApi({
         values: [[currentRow[21] || '', currentRow[22] || '']],
       });
     }
-    await sheetsApiBatchUpdateValues(batch);
+    const updatedOk = await sheetsApiBatchUpdateValues(batch);
+    if (!updatedOk) return false;
 
     const statusUpper = String(currentRow[8] || '').trim().toUpperCase();
     const hasApptDate = Boolean(String(currentRow[10] || '').trim());
@@ -801,16 +805,18 @@ async function syncInteractionViaSheetsApi({
 }
 
 async function postToAppsScript(payload) {
-  const url = localState.appsScriptUrl;
+  const url =
+    localState.appsScriptUrl || process.env.GOOGLE_APPS_SCRIPT_URL || DEFAULT_APPS_SCRIPT_URL;
   if (!url) {
     return { synced: false };
   }
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 25000);
     timer.unref?.();
     const res = await fetch(url, {
       method: 'POST',
+      redirect: 'follow',
       signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -963,7 +969,7 @@ export async function updateCustomerInteraction({
       syncUpdates.weekday = weekdayText;
     }
     void (async () => {
-      await syncInteractionViaSheetsApi({
+      const apiSynced = await syncInteractionViaSheetsApi({
         sheetKey,
         rowIdx,
         phone: phone || currentRec?.phone,
@@ -973,7 +979,7 @@ export async function updateCustomerInteraction({
         weekday: weekdayText,
       });
 
-      if (localState.appsScriptUrl) {
+      if (!apiSynced) {
         await postToAppsScript({
           action: 'updateInteraction',
           sheetKey,
@@ -1641,13 +1647,13 @@ export async function addAdminLead(payload = {}) {
 
   if (!process.env.NODE_TEST_CONTEXT) {
     void (async () => {
-      await syncLeadViaSheetsApi(leadSyncPayload, {
+      const apiSynced = await syncLeadViaSheetsApi(leadSyncPayload, {
         syncBooked: Boolean(syncedBooked),
         syncArrived: Boolean(syncedArrived),
         revenueText: revenueTextForSheet,
         weekday: weekdayText,
       });
-      if (localState.appsScriptUrl) {
+      if (!apiSynced) {
         await postToAppsScript({
           action: 'addLead',
           ...leadSyncPayload,

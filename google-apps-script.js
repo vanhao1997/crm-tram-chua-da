@@ -109,8 +109,15 @@ function doPost(e) {
   }
 }
 
+const SPREADSHEET_ID = '1HEOYV5QzcOAHSMr6x5zeuem1Vi3V9QdeTvF6lKhGLgk';
+
 function getTargetSheet(sheetKeyOrName) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let ss = null;
+  try {
+    ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  } catch (e) {
+    ss = SpreadsheetApp.getActiveSpreadsheet();
+  }
   const mappedName = SHEET_NAMES[sheetKeyOrName] || sheetKeyOrName || SHEET_NAMES.mkt;
   const sheet = ss.getSheetByName(mappedName);
   if (!sheet) {
