@@ -698,6 +698,9 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   assert.equal(addModalHtml.includes('id="add-lead-status"'), true);
   assert.equal(addModalHtml.includes('id="add-lead-apptdate"'), true);
   assert.equal(addModalHtml.includes('id="add-lead-appttime"'), true);
+  assert.equal(addModalHtml.includes('Dán nhanh nội dung tư vấn'), false);
+  assert.equal(addModalHtml.includes('Quy tắc tự động đồng bộ'), false);
+  assert.equal(addModalHtml.includes('Cột B'), false);
 
   // 4. Kiểm tra phân quyền trạng thái ĐÃ ĐẾN: ẩn với Telesale (isAdmin: false), hiện với Admin (isAdmin: true)
   const dummyRec = {
@@ -721,10 +724,10 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   assert.equal(adminRow.includes('value="ĐÃ ĐẾN"'), true);
   assert.equal(adminCard.includes('value="ĐÃ ĐẾN"'), true);
 
-  // 5. Kiểm tra Modal nhập doanh số Cột W khi Admin chuyển sang ĐÃ ĐẾN
+  // 5. Kiểm tra Modal nhập doanh số khi Admin chuyển sang ĐÃ ĐẾN
   const arrivedModalHtml = renderArrivedRevenueModal({}, { record: dummyRec, status: 'ĐÃ ĐẾN' });
   assert.equal(arrivedModalHtml.includes('id="arrived-revenue-input"'), true);
-  assert.equal(arrivedModalHtml.includes('Cột W'), true);
+  assert.equal(arrivedModalHtml.includes('Doanh số thực thu'), true);
 
   // 6. Kiểm tra chuẩn hóa tiền doanh số Cột W
   assert.equal(parseAdminRevenueInput('2.999.000'), 2999000);

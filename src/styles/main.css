@@ -3531,45 +3531,13 @@ textarea.is-readonly-note {
 }
 
 .add-lead-modal-card {
-  max-width: 780px;
+  max-width: 660px;
   width: 95vw;
 }
 
 .arrived-revenue-modal-card {
-  max-width: 580px;
+  max-width: 540px;
   width: 94vw;
-}
-
-.mess-paste-helper-box {
-  background: linear-gradient(135deg, #f0f9ff 0%, #f8fafc 100%);
-  border: 1.5px dashed #7dd3fc;
-  border-radius: 10px;
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.mess-paste-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: #0369a1;
-}
-
-.btn-parse-mess {
-  background: #0284c7;
-  color: #ffffff;
-  border-color: #0284c7;
-  font-weight: 700;
-}
-
-.btn-parse-mess:hover {
-  background: #0369a1;
-  color: #ffffff;
 }
 
 .field-row-3 {
@@ -3615,31 +3583,6 @@ textarea.is-readonly-note {
   gap: 6px;
   font-size: 13.5px;
   color: #1e293b;
-}
-
-.arrived-sheet-notice {
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px dashed #cbd5e1;
-  color: #0f766e;
-  font-size: 12.5px;
-}
-
-.add-lead-sync-hint {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 9px;
-  padding: 10px 14px;
-  font-size: 12.5px;
-  color: #475569;
-}
-
-.add-lead-sync-hint ul {
-  margin: 6px 0 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
 }
 
 @media (max-width: 768px) {

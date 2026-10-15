@@ -31,7 +31,7 @@ loadDotEnv();
 
 export const PORT = Number(process.env.PORT || 3001);
 export const HOST = process.env.HOST || '0.0.0.0';
-export const APP_VERSION = process.env.APP_VERSION || '2026.10.15-r12';
+export const APP_VERSION = process.env.APP_VERSION || '2026.10.15-r13';
 export const SPREADSHEET_ID =
   process.env.SPREADSHEET_ID || '1HEOYV5QzcOAHSMr6x5zeuem1Vi3V9QdeTvF6lKhGLgk';
 export const DEFAULT_TELEGRAM_BOT_TOKEN =

@@ -1606,9 +1606,9 @@ function render() {
               type="button"
               class="btn-clean btn-primary-clean btn-add-lead-top"
               data-open-add-lead="1"
-              title="Thêm Data khách hàng từ nội dung tư vấn trên Messenger (Chỉ Admin)"
+              title="Thêm khách hàng mới (Chỉ Admin)"
             >
-              ➕ Thêm Data (Messenger)
+              ➕ Thêm Data
             </button>
           `
               : ''
@@ -1901,7 +1901,7 @@ function render() {
                 id="btn-open-add-lead"
                 data-open-add-lead="1"
               >
-                ➕ Thêm Data (Messenger)
+                ➕ Thêm Data
               </button>
             `
                 : ''
@@ -2858,30 +2858,15 @@ export function renderAddLeadModal(data = {}) {
       <div class="modal-card modal-card-wide add-lead-modal-card" onclick="event.stopPropagation()">
         <div class="modal-header add-lead-modal-header">
           <div class="modal-header-main">
-            <span class="modal-header-title">➕ Thêm Data Khách Hàng Mới (Từ Tư Vấn Messenger)</span>
-            <span class="note-admin-badge">Lưu trực tiếp vào Google Sheet</span>
+            <span class="modal-header-title">➕ Thêm Khách Hàng Mới</span>
           </div>
           <button type="button" class="btn-clean" id="btn-close-add-lead">✕</button>
         </div>
 
         <form id="add-lead-form" class="modal-body add-lead-form-body">
-          <div class="mess-paste-helper-box">
-            <div class="mess-paste-header">
-              <strong>💬 Dán nhanh nội dung tư vấn từ Messenger (Tùy chọn)</strong>
-              <button type="button" class="btn-clean btn-sm btn-parse-mess" id="btn-parse-messenger">
-                ✨ Tự động tách SĐT, Dịch vụ, Link FB & Note
-              </button>
-            </div>
-            <textarea
-              id="add-lead-mess-raw"
-              rows="2"
-              placeholder="Dán tin nhắn hoặc tóm tắt tư vấn từ Messenger vào đây (VD: Chị Lan 0912345678 tư vấn Mũi sợi 2tr999 https://facebook.com/... mũi chưa từng làm, hẹn mai 10h qua) rồi bấm nút Tách tự động..."
-            ></textarea>
-          </div>
-
           <div class="field-row-3">
             <div class="field-group">
-              <label for="add-lead-datadate">Cột B — Ngày add data *</label>
+              <label for="add-lead-datadate">Ngày thêm data *</label>
               <input
                 type="date"
                 id="add-lead-datadate"
@@ -2891,7 +2876,7 @@ export function renderAddLeadModal(data = {}) {
             </div>
 
             <div class="field-group">
-              <label for="add-lead-name">Cột C — Tên khách hàng *</label>
+              <label for="add-lead-name">Tên khách hàng *</label>
               <input
                 type="text"
                 id="add-lead-name"
@@ -2901,7 +2886,7 @@ export function renderAddLeadModal(data = {}) {
             </div>
 
             <div class="field-group">
-              <label for="add-lead-phone">Cột D — Số điện thoại *</label>
+              <label for="add-lead-phone">Số điện thoại *</label>
               <input
                 type="tel"
                 id="add-lead-phone"
@@ -2913,7 +2898,7 @@ export function renderAddLeadModal(data = {}) {
 
           <div class="field-row-2">
             <div class="field-group">
-              <label for="add-lead-service-select">Cột E — Loại dịch vụ *</label>
+              <label for="add-lead-service-select">Loại dịch vụ *</label>
               <select id="add-lead-service-select">
                 ${serviceOptions
                   .map(
@@ -2921,18 +2906,18 @@ export function renderAddLeadModal(data = {}) {
                       `<option value="${escapeHtml(svc)}">${escapeHtml(svc)}</option>`
                   )
                   .join('')}
-                <option value="__OTHER__">Khác (Admin tự điền)...</option>
+                <option value="__OTHER__">Khác (Tự điền)...</option>
               </select>
               <input
                 type="text"
                 id="add-lead-service-custom"
                 class="custom-other-input is-hidden"
-                placeholder="Nhập loại dịch vụ khác vào Cột E..."
+                placeholder="Nhập loại dịch vụ khác..."
               />
             </div>
 
             <div class="field-group">
-              <label for="add-lead-source-select">Cột F — Nguồn *</label>
+              <label for="add-lead-source-select">Nguồn *</label>
               <select id="add-lead-source-select">
                 ${sourceOptions
                   .map(
@@ -2942,38 +2927,38 @@ export function renderAddLeadModal(data = {}) {
                       )}</option>`
                   )
                   .join('')}
-                <option value="__OTHER__">Khác (Admin tự điền)...</option>
+                <option value="__OTHER__">Khác (Tự điền)...</option>
               </select>
               <input
                 type="text"
                 id="add-lead-source-custom"
                 class="custom-other-input is-hidden"
-                placeholder="Nhập nguồn khách khác vào Cột F..."
+                placeholder="Nhập nguồn khách khác..."
               />
             </div>
           </div>
 
           <div class="field-group">
-            <label for="add-lead-fblink">Cột G — Link Facebook</label>
+            <label for="add-lead-fblink">Link Facebook</label>
             <input
               type="text"
               id="add-lead-fblink"
-              placeholder="VD: https://www.facebook.com/profile.php?id=... (Chỉ lưu trên Google Sheet, ẩn với Telesale)"
+              placeholder="VD: https://www.facebook.com/..."
             />
           </div>
 
           <div class="field-group">
-            <label for="add-lead-custinfo">Cột H — Note từ tư vấn (Nội dung tư vấn Messenger)</label>
+            <label for="add-lead-custinfo">Note từ tư vấn</label>
             <textarea
               id="add-lead-custinfo"
               rows="2"
-              placeholder="VD: Chị Lan 1985, mũi chưa từng làm, muốn nâng cao tự nhiên, đã gửi feedback qua Mess..."
+              placeholder="Nhập nội dung tư vấn từ Messenger..."
             ></textarea>
           </div>
 
           <div class="field-row-3">
             <div class="field-group">
-              <label for="add-lead-status">Cột I — Tình trạng</label>
+              <label for="add-lead-status">Tình trạng</label>
               <select id="add-lead-status">
                 ${statusOptions
                   .map(
@@ -2985,7 +2970,7 @@ export function renderAddLeadModal(data = {}) {
             </div>
 
             <div class="field-group">
-              <label for="add-lead-apptdate">Cột K — Ngày hẹn</label>
+              <label for="add-lead-apptdate">Ngày hẹn</label>
               <input
                 type="date"
                 id="add-lead-apptdate"
@@ -2993,7 +2978,7 @@ export function renderAddLeadModal(data = {}) {
             </div>
 
             <div class="field-group">
-              <label for="add-lead-appttime">Cột J — Giờ hẹn</label>
+              <label for="add-lead-appttime">Giờ hẹn</label>
               <input
                 type="text"
                 id="add-lead-appttime"
@@ -3004,24 +2989,24 @@ export function renderAddLeadModal(data = {}) {
 
           <div class="field-row-2">
             <div class="field-group">
-              <label for="add-lead-telesale">Cột L — Phân bổ Telesale phụ trách</label>
+              <label for="add-lead-telesale">Telesale phụ trách</label>
               <select id="add-lead-telesale">
                 ${renderTelesaleSelectOptions('', telesaleList)}
               </select>
             </div>
 
             <div class="field-group">
-              <label for="add-lead-notem">Cột M — Ghi chú Telesale (Tùy chọn)</label>
+              <label for="add-lead-notem">Ghi chú Telesale</label>
               <input
                 type="text"
                 id="add-lead-notem"
-                placeholder="Ghi chú thêm cho Telesale..."
+                placeholder="Ghi chú thêm (nếu có)..."
               />
             </div>
           </div>
 
           <div class="field-group admin-revenue-box is-hidden" id="add-lead-revenue-wrap">
-            <label for="add-lead-revenue">💰 Cột W — Doanh số thực thu (VNĐ · Tự động chuyển sang Sheet 3 KHÁCH ĐÃ ĐẾN)</label>
+            <label for="add-lead-revenue">💰 Doanh số thực thu (VNĐ)</label>
             <div class="quick-care-chips">
               ${REVENUE_PRESET_AMOUNTS.map(
                 (p) =>
@@ -3033,17 +3018,8 @@ export function renderAddLeadModal(data = {}) {
             <input
               type="text"
               id="add-lead-revenue"
-              placeholder="Nhập số tiền doanh số ghi vào Cột W (VD: 2.999.000)..."
+              placeholder="Nhập số tiền doanh số (VD: 2.999.000)..."
             />
-          </div>
-
-          <div class="add-lead-sync-hint">
-            <span>📌 <strong>Quy tắc tự động đồng bộ Google Sheet:</strong></span>
-            <ul>
-              <li>Lưu đầy đủ Cột B → Cột K vào Sheet <strong>1) DATA NGUỒN MKT</strong>.</li>
-              <li>Nếu chọn Tình trạng <strong>Đặt Hẹn</strong> hoặc có nhập <strong>Ngày hẹn cụ thể (Cột K)</strong> → Tự động thêm sang Sheet <strong>2) KHÁCH ĐẶT HẸN</strong>.</li>
-              <li>Nếu chọn <strong>Đã Đến</strong> → Tự động chuyển sang Sheet <strong>3) KHÁCH ĐÃ ĐẾN</strong> kèm Doanh số ở <strong>Cột W</strong>.</li>
-            </ul>
           </div>
 
           <div class="modal-footer">
@@ -3051,7 +3027,7 @@ export function renderAddLeadModal(data = {}) {
             <div class="modal-footer-right">
               <button type="button" class="btn-clean" id="btn-cancel-add-lead">Hủy</button>
               <button type="submit" class="btn-clean btn-primary-clean" id="btn-submit-add-lead">
-                💾 Lưu Data vào Google Sheet
+                💾 Lưu Khách Hàng
               </button>
             </div>
           </div>
@@ -3064,7 +3040,6 @@ export function renderAddLeadModal(data = {}) {
 export function renderArrivedRevenueModal(data = {}, modalInfo = {}) {
   const rec = modalInfo?.record || findRecord(modalInfo?.recordId);
   if (!rec) return '';
-  const targetStatus = modalInfo?.status || 'ĐÃ ĐẾN';
   const displayPhone = rec.phoneDisplay || rec.phone || rec.rawPhone || '—';
 
   return `
@@ -3072,8 +3047,7 @@ export function renderArrivedRevenueModal(data = {}, modalInfo = {}) {
       <div class="modal-card arrived-revenue-modal-card" onclick="event.stopPropagation()">
         <div class="modal-header arrived-modal-header">
           <div class="modal-header-main">
-            <span class="modal-header-title">✅ Xác Nhận Khách Đã Đến & Ghi Doanh Số (Cột W)</span>
-            <span class="note-admin-badge">Chỉ dành cho Admin</span>
+            <span class="modal-header-title">✅ Xác Nhận Khách Đã Đến & Ghi Doanh Số</span>
           </div>
           <button type="button" class="btn-clean" id="btn-close-arrived-modal">✕</button>
         </div>
@@ -3090,15 +3064,10 @@ export function renderArrivedRevenueModal(data = {}, modalInfo = {}) {
                 rec.telesale || 'Chưa phân bổ'
               )}
             </div>
-            <div class="arrived-sheet-notice">
-              ➡️ Khi xác nhận <strong>${escapeHtml(
-                targetStatus
-              )}</strong>, hệ thống sẽ tự động chuyển khách sang Sheet <strong>3) KHÁCH ĐÃ ĐẾN</strong> và ghi Doanh số vào <strong>Cột W</strong> trên Google Sheet.
-            </div>
           </div>
 
           <div class="field-group admin-revenue-box">
-            <label for="arrived-revenue-input">💰 Doanh số thực thu ghi vào Cột W (VNĐ) *</label>
+            <label for="arrived-revenue-input">💰 Doanh số thực thu (VNĐ) *</label>
             <div class="quick-care-chips">
               ${REVENUE_PRESET_AMOUNTS.map(
                 (p) =>
@@ -3122,7 +3091,7 @@ export function renderArrivedRevenueModal(data = {}, modalInfo = {}) {
             <div class="modal-footer-right">
               <button type="button" class="btn-clean" id="btn-cancel-arrived-modal">Hủy</button>
               <button type="submit" class="btn-clean btn-primary-clean" id="btn-confirm-arrived-revenue">
-                ✅ Chuyển sang KHÁCH ĐÃ ĐẾN & Lưu Doanh Số
+                ✅ Xác Nhận & Lưu Doanh Số
               </button>
             </div>
           </div>
@@ -3170,13 +3139,13 @@ function renderEditModal(data) {
         <div class="modal-body">
           <div class="field-row-2">
             <div class="field-group">
-              <label>Tình trạng (Cột I)</label>
+              <label>Tình trạng</label>
               <select id="modal-status">
                 ${renderStatusSelectOptions(rec, data.statusOptions || [], isAdmin)}
               </select>
             </div>
             <div class="field-group">
-              <label>Telesale phụ trách (Cột L)</label>
+              <label>Telesale phụ trách</label>
               <select id="modal-telesale">
                 ${renderTelesaleSelectOptions(rec.telesale, data.telesaleList || [])}
               </select>
@@ -3189,7 +3158,7 @@ function renderEditModal(data) {
             <div class="field-group admin-revenue-box ${
               isCurrentlyArrived ? '' : 'is-hidden'
             }" id="modal-revenue-wrap">
-              <label for="modal-revenue">💰 Doanh số thực thu — Cột W (Chỉ Admin · Tự động sang Sheet 3 KHÁCH ĐÃ ĐẾN)</label>
+              <label for="modal-revenue">💰 Doanh số thực thu (VNĐ)</label>
               <div class="quick-care-chips">
                 ${REVENUE_PRESET_AMOUNTS.map(
                   (p) =>
@@ -3201,7 +3170,7 @@ function renderEditModal(data) {
               <input
                 type="text"
                 id="modal-revenue"
-                placeholder="Nhập doanh số thực thu ghi vào Cột W (VD: 2.999.000 hoặc 13000000)..."
+                placeholder="Nhập doanh số thực thu (VD: 2.999.000)..."
               />
             </div>
           `
@@ -3209,7 +3178,7 @@ function renderEditModal(data) {
           }
 
           <div class="field-group">
-            <label>Thông tin khách hàng / Note từ tư vấn (Cột H)</label>
+            <label>Note từ tư vấn</label>
             <input
               type="text"
               id="modal-custinfo"
@@ -3220,7 +3189,7 @@ function renderEditModal(data) {
 
           <div class="field-row-2">
             <div class="field-group">
-              <label>Ngày hẹn (Cột K)</label>
+              <label>Ngày hẹn</label>
               <input
                 type="date"
                 id="modal-apptdate"
@@ -3228,7 +3197,7 @@ function renderEditModal(data) {
               />
             </div>
             <div class="field-group">
-              <label>Giờ hẹn (Cột J)</label>
+              <label>Giờ hẹn</label>
               <input
                 type="text"
                 id="modal-appttime"
@@ -3240,7 +3209,7 @@ function renderEditModal(data) {
 
           <div class="field-group">
             <div class="modal-field-label-row">
-              <label>Ghi chú gốc (Lần 1 — Cột M)</label>
+              <label>Ghi chú gốc (Lần 1)</label>
               ${
                 isAdmin && hasFirstNote
                   ? `<button type="button" class="btn-note-admin-delete" id="btn-modal-clear-notem">🗑️ Xóa Lần 1</button>`
@@ -3260,7 +3229,7 @@ function renderEditModal(data) {
             log.careEntries.length > 0
               ? `
             <div class="field-group">
-              <label>Lịch sử các lần liên hệ tiếp theo (${log.careEntries.length} lần Care — Cột N..U)${
+              <label>Lịch sử các lần liên hệ tiếp theo (${log.careEntries.length} lần Care)${
                 isAdmin ? ' · 🛡️ Admin có thể sửa hoặc xóa từng lần' : ''
               }</label>
               <div class="care-timeline-list is-modal-timeline" id="modal-care-list">
@@ -4603,38 +4572,6 @@ function bindEvents() {
   document.getElementById('btn-close-add-lead')?.addEventListener('click', closeAddLeadModal);
   document.getElementById('btn-cancel-add-lead')?.addEventListener('click', closeAddLeadModal);
 
-  document.getElementById('btn-parse-messenger')?.addEventListener('click', () => {
-    const rawText = document.getElementById('add-lead-mess-raw')?.value || '';
-    if (!rawText.trim()) {
-      notify('Vui lòng dán nội dung tư vấn từ Messenger vào ô trên trước');
-      return;
-    }
-    const parsed = parseMessengerLeadText(rawText);
-    const nameEl = document.getElementById('add-lead-name');
-    const phoneEl = document.getElementById('add-lead-phone');
-    const fbEl = document.getElementById('add-lead-fblink');
-    const custInfoEl = document.getElementById('add-lead-custinfo');
-    const svcSelectEl = document.getElementById('add-lead-service-select');
-
-    if (parsed.name && nameEl && !nameEl.value.trim()) {
-      nameEl.value = parsed.name;
-    }
-    if (parsed.phone && phoneEl) {
-      phoneEl.value = parsed.phone;
-    }
-    if (parsed.fbLink && fbEl) {
-      fbEl.value = parsed.fbLink;
-    }
-    if (parsed.customerInfo && custInfoEl) {
-      custInfoEl.value = parsed.customerInfo;
-    }
-    if (parsed.service && svcSelectEl) {
-      svcSelectEl.value = parsed.service;
-      document.getElementById('add-lead-service-custom')?.classList.add('is-hidden');
-    }
-    notify('Đã tự động tách thông tin từ nội dung tư vấn Messenger!');
-  });
-
   document.getElementById('add-lead-service-select')?.addEventListener('change', (e) => {
     const customInput = document.getElementById('add-lead-service-custom');
     if (!customInput) return;
@@ -4702,7 +4639,7 @@ function bindEvents() {
     const service = svcSelectVal === '__OTHER__' ? svcCustomVal : svcSelectVal;
 
     if (svcSelectVal === '__OTHER__' && !service) {
-      notify('Vui lòng nhập tên dịch vụ khác vào Cột E');
+      notify('Vui lòng nhập tên dịch vụ khác');
       document.getElementById('add-lead-service-custom')?.focus();
       return;
     }
@@ -4712,7 +4649,7 @@ function bindEvents() {
     const source = srcSelectVal === '__OTHER__' ? srcCustomVal : srcSelectVal;
 
     if (srcSelectVal === '__OTHER__' && !source) {
-      notify('Vui lòng nhập nguồn khách khác vào Cột F');
+      notify('Vui lòng nhập nguồn khách khác');
       document.getElementById('add-lead-source-custom')?.focus();
       return;
     }
@@ -4730,7 +4667,7 @@ function bindEvents() {
     const submitBtn = document.getElementById('btn-submit-add-lead');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = '⏳ Đang lưu vào Google Sheet...';
+      submitBtn.textContent = '⏳ Đang lưu...';
     }
 
     try {
@@ -4755,11 +4692,11 @@ function bindEvents() {
       state.pagination.page = 1;
 
       if (res.syncedArrived) {
-        notify(`Đã thêm khách "${name}" vào Sheet 1 & Sheet 3) KHÁCH ĐÃ ĐẾN kèm Doanh số Cột W!`);
+        notify(`Đã thêm khách "${name}" & ghi nhận Doanh số!`);
       } else if (res.syncedBooked) {
-        notify(`Đã thêm khách "${name}" vào Sheet 1 & đồng bộ sang Sheet 2) KHÁCH ĐẶT HẸN!`);
+        notify(`Đã thêm khách "${name}" & đồng bộ sang Khách Đặt Hẹn!`);
       } else {
-        notify(`Đã thêm khách "${name}" vào Sheet 1) DATA NGUỒN MKT!`);
+        notify(`Đã thêm khách hàng "${name}" thành công!`);
       }
       render();
 
@@ -4772,7 +4709,7 @@ function bindEvents() {
       notify(`Lỗi thêm khách hàng: ${err.message}`);
       if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = '💾 Lưu Data vào Google Sheet';
+        submitBtn.textContent = '💾 Lưu Khách Hàng';
       }
     }
   });
