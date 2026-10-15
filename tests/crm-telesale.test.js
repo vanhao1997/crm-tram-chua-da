@@ -540,3 +540,63 @@ test('Admin có toàn quyền chỉnh sửa & xóa mọi ghi chú (Lần 1 và L
   assert.equal(saleHtml.includes('data-care-edit-input='), false);
   assert.equal(saleHtml.includes('data-care-delete='), false);
 });
+
+test('Quyền Gửi Telegram chỉ hiển thị cho Admin và ẩn hoàn toàn với User (Telesale)', async () => {
+  const { renderRow, renderCard } = await import('../src/main.js');
+  const { STATUS_OPTIONS, DEFAULT_TELESALE_LIST } = await import('../server/config.js');
+  const {
+    formatSingleCustomerTelegramMessage,
+    formatBatchAppointmentsTelegramMessage,
+  } = await import('../server/google-sheets.js');
+
+  const sampleRec = {
+    id: 'mkt-row-901',
+    sheetKey: 'mkt',
+    sheetRowIndex: 901,
+    dataDate: '15/10/2026',
+    name: 'Nguyễn Thị Mai',
+    phone: '0987654321',
+    phoneDisplay: '0987 654 321',
+    service: 'Trị mụn chuẩn y khoa',
+    customerInfo: 'Da dầu mụn viêm 2 má',
+    status: 'ĐẶT HẸN',
+    canonicalStatus: 'ĐẶT HẸN',
+    statusGroup: 'booked',
+    badgeColor: 'emerald',
+    apptTime: '09:30',
+    apptDate: '15/10/2026',
+    telesale: 'THỊNH',
+    noteM: 'Khách hẹn đi cùng bạn lúc 9h30',
+    careHistory: [],
+  };
+
+  // 1. Khi là User / Telesale (mặc định hoặc isAdmin: false) -> ẨN HOÀN TOÀN nút gửi Telegram
+  const userRowHtml = renderRow(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: false });
+  const userCardHtml = renderCard(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: false });
+  assert.equal(userRowHtml.includes('data-send-telegram-customer'), false);
+  assert.equal(userCardHtml.includes('data-send-telegram-customer'), false);
+
+  // 2. Khi là Admin (isAdmin: true) -> HIỂN THỊ nút gửi Telegram cho từng khách lẻ
+  const adminRowHtml = renderRow(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
+  const adminCardHtml = renderCard(sampleRec, STATUS_OPTIONS, DEFAULT_TELESALE_LIST, { isAdmin: true });
+  assert.equal(adminRowHtml.includes('data-send-telegram-customer="mkt-row-901"'), true);
+  assert.equal(adminCardHtml.includes('data-send-telegram-customer="mkt-row-901"'), true);
+
+  // 3. Kiểm tra mẫu tin nhắn Telegram cho từng khách lẻ đúng chuẩn form yêu cầu
+  const singleMsg = formatSingleCustomerTelegramMessage(sampleRec, '15/10/2026');
+  assert.equal(singleMsg.includes('📅 <b>LỊCH HẸN KHÁCH HÀNG — (15/10/2026)</b>'), true);
+  assert.equal(singleMsg.includes('1. ⏰ <b>09:30</b> — <b>Nguyễn Thị Mai</b>'), true);
+  assert.equal(singleMsg.includes('📞 SĐT: <code>0987654321</code>'), true);
+  assert.equal(singleMsg.includes('💆 Dịch vụ: Trị mụn chuẩn y khoa'), true);
+  assert.equal(singleMsg.includes('📌 Tình trạng: ĐẶT HẸN 🔴 (Cần gọi nhắc)'), true);
+  assert.equal(singleMsg.includes('👩‍💼 Telesale: <b>THỊNH</b>'), true);
+  assert.equal(singleMsg.includes('ℹ️ TT Khách: Da dầu mụn viêm 2 má'), true);
+  assert.equal(singleMsg.includes('📝 Ghi chú: Khách hẹn đi cùng bạn lúc 9h30'), true);
+
+  // 4. Kiểm tra mẫu tin nhắn Telegram tự động gửi danh sách lịch hẹn 8h sáng
+  const batchMsg = formatBatchAppointmentsTelegramMessage([sampleRec], '15/10/2026', 'HÔM NAY');
+  assert.equal(batchMsg.includes('📅 <b>LỊCH HẸN KHÁCH HÀNG — HÔM NAY (15/10/2026)</b>'), true);
+  assert.equal(batchMsg.includes('Tổng cộng: <b>1 khách hẹn</b>'), true);
+  assert.equal(batchMsg.includes('1. ⏰ <b>09:30</b> — <b>Nguyễn Thị Mai</b>'), true);
+});
+

@@ -509,13 +509,207 @@ export async function updateCustomerInteraction({
   };
 }
 
-export async function sendTelegramReminder({ dateVn = '', label = 'HÔM NAY' } = {}) {
+function escapeTelegramHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+export function getVnDateParts(date = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const map = {};
+  for (const p of parts) {
+    map[p.type] = p.value;
+  }
+  const dd = map.day || '01';
+  const mm = map.month || '01';
+  const yyyy = map.year || '2026';
+  const hour = Number(map.hour ?? 0) % 24;
+  const minute = Number(map.minute ?? 0);
+  return {
+    dateVn: `${dd}/${mm}/${yyyy}`,
+    dateIso: `${yyyy}-${mm}-${dd}`,
+    hour,
+    minute,
+  };
+}
+
+function formatCustomerTelegramItemLines(item, indexNumber = null) {
+  const esc = escapeTelegramHtml;
+  const prefix = indexNumber !== null ? `${indexNumber}. ` : '';
+  const timeText = item.apptTime || 'Chưa báo giờ';
+  const nameText = item.name || 'Khách chưa rõ tên';
+  const phoneText = item.phone || item.phoneDisplay || '—';
+  const serviceText = item.service || '—';
+  const statusText = String(item.status || item.statusLabel || 'ĐẶT HẸN').trim().toUpperCase();
+  const needCall = item.statusGroup !== 'arrived' && item.statusGroup !== 'lost';
+  const statusBadge = needCall
+    ? `${esc(statusText)} 🔴 <i>(Cần gọi nhắc)</i>`
+    : `${esc(statusText)} 🟢`;
+  const telesaleText = item.telesale || 'Chưa phân bổ';
+  const custInfoText = item.customerInfo || '—';
+
+  const careTexts = Array.isArray(item.careHistory)
+    ? item.careHistory.map((c) => String(c?.text || c || '').trim()).filter(Boolean)
+    : [];
+  const allNotes = [String(item.noteM || '').trim(), ...careTexts].filter(Boolean).join(' | ');
+
+  return [
+    `${prefix}⏰ <b>${esc(timeText)}</b> — <b>${esc(nameText)}</b>`,
+    `   📞 SĐT: <code>${esc(phoneText)}</code>`,
+    `   💆 Dịch vụ: ${esc(serviceText)}`,
+    `   📌 Tình trạng: <b>${statusBadge}</b>`,
+    `   👩‍💼 Telesale: <b>${esc(telesaleText)}</b>`,
+    `   ℹ️ TT Khách: ${esc(custInfoText)}`,
+    `   📝 Ghi chú: <i>${esc(allNotes || '—')}</i>`,
+  ];
+}
+
+export function formatBatchAppointmentsTelegramMessage(appts, targetDateVn, label = 'HÔM NAY') {
+  const esc = escapeTelegramHtml;
+  const needCallCount = appts.filter(
+    (r) => r.statusGroup !== 'arrived' && r.statusGroup !== 'lost'
+  ).length;
+
+  const lines = [
+    `📅 <b>LỊCH HẸN KHÁCH HÀNG — ${esc(label)} (${esc(targetDateVn)})</b>`,
+    `<b>Trạm Chữa Da BSN</b> • Tổng: <b>${appts.length} khách</b> (${needCallCount} khách cần gọi nhắc)`,
+    '━━━━━━━━━━━━━━━━━━━━',
+  ];
+
+  if (appts.length === 0) {
+    lines.push(`Hiện chưa có khách hàng nào có lịch hẹn vào ngày ${esc(targetDateVn)}.`);
+  } else {
+    appts.forEach((item, idx) => {
+      lines.push(...formatCustomerTelegramItemLines(item, idx + 1));
+      if (idx < appts.length - 1) {
+        lines.push('');
+      }
+    });
+  }
+
+  return lines.join('\n');
+}
+
+export function formatSingleCustomerTelegramMessage(rec) {
+  const esc = escapeTelegramHtml;
+  const apptDateText = rec.apptDate || rec.dataDate || getVnDateParts().dateVn;
+  const lines = [
+    `📅 <b>LỊCH HẸN KHÁCH HÀNG — (${esc(apptDateText)})</b>`,
+    `<b>Trạm Chữa Da BSN</b> • Thông tin khách lẻ`,
+    '━━━━━━━━━━━━━━━━━━━━',
+    ...formatCustomerTelegramItemLines(rec, 1),
+  ];
+  return lines.join('\n');
+}
+
+async function dispatchTelegramHtmlText(htmlText, fallbackAppsScriptPayload = null) {
+  const botToken = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
+  const chatId = String(process.env.TELEGRAM_CHAT_ID || '').trim();
+
+  if (botToken && chatId) {
+    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: htmlText,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+      }),
+    });
+    const tgJson = await tgRes.json();
+    if (!tgJson.ok) {
+      throw new Error(tgJson.description || 'Không gửi được tin nhắn Telegram');
+    }
+    return { via: 'telegram_api' };
+  }
+
+  if (localState.appsScriptUrl && fallbackAppsScriptPayload) {
+    const gasRes = await postToAppsScript(fallbackAppsScriptPayload);
+    if (gasRes.synced) {
+      return { via: 'apps_script' };
+    }
+  }
+
+  throw new Error(
+    'Chưa cấu hình TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID trong Coolify / .env (hoặc trong Google Apps Script)'
+  );
+}
+
+export async function sendSingleCustomerTelegram(payload = {}) {
   const allData = await getAllSheetsData(false);
-  const now = new Date();
-  const dd = String(now.getDate()).padStart(2, '0');
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const yyyy = now.getFullYear();
-  const targetDateVn = String(dateVn || `${dd}/${mm}/${yyyy}`).trim();
+  const recordId = String(payload.recordId || payload.id || '').trim();
+  const sheetKey = String(payload.sheetKey || '').trim();
+  const sheetRowIndex = Number(payload.sheetRowIndex || 0);
+
+  let targetRec = null;
+  for (const key of ['mkt', 'booked', 'arrived']) {
+    const list = allData?.sheets?.[key]?.records || [];
+    const found = list.find(
+      (r) =>
+        (recordId && r.id === recordId) ||
+        (sheetKey === key && sheetRowIndex > 0 && r.sheetRowIndex === sheetRowIndex)
+    );
+    if (found) {
+      targetRec = found;
+      break;
+    }
+  }
+
+  if (!targetRec) {
+    throw new Error('Không tìm thấy thông tin khách hàng cần gửi Telegram');
+  }
+
+  const htmlText = formatSingleCustomerTelegramMessage(targetRec);
+  const res = await dispatchTelegramHtmlText(htmlText, {
+    action: 'sendSingleTelegram',
+    record: targetRec,
+    textHtml: htmlText,
+  });
+
+  return {
+    ok: true,
+    mode: 'single',
+    customerName: targetRec.name,
+    dateVn: targetRec.apptDate || targetRec.dataDate || '',
+    via: res.via,
+  };
+}
+
+export async function sendTelegramReminder(rawInput = {}) {
+  const payload =
+    typeof rawInput === 'string' ? { range: rawInput } : rawInput && typeof rawInput === 'object' ? rawInput : {};
+
+  if (payload.recordId || payload.mode === 'single') {
+    return sendSingleCustomerTelegram(payload);
+  }
+
+  const allData = await getAllSheetsData(false);
+  const vnToday = getVnDateParts(new Date());
+  const vnTomorrow = getVnDateParts(new Date(Date.now() + 24 * 60 * 60 * 1000));
+
+  let targetDateVn = String(payload.dateVn || '').trim();
+  let label = String(payload.label || '').trim();
+
+  if (payload.range === 'tomorrow') {
+    targetDateVn = targetDateVn || vnTomorrow.dateVn;
+    label = label || 'NGÀY MAI';
+  } else {
+    targetDateVn = targetDateVn || vnToday.dateVn;
+    label = label || 'HÔM NAY';
+  }
+
   const targetIso = parseVnDateToIso(targetDateVn);
 
   const booked = allData?.sheets?.booked?.records || [];
@@ -532,85 +726,54 @@ export async function sendTelegramReminder({ dateVn = '', label = 'HÔM NAY' } =
     appts.push(r);
   }
 
-  const botToken = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
-  const chatId = String(process.env.TELEGRAM_CHAT_ID || '').trim();
+  const htmlText = formatBatchAppointmentsTelegramMessage(appts, targetDateVn, label);
+  const res = await dispatchTelegramHtmlText(htmlText, {
+    action: 'sendTelegramReminder',
+    dateVn: targetDateVn,
+    label,
+    textHtml: htmlText,
+  });
 
-  if (botToken && chatId) {
-    const esc = (s) =>
-      String(s || '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+  return { ok: true, count: appts.length, dateVn: targetDateVn, via: res.via };
+}
 
-    const lines = [
-      `📅 <b>LỊCH HẸN KHÁCH HÀNG ${esc(label)} (${esc(targetDateVn)})</b>`,
-      `🏥 <b>Trạm Chữa Da BSN</b> — Tổng: <b>${appts.length} khách</b>`,
-      '────────────────────',
-    ];
+let dailySchedulerTimer = null;
 
-    if (appts.length === 0) {
-      lines.push(`Hiện chưa có khách hàng nào có lịch hẹn vào ngày ${esc(targetDateVn)}.`);
-    } else {
-      appts.forEach((item, idx) => {
-        lines.push(
-          `<b>${idx + 1}. ${esc(item.name)}</b> — 📞 <code>${esc(
-            item.phoneDisplay || item.phone || '—'
-          )}</code>`
-        );
-        lines.push(
-          `   • Giờ hẹn: <b>${esc(item.apptTime || 'Chưa báo giờ')}</b> | Tình trạng: <b>${esc(
-            item.statusLabel || item.status || 'Đặt Hẹn'
-          )}</b>`
-        );
-        if (item.service || item.customerInfo) {
-          lines.push(
-            `   • Dịch vụ: ${esc(item.service || '—')}${
-              item.customerInfo ? ` (${esc(item.customerInfo)})` : ''
-            }`
-          );
+export function startDailyTelegramScheduler() {
+  if (dailySchedulerTimer) return dailySchedulerTimer;
+
+  const checkAndTrigger8Am = async () => {
+    try {
+      const hasConfig =
+        (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) ||
+        Boolean(localState.appsScriptUrl);
+      if (!hasConfig) return;
+
+      const vnNow = getVnDateParts(new Date());
+      // Tự động gửi vào khung 08:00 - 08:15 sáng mỗi ngày theo giờ Việt Nam (Asia/Ho_Chi_Minh)
+      if (vnNow.hour === 8 && vnNow.minute >= 0 && vnNow.minute <= 15) {
+        if (localState.lastAutoTelegramDate === vnNow.dateVn) {
+          return;
         }
-        lines.push(`   • Telesale: <b>${esc(item.telesale || 'Chưa phân bổ')}</b>`);
-        if (item.noteM) {
-          lines.push(`   • Ghi chú: <i>${esc(item.noteM)}</i>`);
-        }
-        lines.push('');
-      });
-      lines.push(
-        '💡 <i>Đội ngũ Telesale vui lòng liên hệ nhắc lịch & hỗ trợ đón khách đúng giờ!</i>'
-      );
-    }
+        localState.lastAutoTelegramDate = vnNow.dateVn;
+        saveLocalState(localState);
 
-    const tgRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: lines.join('\n'),
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
-    });
-    const tgJson = await tgRes.json();
-    if (!tgJson.ok) {
-      throw new Error(tgJson.description || 'Không gửi được tin nhắn Telegram');
+        await getAllSheetsData(true).catch(() => null);
+        await sendTelegramReminder({ dateVn: vnNow.dateVn, label: 'HÔM NAY' });
+        console.log(`[Telegram 8h00] Đã tự động gửi lịch hẹn ngày ${vnNow.dateVn} vào Telegram.`);
+      }
+    } catch (err) {
+      // Nếu lỗi mạng tạm thời thì cho phép thử lại ở phút kế tiếp trong khung 8h sáng
+      localState.lastAutoTelegramDate = '';
+      console.warn('[Telegram 8h00] Chưa gửi được tự động:', err?.message || err);
     }
-    return { ok: true, count: appts.length, dateVn: targetDateVn, via: 'telegram_api' };
+  };
+
+  dailySchedulerTimer = setInterval(checkAndTrigger8Am, 60 * 1000);
+  if (typeof dailySchedulerTimer.unref === 'function') {
+    dailySchedulerTimer.unref();
   }
-
-  if (localState.appsScriptUrl) {
-    const gasRes = await postToAppsScript({
-      action: 'sendTelegramReminder',
-      dateVn: targetDateVn,
-      label,
-    });
-    if (gasRes.synced) {
-      return { ok: true, count: appts.length, dateVn: targetDateVn, via: 'apps_script' };
-    }
-  }
-
-  throw new Error(
-    'Chưa cấu hình TELEGRAM_BOT_TOKEN & TELEGRAM_CHAT_ID trong file .env (hoặc trong Google Apps Script)'
-  );
+  return dailySchedulerTimer;
 }
 
 function findRecordInSheet(sheetKey, rowIdx) {

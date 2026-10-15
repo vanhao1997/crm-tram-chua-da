@@ -1266,7 +1266,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
   `;
 }
 
-export function renderKanbanBoard(records = [], statusOptions = [], telesaleList = []) {
+export function renderKanbanBoard(records = [], statusOptions = [], telesaleList = [], options = {}) {
   const stages = [
     { key: 'new', title: 'Chưa gọi (Mới)', color: 'amber' },
     { key: 'booked', title: 'Đặt Hẹn / Dời Lịch', color: 'emerald' },
@@ -1295,7 +1295,7 @@ export function renderKanbanBoard(records = [], statusOptions = [], telesaleList
                     ? `<div class="airtable-kanban-empty">Trống</div>`
                     : stageItems
                         .slice(0, 40)
-                        .map((rec) => renderCard(rec, statusOptions, telesaleList))
+                        .map((rec) => renderCard(rec, statusOptions, telesaleList, options))
                         .join('')
                 }
               </div>
@@ -1307,9 +1307,9 @@ export function renderKanbanBoard(records = [], statusOptions = [], telesaleList
   `;
 }
 
-function renderGroupedRows(records, statusOptions, telesaleList, groupBy) {
+function renderGroupedRows(records, statusOptions, telesaleList, groupBy, options = {}) {
   if (!groupBy || groupBy === 'none') {
-    return records.map((rec) => renderRow(rec, statusOptions, telesaleList)).join('');
+    return records.map((rec) => renderRow(rec, statusOptions, telesaleList, options)).join('');
   }
 
   const groups = new Map();
@@ -1338,7 +1338,7 @@ function renderGroupedRows(records, statusOptions, telesaleList, groupBy) {
           </div>
         </td>
       </tr>
-      ${groupItems.map((rec) => renderRow(rec, statusOptions, telesaleList)).join('')}
+      ${groupItems.map((rec) => renderRow(rec, statusOptions, telesaleList, options)).join('')}
     `;
   }
   return html;
@@ -1522,6 +1522,11 @@ function render() {
               }
               <span class="reminder-sep">·</span>
               <span>Ngày mai (${escapeHtml(tomorrowShort)}): <strong>${apptSummary.tomorrowList.length} khách</strong></span>
+              ${
+                isAdmin
+                  ? `<span class="reminder-sep">·</span><span class="auto-tele-badge" title="Hệ thống tự động gửi danh sách lịch hẹn hôm nay vào Telegram lúc 08:00 sáng mỗi ngày">⏰ Tự động báo 8h00 sáng</span>`
+                  : ''
+              }
             </div>
           </div>
           <div class="reminder-banner-actions">
@@ -1534,9 +1539,15 @@ function render() {
             <button type="button" class="btn-reminder-action" data-jump-reminder="upcoming">
               7 ngày tới (${apptSummary.upcomingList.length})
             </button>
-            <button type="button" class="btn-reminder-action" data-send-telegram="today" title="Bắn danh sách lịch hẹn hôm nay vào nhóm Telegram">
-              Gửi Telegram
-            </button>
+            ${
+              isAdmin
+                ? `
+              <button type="button" class="btn-reminder-action is-telegram-btn" data-send-telegram="today" title="Bắn danh sách lịch hẹn hôm nay vào nhóm Telegram (Chỉ Admin)">
+                📨 Gửi Telegram
+              </button>
+            `
+                : ''
+            }
           </div>
         </div>
       `
@@ -1584,14 +1595,20 @@ function render() {
                   state.reminderRange === 'custom' ? state.reminderCustomDate : apptSummary.todayIso
                 )}"
               />
-              <button
-                type="button"
-                class="btn-reminder-action"
-                data-send-telegram="${state.reminderRange === 'tomorrow' ? 'tomorrow' : 'today'}"
-                title="Gửi danh sách lịch hẹn sang Telegram"
-              >
-                Gửi Telegram
-              </button>
+              ${
+                isAdmin
+                  ? `
+                <button
+                  type="button"
+                  class="btn-reminder-action is-telegram-btn"
+                  data-send-telegram="${state.reminderRange === 'tomorrow' ? 'tomorrow' : 'today'}"
+                  title="Gửi danh sách lịch hẹn sang Telegram (Chỉ Admin)"
+                >
+                  📨 Gửi Telegram
+                </button>
+              `
+                  : ''
+              }
             </div>
           </div>
         `
@@ -1697,7 +1714,7 @@ function render() {
 
         ${
           state.viewMode === 'kanban'
-            ? renderKanbanBoard(filtered, statusOptions, telesaleList)
+            ? renderKanbanBoard(filtered, statusOptions, telesaleList, { isAdmin })
             : isMobileViewport()
             ? `
         <div class="mobile-cards">
@@ -1705,7 +1722,7 @@ function render() {
             paged.length === 0
               ? `<div class="card-empty-state">Không tìm thấy khách hàng phù hợp.</div>`
               : paged
-                  .map((rec) => renderCard(rec, statusOptions, telesaleList))
+                  .map((rec) => renderCard(rec, statusOptions, telesaleList, { isAdmin }))
                   .join('')
           }
         </div>
@@ -1734,7 +1751,7 @@ function render() {
                   </td>
                 </tr>
               `
-                  : renderGroupedRows(paged, statusOptions, telesaleList, state.groupBy)
+                  : renderGroupedRows(paged, statusOptions, telesaleList, state.groupBy, { isAdmin })
               }
             </tbody>
           </table>
@@ -2293,6 +2310,7 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
   const { dialPhone, hasValidPhone, displayPhone } = getDialPhone(rec);
   const isoApptDate = vnDateToIso(rec.apptDate);
   const tone = escapeHtml(rec.badgeColor || 'slate');
+  const isAdmin = Boolean(options?.isAdmin ?? state.currentUser?.role === 'admin');
 
   return `
     <tr class="${isNew ? 'is-new-lead' : ''}">
@@ -2337,6 +2355,22 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
             <span class="phone-link is-disabled">Chưa có số</span>
           </div>
         `
+        }
+        ${
+          isAdmin
+            ? `
+          <div class="admin-tele-row-wrap">
+            <button
+              type="button"
+              class="btn-send-tele-single"
+              data-send-telegram-customer="${escapeHtml(rec.id)}"
+              title="Gửi thông tin khách này vào nhóm Telegram (Chỉ Admin)"
+            >
+              📨 Gửi Telegram
+            </button>
+          </div>
+        `
+            : ''
         }
       </td>
 
@@ -2389,6 +2423,7 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
   const { dialPhone, hasValidPhone, displayPhone } = getDialPhone(rec);
   const isoApptDate = vnDateToIso(rec.apptDate);
   const tone = escapeHtml(rec.badgeColor || 'slate');
+  const isAdmin = Boolean(options?.isAdmin ?? state.currentUser?.role === 'admin');
 
   return `
     <div class="lead-card ${isNew ? 'is-new-lead' : ''}">
@@ -2403,9 +2438,25 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
             ${rec.customerInfo ? `<span class="info-text">· ${escapeHtml(rec.customerInfo)}</span>` : ''}
           </div>
         </div>
-        <button type="button" class="btn-card-edit" data-edit-record="${escapeHtml(rec.id)}">
-          Sửa
-        </button>
+        <div class="card-top-actions">
+          ${
+            isAdmin
+              ? `
+            <button
+              type="button"
+              class="btn-send-tele-single is-card-btn"
+              data-send-telegram-customer="${escapeHtml(rec.id)}"
+              title="Gửi thông tin khách này vào nhóm Telegram (Chỉ Admin)"
+            >
+              📨 Gửi Telegram
+            </button>
+          `
+              : ''
+          }
+          <button type="button" class="btn-card-edit" data-edit-record="${escapeHtml(rec.id)}">
+            Sửa
+          </button>
+        </div>
       </div>
 
       <div class="card-phone-bar">
@@ -2704,8 +2755,24 @@ function renderEditModal(data) {
         </div>
 
         <div class="modal-footer">
-          <button class="btn-clean" id="btn-cancel-modal">Hủy</button>
-          <button class="btn-clean btn-primary-clean" id="btn-save-modal">Lưu thay đổi</button>
+          ${
+            isAdmin
+              ? `
+            <button
+              type="button"
+              class="btn-send-tele-single is-modal-btn"
+              data-send-telegram-customer="${escapeHtml(rec.id)}"
+              title="Gửi thông tin lịch hẹn của khách hàng này vào nhóm Telegram (Chỉ Admin)"
+            >
+              📨 Gửi Telegram khách này
+            </button>
+          `
+              : ''
+          }
+          <div class="modal-footer-right">
+            <button class="btn-clean" id="btn-cancel-modal">Hủy</button>
+            <button class="btn-clean btn-primary-clean" id="btn-save-modal">Lưu thay đổi</button>
+          </div>
         </div>
       </div>
     </div>
@@ -3112,13 +3179,50 @@ function bindEvents() {
 
   document.querySelectorAll('[data-send-telegram]').forEach((btn) => {
     btn.addEventListener('click', async () => {
+      if (state.currentUser?.role !== 'admin') return;
       const range = btn.getAttribute('data-send-telegram') || 'today';
       const origText = btn.textContent;
       btn.disabled = true;
-      btn.textContent = 'Đang gửi...';
+      btn.textContent = '⏳ Đang gửi...';
       try {
-        const res = await triggerTelegramReminder(range);
+        const payload =
+          state.activeTab === 'today' &&
+          state.reminderRange === 'custom' &&
+          state.reminderCustomDate
+            ? {
+                dateVn: isoToVnDate(state.reminderCustomDate),
+                label: `NGÀY ${isoToVnDate(state.reminderCustomDate)}`,
+              }
+            : { range };
+        const res = await triggerTelegramReminder(payload);
         notify(`Đã gửi lịch hẹn (${res.count || 0} khách) vào Telegram`);
+      } catch (err) {
+        notify(`Chưa gửi được Telegram: ${err.message}`);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-send-telegram-customer]').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (state.currentUser?.role !== 'admin') return;
+      const id = btn.getAttribute('data-send-telegram-customer');
+      const rec = findRecord(id);
+      if (!rec) return;
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Đang gửi...';
+      try {
+        await triggerTelegramReminder({
+          mode: 'single',
+          recordId: rec.id,
+          sheetKey: rec.sheetKey,
+          sheetRowIndex: rec.sheetRowIndex,
+        });
+        notify(`Đã gửi thông tin khách "${rec.name}" vào Telegram!`);
       } catch (err) {
         notify(`Chưa gửi được Telegram: ${err.message}`);
       } finally {

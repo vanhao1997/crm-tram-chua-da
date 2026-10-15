@@ -396,10 +396,10 @@ export async function handleRequest(req, res) {
       }
 
       if (pathname === '/api/crm/telegram-reminder' && req.method === 'POST') {
-        if (currentUser.role !== 'admin' && currentUser.permissions?.canSendTelegram === false) {
+        if (currentUser.role !== 'admin') {
           return sendJson(res, 403, {
             ok: false,
-            error: 'Tài khoản của bạn chưa được cấp quyền gửi thông báo Telegram',
+            error: 'Chỉ tài khoản Admin mới có quyền gửi thông báo Telegram',
           });
         }
         const body = await readJsonBody(req);

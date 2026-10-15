@@ -114,10 +114,16 @@ export async function saveCustomerInteraction(payload) {
 }
 
 export async function triggerTelegramReminder(payload = {}) {
+  const bodyObj =
+    typeof payload === 'string'
+      ? { range: payload }
+      : payload && typeof payload === 'object'
+      ? payload
+      : {};
   const res = await fetch('/api/crm/telegram-reminder', {
     method: 'POST',
     headers: buildHeaders(true),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(bodyObj),
   });
   const data = await res.json();
   if (!res.ok || !data.ok) {

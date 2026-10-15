@@ -3217,5 +3217,87 @@ textarea.is-readonly-note {
   }
 }
 
+/* ================================================================
+   ADMIN-ONLY TELEGRAM BUTTONS & 08:00 AM SCHEDULE BADGE
+   ================================================================ */
+.admin-tele-row-wrap {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+}
 
+.btn-send-tele-single {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0369a1;
+  background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+  border: 1px solid #7dd3fc;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
+  white-space: nowrap;
+}
 
+.btn-send-tele-single:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border-color: #0284c7;
+  box-shadow: 0 3px 8px rgba(2, 132, 199, 0.25);
+}
+
+.btn-send-tele-single:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn-send-tele-single:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.btn-send-tele-single.is-compact {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+.card-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-footer-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn.is-telegram-btn {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid #0284c7;
+  font-weight: 700;
+}
+
+.btn.is-telegram-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+}
+
+.auto-tele-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0c4a6e;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+}

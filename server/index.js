@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PORT, HOST, ROOT_DIR } from './config.js';
 import { createServer } from './app.js';
+import { startDailyTelegramScheduler } from './google-sheets.js';
 
 const BRAND_ASSETS = [
   'brandmark.webp',
@@ -35,6 +36,7 @@ async function ensureBrandAssets() {
 }
 
 ensureBrandAssets();
+startDailyTelegramScheduler();
 
 const server = createServer();
 
@@ -44,6 +46,7 @@ server.listen(PORT, HOST, () => {
   console.log('   1) DATA NGUỒN MKT');
   console.log('   2) KHÁCH ĐẶT HẸN');
   console.log('   3) KHÁCH ĐÃ ĐẾN');
+  console.log('   ⏰ Tự động gửi lịch hẹn hôm nay qua Telegram: 08:00 sáng mỗi ngày');
   console.log('==============================================================');
 });
 

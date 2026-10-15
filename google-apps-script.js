@@ -76,6 +76,7 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
   try {
+    ensureDailyTelegramTriggerExists();
     const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
     const action = payload.action;
 
@@ -90,6 +91,8 @@ function doPost(e) {
         return jsonResponse(handleSyncCustomerToSheet(payload));
       case 'sendTelegramReminder':
         return jsonResponse(handleSendTelegramFromWeb(payload));
+      case 'sendSingleTelegram':
+        return jsonResponse(handleSendSingleTelegramFromWeb(payload));
       default:
         return jsonResponse({ ok: false, error: 'Action không hợp lệ: ' + action });
     }
@@ -460,14 +463,50 @@ function handleSendTelegramFromWeb(payload) {
   const label = payload.label || 'HÔM NAY';
   const botToken = payload.botToken || TELEGRAM_BOT_TOKEN;
   const chatId = payload.chatId || TELEGRAM_CHAT_ID;
+  if (payload.textHtml) {
+    return sendRawTelegramHtml(payload.textHtml, botToken, chatId, { dateVn: targetDateVn });
+  }
   return sendAppointmentsByDateToTelegram(targetDateVn, label, botToken, chatId);
 }
 
-/**
- * Quét Sheet 2 (KHÁCH ĐẶT HẸN) và Sheet 1 (DATA NGUỒN MKT) theo ngày hẹn DD/MM/YYYY
- * và gửi báo cáo chi tiết vào Telegram
- */
-function sendAppointmentsByDateToTelegram(targetDateVn, titleLabel, customToken, customChatId) {
+function handleSendSingleTelegramFromWeb(payload) {
+  const botToken = payload.botToken || TELEGRAM_BOT_TOKEN;
+  const chatId = payload.chatId || TELEGRAM_CHAT_ID;
+  if (payload.textHtml) {
+    return sendRawTelegramHtml(payload.textHtml, botToken, chatId, { mode: 'single' });
+  }
+  const rec = payload.record || {};
+  const apptDateText = rec.apptDate || rec.dataDate || Utilities.formatDate(new Date(), 'Asia/Ho_Chi_Minh', 'dd/MM/yyyy');
+  const lines = [
+    '📅 <b>LỊCH HẸN KHÁCH HÀNG — (' + escapeTelegramHtml(apptDateText) + ')</b>',
+    '<b>Trạm Chữa Da BSN</b> • Thông tin khách lẻ',
+    '━━━━━━━━━━━━━━━━━━━━',
+  ].concat(formatCustomerTelegramLinesGas(rec, 1));
+  return sendRawTelegramHtml(lines.join('\n'), botToken, chatId, { mode: 'single' });
+}
+
+function formatCustomerTelegramLinesGas(item, idx) {
+  const statusUpper = String(item.status || 'ĐẶT HẸN').trim().toUpperCase();
+  const isArrivedOrLost =
+    statusUpper.indexOf('ĐÃ ĐẾN') !== -1 ||
+    statusUpper.indexOf('HỦY') !== -1 ||
+    statusUpper.indexOf('TỪ CHỐI') !== -1;
+  const statusBadge = isArrivedOrLost
+    ? escapeTelegramHtml(statusUpper) + ' 🟢'
+    : escapeTelegramHtml(statusUpper) + ' 🔴 <i>(Cần gọi nhắc)</i>';
+
+  return [
+    idx + '. ⏰ <b>' + escapeTelegramHtml(item.apptTime || 'Chưa báo giờ') + '</b> — <b>' + escapeTelegramHtml(item.name || 'Khách chưa rõ tên') + '</b>',
+    '   📞 SĐT: <code>' + escapeTelegramHtml(item.phone || item.phoneDisplay || '—') + '</code>',
+    '   💆 Dịch vụ: ' + escapeTelegramHtml(item.service || '—'),
+    '   📌 Tình trạng: <b>' + statusBadge + '</b>',
+    '   👩‍💼 Telesale: <b>' + escapeTelegramHtml(item.telesale || 'Chưa phân bổ') + '</b>',
+    '   ℹ️ TT Khách: ' + escapeTelegramHtml(item.customerInfo || '—'),
+    '   📝 Ghi chú: <i>' + escapeTelegramHtml(item.noteM || '—') + '</i>',
+  ];
+}
+
+function sendRawTelegramHtml(text, customToken, customChatId, meta) {
   const token = String(customToken || TELEGRAM_BOT_TOKEN || '').trim();
   const chatId = String(customChatId || TELEGRAM_CHAT_ID || '').trim();
 
@@ -477,42 +516,6 @@ function sendAppointmentsByDateToTelegram(targetDateVn, titleLabel, customToken,
     );
   }
 
-  const appointments = collectAppointmentsForDate(targetDateVn);
-
-  const lines = [];
-  lines.push('📅 <b>LỊCH HẸN KHÁCH HÀNG ' + escapeTelegramHtml(titleLabel) + ' (' + escapeTelegramHtml(targetDateVn) + ')</b>');
-  lines.push('🏥 <b>Trạm Chữa Da BSN</b> — Tổng: <b>' + appointments.length + ' khách</b>');
-  lines.push('────────────────────');
-
-  if (appointments.length === 0) {
-    lines.push('Hiện chưa có khách hàng nào có lịch hẹn vào ngày ' + escapeTelegramHtml(targetDateVn) + '.');
-  } else {
-    for (let i = 0; i < appointments.length; i++) {
-      const item = appointments[i];
-      const idx = i + 1;
-      lines.push(
-        '<b>' + idx + '. ' + escapeTelegramHtml(item.name) + '</b> — 📞 <code>' + escapeTelegramHtml(item.phoneDisplay) + '</code>'
-      );
-      lines.push(
-        '   • Giờ hẹn: <b>' + escapeTelegramHtml(item.apptTime || 'Chưa báo giờ') + '</b> | Tình trạng: <b>' + escapeTelegramHtml(item.status || 'ĐẶT HẸN') + '</b>'
-      );
-      if (item.service || item.customerInfo) {
-        lines.push(
-          '   • Dịch vụ: ' + escapeTelegramHtml(item.service || '—') + (item.customerInfo ? ' (' + escapeTelegramHtml(item.customerInfo) + ')' : '')
-        );
-      }
-      lines.push(
-        '   • Telesale: <b>' + escapeTelegramHtml(item.telesale || 'Chưa phân bổ') + '</b>'
-      );
-      if (item.noteM) {
-        lines.push('   • Ghi chú: <i>' + escapeTelegramHtml(item.noteM) + '</i>');
-      }
-      lines.push('');
-    }
-    lines.push('💡 <i>Đội ngũ Telesale vui lòng liên hệ nhắc lịch & hỗ trợ đón khách đúng giờ!</i>');
-  }
-
-  const text = lines.join('\n');
   const telegramUrl = 'https://api.telegram.org/bot' + token + '/sendMessage';
   const response = UrlFetchApp.fetch(telegramUrl, {
     method: 'post',
@@ -531,11 +534,46 @@ function sendAppointmentsByDateToTelegram(targetDateVn, titleLabel, customToken,
     throw new Error('Lỗi gửi Telegram: ' + (resBody.description || response.getContentText()));
   }
 
-  return {
-    ok: true,
+  return Object.assign({ ok: true }, meta || {});
+}
+
+/**
+ * Quét Sheet 2 (KHÁCH ĐẶT HẸN) và Sheet 1 (DATA NGUỒN MKT) theo ngày hẹn DD/MM/YYYY
+ * và gửi báo cáo chi tiết vào Telegram
+ */
+function sendAppointmentsByDateToTelegram(targetDateVn, titleLabel, customToken, customChatId) {
+  const appointments = collectAppointmentsForDate(targetDateVn);
+  let needCallCount = 0;
+  for (let i = 0; i < appointments.length; i++) {
+    const st = String(appointments[i].status || '').toUpperCase();
+    if (st.indexOf('ĐÃ ĐẾN') === -1 && st.indexOf('HỦY') === -1 && st.indexOf('TỪ CHỐI') === -1) {
+      needCallCount++;
+    }
+  }
+
+  const lines = [];
+  lines.push('📅 <b>LỊCH HẸN KHÁCH HÀNG — ' + escapeTelegramHtml(titleLabel) + ' (' + escapeTelegramHtml(targetDateVn) + ')</b>');
+  lines.push('<b>Trạm Chữa Da BSN</b> • Tổng: <b>' + appointments.length + ' khách</b> (' + needCallCount + ' khách cần gọi nhắc)');
+  lines.push('━━━━━━━━━━━━━━━━━━━━');
+
+  if (appointments.length === 0) {
+    lines.push('Hiện chưa có khách hàng nào có lịch hẹn vào ngày ' + escapeTelegramHtml(targetDateVn) + '.');
+  } else {
+    for (let i = 0; i < appointments.length; i++) {
+      const itemLines = formatCustomerTelegramLinesGas(appointments[i], i + 1);
+      for (let j = 0; j < itemLines.length; j++) {
+        lines.push(itemLines[j]);
+      }
+      if (i < appointments.length - 1) {
+        lines.push('');
+      }
+    }
+  }
+
+  return sendRawTelegramHtml(lines.join('\n'), customToken, customChatId, {
     dateVn: targetDateVn,
     count: appointments.length,
-  };
+  });
 }
 
 function collectAppointmentsForDate(targetDateVn) {
@@ -584,6 +622,26 @@ function collectAppointmentsForDate(targetDateVn) {
   }
 
   return results;
+}
+
+function ensureDailyTelegramTriggerExists() {
+  try {
+    const triggers = ScriptApp.getProjectTriggers();
+    for (let i = 0; i < triggers.length; i++) {
+      if (triggers[i].getHandlerFunction() === 'sendTodayAppointmentsToTelegram') {
+        return true;
+      }
+    }
+    ScriptApp.newTrigger('sendTodayAppointmentsToTelegram')
+      .timeBased()
+      .everyDays(1)
+      .atHour(8)
+      .inTimezone('Asia/Ho_Chi_Minh')
+      .create();
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**
