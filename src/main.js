@@ -39,7 +39,7 @@ const state = {
     search: '',
     telesale: 'all',
     status: 'all',
-    monthKey: 'all',
+    monthKey: 'current',
   },
   pagination: {
     page: 1,
@@ -49,6 +49,30 @@ const state = {
   activeCareInputId: null,
   toasts: [],
 };
+
+function getCurrentMonthKey(records = []) {
+  const now = new Date();
+  const sysMonth = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  const available = Array.from(new Set(records.map((r) => r.monthKey).filter(Boolean)));
+  if (available.includes(sysMonth)) {
+    return sysMonth;
+  }
+  return available[0] || sysMonth;
+}
+
+function resolveEffectiveMonthKey(records = [], requestedMonthKey = 'current') {
+  if (!requestedMonthKey || requestedMonthKey === 'current') {
+    return getCurrentMonthKey(records);
+  }
+  if (requestedMonthKey === 'all') {
+    return 'all';
+  }
+  const available = Array.from(new Set(records.map((r) => r.monthKey).filter(Boolean)));
+  if (available.length > 0 && !available.includes(requestedMonthKey)) {
+    return getCurrentMonthKey(records);
+  }
+  return requestedMonthKey;
+}
 
 function notify(msg) {
   const id = Date.now() + Math.random();
@@ -159,6 +183,7 @@ function getActiveRecords() {
 function getFilteredRecords() {
   const records = getActiveRecords();
   const { search, telesale, status, monthKey } = state.filters;
+  const effectiveMonth = resolveEffectiveMonthKey(records, monthKey);
   const q = search.trim().toLowerCase();
   const qDigits = search.replace(/\D/g, '');
 
@@ -180,7 +205,12 @@ function getFilteredRecords() {
       }
     }
 
-    if (state.activeTab !== 'today' && monthKey !== 'all' && r.monthKey !== monthKey && r.section !== monthKey) {
+    if (
+      state.activeTab !== 'today' &&
+      effectiveMonth !== 'all' &&
+      r.monthKey !== effectiveMonth &&
+      r.section !== effectiveMonth
+    ) {
       return false;
     }
 
@@ -1347,6 +1377,8 @@ function render() {
   const filtered = getFilteredRecords();
 
   const months = Array.from(new Set(allTabRecords.map((r) => r.monthKey).filter(Boolean)));
+  const currentMonthKey = getCurrentMonthKey(allTabRecords);
+  const effectiveMonth = resolveEffectiveMonthKey(allTabRecords, state.filters.monthKey);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / state.pagination.pageSize));
   if (state.pagination.page > totalPages) state.pagination.page = totalPages;
@@ -1361,7 +1393,7 @@ function render() {
     state.filters.search ||
     state.filters.telesale !== 'all' ||
     state.filters.status !== 'all' ||
-    (state.activeTab !== 'today' && state.filters.monthKey !== 'all');
+    (state.activeTab !== 'today' && effectiveMonth !== currentMonthKey);
 
   const todayShort = apptSummary.todayVn.slice(0, 5);
   const tomorrowShort = apptSummary.tomorrowVn.slice(0, 5);
@@ -1618,13 +1650,13 @@ function render() {
             </select>
 
             <select class="clean-select" id="filter-month">
-              <option value="all">Tất cả tháng</option>
+              <option value="all" ${effectiveMonth === 'all' ? 'selected' : ''}>Tất cả tháng</option>
               ${months
                 .map(
                   (m) => `
                 <option value="${escapeHtml(m)}" ${
-                    state.filters.monthKey === m ? 'selected' : ''
-                  }>${escapeHtml(m)}</option>
+                    effectiveMonth === m ? 'selected' : ''
+                  }>${m === currentMonthKey ? `Tháng này (${escapeHtml(m)})` : `Tháng ${escapeHtml(m)}`}</option>
               `
                 )
                 .join('')}
@@ -2048,17 +2080,7 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
               : ''
           }
         </div>
-        <button
-          type="button"
-          class="btn-add-care-inline ${isCareBoxOpen ? 'is-open' : ''}"
-          data-toggle-care="${escapeHtml(rec.id)}"
-          title="Ghi thêm lần liên hệ tiếp theo (tự động gắn ngày giờ hôm nay)"
-        >
-          ${isCareBoxOpen ? '✕ Đóng' : `+ Ghi Lần ${nextStepNum}`}
-        </button>
       </div>
-
-      ${!hasFirstNote ? composerHtml : ''}
 
       <div class="note-primary-box">
         ${
@@ -2205,10 +2227,10 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
           : ''
       }
 
-      ${hasFirstNote ? composerHtml : ''}
+      ${composerHtml}
 
       ${
-        !isCareBoxOpen && hasFirstNote
+        !isCareBoxOpen
           ? `
         <button
           type="button"
@@ -2217,7 +2239,7 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
           title="Bấm để mở khung nhập Note cho lần liên hệ thứ ${nextStepNum}"
         >
           <span class="btn-add-care-footer-plus">＋</span>
-          <span>Ghi tiếp <strong>Lần ${nextStepNum}</strong> (Note liên hệ mới)</span>
+          <span>+ Ghi Lần ${nextStepNum} (Thêm ghi chú liên hệ mới)</span>
         </button>
       `
           : ''
@@ -3132,7 +3154,7 @@ function bindEvents() {
   });
 
   document.getElementById('btn-clear-filter')?.addEventListener('click', () => {
-    state.filters = { search: '', telesale: 'all', status: 'all', monthKey: 'all' };
+    state.filters = { search: '', telesale: 'all', status: 'all', monthKey: 'current' };
     state.pagination.page = 1;
     render();
   });
