@@ -67,7 +67,19 @@ const apptSummaryCache = new WeakMap();
 const contactLogsCache = new WeakMap();
 
 function isMobileViewport() {
-  return typeof window !== 'undefined' && window.innerWidth < 768;
+  if (typeof window === 'undefined') return false;
+  if (
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 767.98px)').matches
+  ) {
+    return true;
+  }
+  const docW =
+    typeof document !== 'undefined' && document.documentElement?.clientWidth
+      ? document.documentElement.clientWidth
+      : 9999;
+  const winW = window.innerWidth || 9999;
+  return Math.min(winW, docW) < 768;
 }
 
 function getCurrentMonthKey(records = []) {
@@ -1530,6 +1542,73 @@ function renderGroupedRows(records, statusOptions, telesaleList, groupBy, option
   return html;
 }
 
+export function renderMobileBottomNav(activeTab = 'mkt', counts = {}, isAdmin = false) {
+  const mktCount = counts.mkt ?? 0;
+  const bookedCount = counts.booked ?? 0;
+  const arrivedCount = counts.arrived ?? 0;
+  const todayCount = counts.today ?? 0;
+
+  return `
+    <nav class="mobile-bottom-nav ${isAdmin ? 'has-6-tabs' : 'has-4-tabs'}" aria-label="Menu điều hướng di động">
+      <button type="button" class="mobile-nav-item ${activeTab === 'mkt' ? 'active' : ''}" data-tab="mkt">
+        <span class="mobile-nav-icon-wrap">
+          <span class="mobile-nav-icon">📊</span>
+          <span class="mobile-nav-badge">${mktCount}</span>
+        </span>
+        <span class="mobile-nav-label">Data MKT</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item ${activeTab === 'booked' ? 'active' : ''}" data-tab="booked">
+        <span class="mobile-nav-icon-wrap">
+          <span class="mobile-nav-icon">📅</span>
+          <span class="mobile-nav-badge">${bookedCount}</span>
+        </span>
+        <span class="mobile-nav-label">Đặt Hẹn</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item ${activeTab === 'arrived' ? 'active' : ''}" data-tab="arrived">
+        <span class="mobile-nav-icon-wrap">
+          <span class="mobile-nav-icon">✅</span>
+          <span class="mobile-nav-badge">${arrivedCount}</span>
+        </span>
+        <span class="mobile-nav-label">Đã Đến</span>
+      </button>
+
+      <button type="button" class="mobile-nav-item is-today-tab ${activeTab === 'today' ? 'active' : ''}" data-tab="today">
+        <span class="mobile-nav-icon-wrap">
+          <span class="mobile-nav-icon">⏰</span>
+          <span class="mobile-nav-badge is-today-badge">${todayCount}</span>
+        </span>
+        <span class="mobile-nav-label">Hôm Nay</span>
+      </button>
+
+      ${
+        isAdmin
+          ? `
+        <button type="button" class="mobile-nav-item is-overview-tab ${
+          activeTab === 'overview' ? 'active' : ''
+        }" data-tab="overview">
+          <span class="mobile-nav-icon-wrap">
+            <span class="mobile-nav-icon">📈</span>
+          </span>
+          <span class="mobile-nav-label">Doanh Số</span>
+        </button>
+
+        <button type="button" class="mobile-nav-item is-admin-tab ${
+          activeTab === 'admin' ? 'active' : ''
+        }" data-tab="admin">
+          <span class="mobile-nav-icon-wrap">
+            <span class="mobile-nav-icon">⚙️</span>
+          </span>
+          <span class="mobile-nav-label">Quản Lý</span>
+        </button>
+      `
+          : ''
+      }
+    </nav>
+  `;
+}
+
 function render() {
   const app = document.getElementById('app');
   if (!app) return;
@@ -2021,6 +2100,17 @@ function render() {
       `
       }
     </main>
+
+    ${renderMobileBottomNav(
+      state.activeTab,
+      {
+        mkt: data.sheets.mkt.records.length,
+        booked: data.sheets.booked.records.length,
+        arrived: data.sheets.arrived.records.length,
+        today: apptSummary.todayList.length,
+      },
+      isAdmin
+    )}
 
     ${state.editingRecordId ? renderEditModal(data) : ''}
     ${isAdmin && state.addLeadModalOpen ? renderAddLeadModal(data) : ''}
@@ -3478,6 +3568,13 @@ function bindEvents() {
         return;
       }
       state.activeTab = nextTab;
+      if (typeof window !== 'undefined') {
+        try {
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        } catch {
+          window.scrollTo(0, 0);
+        }
+      }
       if (nextTab === 'today' && !state.reminderRange) {
         state.reminderRange = 'today';
       }

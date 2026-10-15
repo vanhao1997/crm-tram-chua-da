@@ -844,4 +844,26 @@ test('Bảo mật toàn diện: Không lộ token/doanh thu ở frontend, chặn
     assert.equal(rawUsersDisk.includes('bsn@2026'), false, 'Không lưu mật khẩu dạng rõ trên đĩa');
     assert.equal(rawUsersDisk.includes('enc:v1:'), true, 'Mật khẩu hiển thị được mã hóa AES-256-GCM trên đĩa');
   }
+
+  // 4. Kiểm tra Menu điều hướng dưới Footer trên Mobile (4 tab cho Telesale, 6 tab cho Admin)
+  const { renderMobileBottomNav } = await import('../src/main.js');
+  const saleBottomNav = renderMobileBottomNav(
+    'mkt',
+    { mkt: 647, booked: 49, arrived: 116, today: 3 },
+    false
+  );
+  assert.equal(saleBottomNav.includes('mobile-bottom-nav has-4-tabs'), true);
+  assert.equal(saleBottomNav.includes('data-tab="mkt"'), true);
+  assert.equal(saleBottomNav.includes('data-tab="overview"'), false);
+  assert.equal(saleBottomNav.includes('data-tab="admin"'), false);
+
+  const adminBottomNav = renderMobileBottomNav(
+    'admin',
+    { mkt: 647, booked: 49, arrived: 116, today: 3 },
+    true
+  );
+  assert.equal(adminBottomNav.includes('mobile-bottom-nav has-6-tabs'), true);
+  assert.equal(adminBottomNav.includes('data-tab="overview"'), true);
+  assert.equal(adminBottomNav.includes('data-tab="admin"'), true);
 });
+

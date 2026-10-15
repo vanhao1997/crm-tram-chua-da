@@ -1599,9 +1599,13 @@ textarea.is-readonly-note {
 }
 
 /* ============================================================
-   5. iOS-Style Clean Mobile Card View (< 768px)
+   5. iOS-Style Clean Mobile Card View & Fixed Bottom Footer Nav (< 768px)
    ============================================================ */
 .mobile-cards {
+  display: none;
+}
+
+.mobile-bottom-nav {
   display: none;
 }
 
@@ -1626,6 +1630,13 @@ textarea.is-readonly-note {
 }
 
 @media (max-width: 767.98px) {
+  html,
+  body,
+  #app {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   input,
   select,
   textarea {
@@ -1649,41 +1660,219 @@ textarea.is-readonly-note {
     font-size: 14px;
   }
 
+  /* 1. Compact 1-Row Top Header on Mobile (Zero Overflow) */
+  .topbar-brand-row {
+    padding: 8px 12px;
+    gap: 8px;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    border-bottom: none;
+  }
+
+  .brand {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 8px;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .brand-text-stack {
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .brand-title {
-    font-size: 14.5px;
+    font-size: 13.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
   }
 
-  #btn-refresh {
-    padding: 6px 12px;
-    font-size: 12.5px;
-    min-height: 34px;
+  .rust-engine-badge,
+  .btn-add-lead-top,
+  .user-session-role {
+    display: none !important;
   }
 
-  .nav-tabs {
-    grid-area: tabs;
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 4px;
-    padding: 4px;
-  }
-
-  .nav-tab {
-    justify-content: center;
-    padding: 7px 6px;
-    font-size: 12px;
+  .topbar-right {
+    width: auto !important;
+    flex: 0 0 auto;
     gap: 5px;
-    min-height: 36px;
+    justify-content: flex-end;
   }
 
-  .tab-badge {
-    font-size: 11px;
-    padding: 1px 6px;
+  .user-session-pill {
+    padding: 4px 8px;
+    font-size: 11.5px;
+    gap: 5px;
   }
 
+  #btn-refresh,
+  #btn-logout {
+    padding: 5px 8px;
+    font-size: 11.5px;
+    min-height: 30px !important;
+    border-radius: 7px;
+  }
+
+  /* 2. Hide Top Navigation Row on Mobile & Show Fixed Bottom Footer Menu */
+  .topbar-nav-row {
+    display: none !important;
+  }
+
+  .mobile-bottom-nav {
+    display: grid;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 95;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-top: 1px solid var(--border-light);
+    box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.08);
+    padding: 4px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    gap: 2px;
+  }
+
+  .mobile-bottom-nav.has-4-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .mobile-bottom-nav.has-6-tabs {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .mobile-nav-item {
+    position: relative;
+    border: none;
+    background: transparent;
+    padding: 5px 2px 4px;
+    border-radius: 9px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    min-width: 0;
+    transition: all 0.15s ease;
+  }
+
+  .mobile-nav-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 20px;
+    height: 2.5px;
+    border-radius: 999px;
+    background: transparent;
+    transition: background 0.15s ease;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--brand-primary);
+    background: #eef5f2;
+  }
+
+  .mobile-nav-item.active::before {
+    background: var(--brand-primary);
+  }
+
+  .mobile-nav-item.is-today-tab.active {
+    color: #047857;
+    background: #ecfdf5;
+  }
+
+  .mobile-nav-item.is-today-tab.active::before {
+    background: #10b981;
+  }
+
+  .mobile-nav-item.is-admin-tab.active {
+    color: #5b21b6;
+    background: #f5f3ff;
+  }
+
+  .mobile-nav-item.is-admin-tab.active::before {
+    background: #6d28d9;
+  }
+
+  .mobile-nav-icon-wrap {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+  }
+
+  .mobile-nav-icon {
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: -4px;
+    left: 13px;
+    min-width: 16px;
+    height: 14px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #334155;
+    color: #ffffff;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    box-shadow: 0 0 0 1.5px #ffffff;
+  }
+
+  .mobile-nav-item.active .mobile-nav-badge {
+    background: var(--brand-primary);
+  }
+
+  .mobile-nav-badge.is-today-badge {
+    background: #059669;
+  }
+
+  .mobile-nav-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .mobile-nav-item.active .mobile-nav-label {
+    font-weight: 700;
+  }
+
+  /* 3. Workspace, Banner, Toolbar & Summary Synchronization on Mobile */
   .workspace {
-    margin: 10px auto 28px;
-    padding: 0 10px;
+    margin: 10px auto 0;
+    padding: 0 10px calc(86px + env(safe-area-inset-bottom, 0px));
+    max-width: 100vw;
+  }
+
+  .toast-wrap {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+    left: 12px;
   }
 
   .reminder-banner {
@@ -1695,14 +1884,17 @@ textarea.is-readonly-note {
   .reminder-banner-actions {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   }
 
   .btn-reminder-action {
-    padding: 7px 6px;
+    padding: 7.5px 8px;
     font-size: 11.5px;
     text-align: center;
+    justify-content: center;
+    display: inline-flex;
+    align-items: center;
   }
 
   .reminder-subbar {
@@ -1729,12 +1921,42 @@ textarea.is-readonly-note {
   .reminder-custom-picker {
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .sheet-card {
+  .airtable-sheet-card {
     background: transparent;
     border: none;
     box-shadow: none;
+  }
+
+  .airtable-view-bar {
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    background: #ffffff;
+    margin-bottom: 8px;
+  }
+
+  .airtable-view-switcher {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .airtable-view-btn {
+    justify-content: center;
+    text-align: center;
+    padding: 6.5px 6px;
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .airtable-view-tools {
+    display: none;
   }
 
   .toolbar {
@@ -1768,13 +1990,12 @@ textarea.is-readonly-note {
 
   .toolbar-meta {
     display: flex;
-    justify-content: flex-end;
-    font-size: 12px;
-    padding-top: 2px;
-  }
-
-  .table-wrap {
-    display: none !important;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    font-size: 12.5px;
+    padding-top: 6px;
+    border-top: 1px dashed var(--border-subtle);
   }
 
   .mobile-cards {
@@ -1783,15 +2004,41 @@ textarea.is-readonly-note {
     gap: 10px;
   }
 
-  .topbar-brand-row,
-  .topbar-nav-row {
-    padding: 8px 12px;
+  .airtable-summary-bar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    padding: 8px;
+    margin-top: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border-light);
+    background: #ffffff;
+  }
+
+  .summary-metric {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 2px;
+    padding: 6px 4px;
+    border-radius: 8px;
+    background: var(--bg-subtle);
+  }
+
+  .summary-label {
+    font-size: 10px;
+  }
+
+  .summary-metric strong {
+    font-size: 13.5px;
   }
 
   .table-footer {
     flex-direction: column;
     gap: 8px;
-    margin-top: 10px;
+    margin-top: 8px;
+    padding: 10px 12px;
     border-radius: 12px;
     border: 1px solid var(--border-light);
     background: #ffffff;
@@ -2488,25 +2735,44 @@ textarea.is-readonly-note {
   }
 }
 
-@media (max-width: 767px) {
-  .topbar-right {
-    width: 100%;
-    justify-content: space-between;
-  }
-
+@media (max-width: 767.98px) {
   .admin-stats-bar,
   .admin-form-grid {
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .admin-stat-card {
+    padding: 12px 14px;
+  }
+
+  .admin-stat-value {
+    font-size: 17px;
   }
 
   .admin-form-card,
-  .admin-list-card {
+  .admin-list-card,
+  .admin-tele-schedule-card,
+  .ov-table-card {
     padding: 14px;
+    background: #ffffff;
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+    max-width: 100%;
+    overflow: hidden;
   }
 
-  .admin-list-card .table-wrap {
+  .admin-section-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .admin-list-card .table-wrap,
+  .ov-table-card .table-wrap {
     display: block;
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
 
@@ -3623,10 +3889,92 @@ textarea.is-readonly-note {
   color: #1e293b;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .field-row-3 {
     grid-template-columns: 1fr;
   }
+
+  .tele-schedule-status-badge {
+    white-space: normal;
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+    font-size: 12px;
+    padding: 8px 10px;
+    line-height: 1.35;
+    border-radius: 10px;
+  }
+
+  .tele-schedule-controls-grid {
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .tele-control-box {
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .tele-switch-btn {
+    padding: 9px 10px;
+    font-size: 12.5px;
+    white-space: normal;
+    text-align: left;
+    line-height: 1.3;
+  }
+
+  .tele-time-input-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .tele-time-input {
+    max-width: none;
+    width: 100%;
+  }
+
+  .tele-manual-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+  }
+
+  .tele-manual-btns .btn-reminder-action {
+    width: 100%;
+    padding: 8px 6px;
+    font-size: 11.5px;
+  }
+
+  .ov-header-card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+
+  .ov-main-title {
+    font-size: 16.5px;
+    line-height: 1.3;
+  }
+
+  .ov-period-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .ov-period-btn {
+    padding: 7px 6px;
+    font-size: 12px;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .ov-custom-range {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
 }
-
-
