@@ -1958,6 +1958,7 @@ const QUICK_CARE_CHIPS = [
   '2c knm, đã nt zl care',
   '3c thuê bao',
   'Khách bận, hẹn gọi lại',
+  'Đã tư vấn, khách suy nghĩ thêm',
   'Đã nhắc lịch, khách chốt qua đúng giờ',
 ];
 
@@ -1969,6 +1970,51 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
   const isTelesale = !isAdmin && state.currentUser?.role === 'telesale';
   const hasFirstNote = Boolean(String(rec?.noteM || '').trim());
   const isFirstNoteReadonly = isTelesale && hasFirstNote;
+
+  const composerHtml = isCareBoxOpen
+    ? `
+      <div class="quick-care-composer">
+        <div class="quick-care-header">
+          <div class="quick-care-title">
+            <span class="quick-care-step-pill">Lần ${nextStepNum}</span>
+            <span>Ghi chú liên hệ mới · Tự gắn giờ <code>${escapeHtml(formatNowVnStamp())}</code></span>
+          </div>
+          <button
+            type="button"
+            class="btn-close-care-inline"
+            data-toggle-care="${escapeHtml(rec.id)}"
+            title="Đóng khung ghi chú"
+          >✕ Đóng</button>
+        </div>
+        <div class="quick-care-chips">
+          ${QUICK_CARE_CHIPS.map(
+            (chip) => `
+            <button
+              type="button"
+              class="quick-care-chip"
+              data-care-chip="${escapeHtml(rec.id)}"
+              data-chip-text="${escapeHtml(chip)}"
+            >+ ${escapeHtml(chip)}</button>
+          `
+          ).join('')}
+        </div>
+        <div class="quick-care-input-row">
+          <input
+            type="text"
+            class="quick-care-input"
+            id="care-input-${escapeHtml(rec.id)}"
+            data-care-input="${escapeHtml(rec.id)}"
+            placeholder="Nhập kết quả gọi Lần ${nextStepNum} (Enter để lưu nhanh)..."
+          />
+          <button
+            type="button"
+            class="btn-save-care-inline"
+            data-save-care="${escapeHtml(rec.id)}"
+          >✓ Lưu Lần ${nextStepNum}</button>
+        </div>
+      </div>
+    `
+    : '';
 
   return `
     <div class="note-tracker-wrap ${isCard ? 'is-card-note' : ''} ${isAdmin ? 'is-admin-note-wrap' : ''}">
@@ -2012,45 +2058,7 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
         </button>
       </div>
 
-      ${
-        isCareBoxOpen
-          ? `
-        <div class="quick-care-composer">
-          <div class="quick-care-header">
-            <span>➕ Ghi chú <strong>Lần ${nextStepNum}</strong> (Tự gắn ngày giờ <code>${escapeHtml(
-              formatNowVnStamp()
-            )}</code>)</span>
-          </div>
-          <div class="quick-care-chips">
-            ${QUICK_CARE_CHIPS.map(
-              (chip) => `
-              <button
-                type="button"
-                class="quick-care-chip"
-                data-care-chip="${escapeHtml(rec.id)}"
-                data-chip-text="${escapeHtml(chip)}"
-              >${escapeHtml(chip)}</button>
-            `
-            ).join('')}
-          </div>
-          <div class="quick-care-input-row">
-            <input
-              type="text"
-              class="quick-care-input"
-              id="care-input-${escapeHtml(rec.id)}"
-              data-care-input="${escapeHtml(rec.id)}"
-              placeholder="Nhập kết quả gọi Lần ${nextStepNum}..."
-            />
-            <button
-              type="button"
-              class="btn-save-care-inline"
-              data-save-care="${escapeHtml(rec.id)}"
-            >Lưu Lần ${nextStepNum}</button>
-          </div>
-        </div>
-      `
-          : ''
-      }
+      ${!hasFirstNote ? composerHtml : ''}
 
       <div class="note-primary-box">
         ${
@@ -2193,6 +2201,24 @@ export function renderNoteTimelineBlock(rec, isCard = false, options = {}) {
             )
             .join('')}
         </div>
+      `
+          : ''
+      }
+
+      ${hasFirstNote ? composerHtml : ''}
+
+      ${
+        !isCareBoxOpen && hasFirstNote
+          ? `
+        <button
+          type="button"
+          class="btn-add-care-footer"
+          data-toggle-care="${escapeHtml(rec.id)}"
+          title="Bấm để mở khung nhập Note cho lần liên hệ thứ ${nextStepNum}"
+        >
+          <span class="btn-add-care-footer-plus">＋</span>
+          <span>Ghi tiếp <strong>Lần ${nextStepNum}</strong> (Note liên hệ mới)</span>
+        </button>
       `
           : ''
       }
@@ -2592,14 +2618,25 @@ function renderEditModal(data) {
               : ''
           }
 
-          <div class="field-group">
-            <label>➕ Ghi thêm Lần liên hệ thứ ${nextStepNum} (Tự động gắn ngày giờ ${escapeHtml(
+          <div class="field-group modal-new-care-box">
+            <label>➕ Ghi thêm Lần liên hệ thứ ${nextStepNum} (Tự động gắn ngày giờ <code>${escapeHtml(
               formatNowVnStamp()
-            )})</label>
+            )}</code>)</label>
+            <div class="quick-care-chips">
+              ${QUICK_CARE_CHIPS.map(
+                (chip) => `
+                <button
+                  type="button"
+                  class="quick-care-chip"
+                  data-modal-care-chip="${escapeHtml(chip)}"
+                >+ ${escapeHtml(chip)}</button>
+              `
+              ).join('')}
+            </div>
             <input
               type="text"
               id="modal-new-care"
-              placeholder="VD: 2c knm, đã nhắn Zalo nhắc lịch..."
+              placeholder="Nhập kết quả gọi Lần ${nextStepNum} hoặc bấm nút gợi ý ở trên..."
             />
           </div>
         </div>
@@ -3455,6 +3492,17 @@ function bindEvents() {
       const rowEl = btn.closest('[data-modal-care-row]');
       if (rowEl) {
         rowEl.remove();
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-modal-care-chip]').forEach((chipBtn) => {
+    chipBtn.addEventListener('click', () => {
+      const chipText = chipBtn.getAttribute('data-modal-care-chip') || '';
+      const inputEl = document.getElementById('modal-new-care');
+      if (inputEl) {
+        inputEl.value = chipText;
+        inputEl.focus();
       }
     });
   });
