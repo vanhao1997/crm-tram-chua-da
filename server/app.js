@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { URL } from 'node:url';
 import { ROOT_DIR, APP_VERSION } from './config.js';
 import {
@@ -33,17 +34,35 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon',
 };
 
-function sendJson(res, statusCode, payload, extraHeaders = {}) {
-  const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
+const COMPRESSIBLE_EXTS = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg']);
+
+function acceptsGzip(req) {
+  const enc = req?.headers?.['accept-encoding'];
+  return typeof enc === 'string' && enc.includes('gzip');
+}
+
+function sendJson(res, statusCode, payload, extraHeaders = {}, req = null) {
+  const rawBody = JSON.stringify(payload);
+  const headers = {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Cache-Control': 'no-store',
     ...extraHeaders,
-  });
-  res.end(body);
+  };
+
+  if (acceptsGzip(req) && Buffer.byteLength(rawBody) > 1024) {
+    const compressed = zlib.gzipSync(rawBody, { level: zlib.constants.Z_BEST_SPEED });
+    headers['Content-Encoding'] = 'gzip';
+    headers['Vary'] = 'Accept-Encoding';
+    res.writeHead(statusCode, headers);
+    res.end(compressed);
+    return;
+  }
+
+  res.writeHead(statusCode, headers);
+  res.end(rawBody);
 }
 
 function readJsonBody(req) {
@@ -67,7 +86,30 @@ function readJsonBody(req) {
   });
 }
 
-function serveStaticFile(reqPath, res) {
+function sendStaticFileBuffer(filePath, ext, cacheControl, req, res) {
+  const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const headers = {
+    'Content-Type': contentType,
+    'Cache-Control': cacheControl,
+  };
+
+  if (COMPRESSIBLE_EXTS.has(ext) && acceptsGzip(req)) {
+    const rawBuf = fs.readFileSync(filePath);
+    if (rawBuf.length > 512) {
+      const compressed = zlib.gzipSync(rawBuf, { level: zlib.constants.Z_BEST_SPEED });
+      headers['Content-Encoding'] = 'gzip';
+      headers['Vary'] = 'Accept-Encoding';
+      res.writeHead(200, headers);
+      res.end(compressed);
+      return;
+    }
+  }
+
+  res.writeHead(200, headers);
+  fs.createReadStream(filePath).pipe(res);
+}
+
+function serveStaticFile(reqPath, res, req = null, hasVersionParam = false) {
   const lower = reqPath.toLowerCase();
   if (
     lower.startsWith('/server') ||
@@ -91,11 +133,7 @@ function serveStaticFile(reqPath, res) {
     fs.statSync(publicCandidate).isFile()
   ) {
     const ext = path.extname(publicCandidate).toLowerCase();
-    res.writeHead(200, {
-      'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
-      'Cache-Control': 'public, max-age=3600',
-    });
-    fs.createReadStream(publicCandidate).pipe(res);
+    sendStaticFileBuffer(publicCandidate, ext, 'public, max-age=86400', req, res);
     return;
   }
 
@@ -112,12 +150,11 @@ function serveStaticFile(reqPath, res) {
 
   if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
     const ext = path.extname(resolvedPath).toLowerCase();
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-    });
-    fs.createReadStream(resolvedPath).pipe(res);
+    const isVersionedAsset = hasVersionParam && (ext === '.js' || ext === '.mjs' || ext === '.css');
+    const cacheControl = isVersionedAsset
+      ? 'public, max-age=86400'
+      : 'no-store, no-cache, must-revalidate';
+    sendStaticFileBuffer(resolvedPath, ext, cacheControl, req, res);
     return;
   }
 
@@ -125,11 +162,7 @@ function serveStaticFile(reqPath, res) {
     ? path.join(distDir, 'index.html')
     : path.join(ROOT_DIR, 'index.html');
   if (fs.existsSync(indexPath)) {
-    res.writeHead(200, {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate',
-    });
-    fs.createReadStream(indexPath).pipe(res);
+    sendStaticFileBuffer(indexPath, '.html', 'no-store, no-cache, must-revalidate', req, res);
     return;
   }
 
@@ -239,47 +272,72 @@ export async function handleRequest(req, res) {
           period: parsedUrl.searchParams.get('period') || 'month',
           from: parsedUrl.searchParams.get('from') || '',
           to: parsedUrl.searchParams.get('to') || '',
+          refresh: parsedUrl.searchParams.get('refresh') || '',
         };
         const overviewData = await getAdminOverviewData(query);
-        return sendJson(res, 200, overviewData);
+        return sendJson(res, 200, overviewData, {}, req);
       }
 
       if (pathname === '/api/admin/users' && req.method === 'GET') {
-        return sendJson(res, 200, {
-          ok: true,
-          users: listUsersForAdmin(),
-        });
+        return sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            users: listUsersForAdmin(),
+          },
+          {},
+          req
+        );
       }
 
       if (pathname === '/api/admin/users' && req.method === 'POST') {
         const body = await readJsonBody(req);
         const created = createUser(body);
-        return sendJson(res, 201, {
-          ok: true,
-          user: created,
-          users: listUsersForAdmin(),
-        });
+        return sendJson(
+          res,
+          201,
+          {
+            ok: true,
+            user: created,
+            users: listUsersForAdmin(),
+          },
+          {},
+          req
+        );
       }
 
       if (pathname === '/api/admin/users' && req.method === 'PUT') {
         const body = await readJsonBody(req);
         const userId = body.id || parsedUrl.searchParams.get('id');
         const updated = updateUser(userId, body);
-        return sendJson(res, 200, {
-          ok: true,
-          user: updated,
-          users: listUsersForAdmin(),
-        });
+        return sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            user: updated,
+            users: listUsersForAdmin(),
+          },
+          {},
+          req
+        );
       }
 
       if (pathname === '/api/admin/users' && req.method === 'DELETE') {
         const body = await readJsonBody(req).catch(() => ({}));
         const userId = body.id || parsedUrl.searchParams.get('id');
         deleteUser(userId, currentUser.id);
-        return sendJson(res, 200, {
-          ok: true,
-          users: listUsersForAdmin(),
-        });
+        return sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            users: listUsersForAdmin(),
+          },
+          {},
+          req
+        );
       }
 
       return sendJson(res, 404, { ok: false, error: 'Không tìm thấy API Admin' });
@@ -305,7 +363,7 @@ export async function handleRequest(req, res) {
           parsedUrl.searchParams.get('refresh') === 'true';
         const data = await getAllSheetsData(forceRefresh);
         const scopedData = filterCrmDataForUser(data, currentUser);
-        return sendJson(res, 200, scopedData);
+        return sendJson(res, 200, scopedData, {}, req);
       }
 
       if (pathname === '/api/crm/interaction' && (req.method === 'POST' || req.method === 'PUT')) {
@@ -325,10 +383,16 @@ export async function handleRequest(req, res) {
         const updateResult = await updateCustomerInteraction(body);
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
-        return sendJson(res, 200, {
-          ...updateResult,
-          crmData: scopedData,
-        });
+        return sendJson(
+          res,
+          200,
+          {
+            ...updateResult,
+            crmData: scopedData,
+          },
+          {},
+          req
+        );
       }
 
       if (pathname === '/api/crm/telegram-reminder' && req.method === 'POST') {
@@ -340,7 +404,7 @@ export async function handleRequest(req, res) {
         }
         const body = await readJsonBody(req);
         const result = await sendTelegramReminder(body);
-        return sendJson(res, 200, result);
+        return sendJson(res, 200, result, {}, req);
       }
     }
 
@@ -348,7 +412,7 @@ export async function handleRequest(req, res) {
       return sendJson(res, 404, { ok: false, error: 'Not found' });
     }
 
-    return serveStaticFile(pathname, res);
+    return serveStaticFile(pathname, res, req, parsedUrl.searchParams.has('v'));
   } catch (err) {
     return sendJson(res, 500, {
       ok: false,

@@ -43,12 +43,20 @@ const state = {
   },
   pagination: {
     page: 1,
-    pageSize: 50,
+    pageSize: 30,
   },
   editingRecordId: null,
   activeCareInputId: null,
   toasts: [],
 };
+
+let searchDebounceTimer = null;
+const apptSummaryCache = new WeakMap();
+const contactLogsCache = new WeakMap();
+
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth < 768;
+}
 
 function getCurrentMonthKey(records = []) {
   const now = new Date();
@@ -97,6 +105,13 @@ function renderToasts() {
 
 export function getAppointmentSummary(crmData, baseDate = new Date()) {
   const todayIso = getLocalIsoDate(0, baseDate);
+  if (crmData && typeof crmData === 'object') {
+    const cached = apptSummaryCache.get(crmData);
+    if (cached && cached.todayIso === todayIso) {
+      return cached.summary;
+    }
+  }
+
   const tomorrowIso = getLocalIsoDate(1, baseDate);
   const next7Iso = getLocalIsoDate(7, baseDate);
 
@@ -152,7 +167,7 @@ export function getAppointmentSummary(crmData, baseDate = new Date()) {
   const todayNeedCallCount = todayList.filter(isNeedCall).length;
   const tomorrowNeedCallCount = tomorrowList.filter(isNeedCall).length;
 
-  return {
+  const summary = {
     todayIso,
     tomorrowIso,
     next7Iso,
@@ -165,6 +180,12 @@ export function getAppointmentSummary(crmData, baseDate = new Date()) {
     todayNeedCallCount,
     tomorrowNeedCallCount,
   };
+
+  if (crmData && typeof crmData === 'object') {
+    apptSummaryCache.set(crmData, { todayIso, summary });
+  }
+
+  return summary;
 }
 
 function getActiveRecords() {
@@ -1677,6 +1698,18 @@ function render() {
         ${
           state.viewMode === 'kanban'
             ? renderKanbanBoard(filtered, statusOptions, telesaleList)
+            : isMobileViewport()
+            ? `
+        <div class="mobile-cards">
+          ${
+            paged.length === 0
+              ? `<div class="card-empty-state">Không tìm thấy khách hàng phù hợp.</div>`
+              : paged
+                  .map((rec) => renderCard(rec, statusOptions, telesaleList))
+                  .join('')
+          }
+        </div>
+        `
             : `
         <div class="table-wrap airtable-grid-wrap">
           <table class="lead-table airtable-grid-table">
@@ -1705,16 +1738,6 @@ function render() {
               }
             </tbody>
           </table>
-        </div>
-
-        <div class="mobile-cards">
-          ${
-            paged.length === 0
-              ? `<div class="card-empty-state">Không tìm thấy khách hàng phù hợp.</div>`
-              : paged
-                  .map((rec) => renderCard(rec, statusOptions, telesaleList))
-                  .join('')
-          }
         </div>
         `
         }
@@ -1927,11 +1950,23 @@ function parseSingleContactNote(rawText, fallbackDateShort = '', addedAtIso = ''
 }
 
 export function analyzeContactLogs(rec) {
+  const noteMText = String(rec?.noteM || '').trim();
+  const careHistory = Array.isArray(rec?.careHistory) ? rec.careHistory : [];
+  const cacheSig = `${rec?.dataDate || ''}|${noteMText}|${careHistory
+    .map((c) => c?.text || c || '')
+    .join('~')}`;
+
+  if (rec && typeof rec === 'object') {
+    const cached = contactLogsCache.get(rec);
+    if (cached && cached.sig === cacheSig) {
+      return cached.result;
+    }
+  }
+
   const dataDateShort = toShortVnDate(rec?.dataDate);
   let runningDateShort = dataDateShort;
   const entries = [];
 
-  const noteMText = String(rec?.noteM || '').trim();
   let firstNoteEntry = null;
   if (noteMText) {
     const parsed = parseSingleContactNote(noteMText, runningDateShort, '');
@@ -1945,7 +1980,6 @@ export function analyzeContactLogs(rec) {
     entries.push(firstNoteEntry);
   }
 
-  const careHistory = Array.isArray(rec?.careHistory) ? rec.careHistory : [];
   const careEntries = [];
   for (let i = 0; i < careHistory.length; i++) {
     const item = careHistory[i];
@@ -1974,7 +2008,7 @@ export function analyzeContactLogs(rec) {
     ? `${latestDateShort}${latestTime ? ` · ${latestTime}` : ''}`
     : latestTime || '';
 
-  return {
+  const result = {
     totalContacts,
     totalCallAttempts,
     entries,
@@ -1984,6 +2018,12 @@ export function analyzeContactLogs(rec) {
     latestTime,
     latestSummary,
   };
+
+  if (rec && typeof rec === 'object') {
+    contactLogsCache.set(rec, { sig: cacheSig, result });
+  }
+
+  return result;
 }
 
 const QUICK_CARE_CHIPS = [
@@ -2737,26 +2777,27 @@ async function loadAuthenticatedWorkspace() {
   render();
   try {
     state.crmData = await fetchCrmData(false);
+    state.loading = false;
+    render();
     if (state.currentUser?.role === 'admin') {
-      try {
-        const [users, overview] = await Promise.all([
-          fetchAdminUsers().catch(() => []),
-          resolveAdminOverviewSafe().catch(() => null),
-        ]);
+      Promise.all([
+        fetchAdminUsers().catch(() => []),
+        resolveAdminOverviewSafe().catch(() => null),
+      ]).then(([users, overview]) => {
         state.adminUsers = users;
         if (overview) state.adminOverview = overview;
-      } catch {
-        // Ignore admin prefetch error
-      }
+        if (state.activeWorkspace === 'admin' || state.activeWorkspace === 'overview') {
+          render();
+        }
+      });
     }
   } catch (err) {
+    state.loading = false;
     if (err.requireAuth) {
       state.currentUser = null;
     } else {
       notify(`Lỗi tải dữ liệu: ${err.message}`);
     }
-  } finally {
-    state.loading = false;
     render();
   }
 }
@@ -3123,8 +3164,8 @@ function bindEvents() {
 
   const searchInput = document.getElementById('search-input');
   if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      state.filters.search = e.target.value;
+    const commitSearch = (val) => {
+      state.filters.search = val;
       state.pagination.page = 1;
       render();
       const el = document.getElementById('search-input');
@@ -3132,6 +3173,21 @@ function bindEvents() {
         el.focus();
         el.setSelectionRange(el.value.length, el.value.length);
       }
+    };
+    searchInput.addEventListener('input', (e) => {
+      if (e.isComposing) return;
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      const val = e.target.value;
+      searchDebounceTimer = setTimeout(() => {
+        commitSearch(val);
+      }, 140);
+    });
+    searchInput.addEventListener('compositionend', (e) => {
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      const val = e.target.value;
+      searchDebounceTimer = setTimeout(() => {
+        commitSearch(val);
+      }, 140);
     });
   }
 
@@ -3248,6 +3304,10 @@ function bindEvents() {
   });
 
   document.querySelectorAll('[data-note-input]').forEach((input) => {
+    if (input.hasAttribute('readonly')) {
+      return;
+    }
+
     const id = input.getAttribute('data-note-input');
     const rec = findRecord(id);
     const originalNote = rec ? rec.noteM || '' : '';
@@ -3258,12 +3318,8 @@ function bindEvents() {
         input.style.height = `${input.scrollHeight}px`;
       }
     };
-    fitHeight();
 
-    if (input.hasAttribute('readonly')) {
-      return;
-    }
-
+    input.addEventListener('focus', fitHeight, { once: true });
     input.addEventListener('input', fitHeight);
 
     input.addEventListener('keydown', (e) => {
@@ -3645,6 +3701,14 @@ if (typeof window !== 'undefined') {
   window.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && state.editingRecordId) {
       state.editingRecordId = null;
+      render();
+    }
+  });
+  let lastMobileState = isMobileViewport();
+  window.addEventListener('resize', () => {
+    const nowMobile = isMobileViewport();
+    if (nowMobile !== lastMobileState) {
+      lastMobileState = nowMobile;
       render();
     }
   });

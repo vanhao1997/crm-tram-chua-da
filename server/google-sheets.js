@@ -74,7 +74,14 @@ function loadLocalState() {
   }
 }
 
+let stateVersion = 1;
+let cachedResponseEntry = {
+  key: '',
+  payload: null,
+};
+
 function saveLocalState(state) {
+  stateVersion++;
   ensureDirs();
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), 'utf8');
 }
@@ -84,7 +91,46 @@ let memoryCache = {
   fetchedAt: 0,
   sheets: null,
 };
-const CACHE_TTL_MS = 25 * 1000;
+const CACHE_TTL_MS = 45 * 1000;
+let inFlightRefreshPromise = null;
+
+function warmCacheFromDisk() {
+  try {
+    ensureDirs();
+    const mktPath = path.join(CACHE_DIR, 'mkt.csv');
+    const bookedPath = path.join(CACHE_DIR, 'booked.csv');
+    const arrivedPath = path.join(CACHE_DIR, 'arrived.csv');
+    if (
+      fs.existsSync(mktPath) &&
+      fs.existsSync(bookedPath) &&
+      fs.existsSync(arrivedPath)
+    ) {
+      const mktCsv = fs.readFileSync(mktPath, 'utf8');
+      const bookedCsv = fs.readFileSync(bookedPath, 'utf8');
+      const arrivedCsv = fs.readFileSync(arrivedPath, 'utf8');
+      if (mktCsv.length > 20 && bookedCsv.length > 20 && arrivedCsv.length > 20) {
+        const mtime = Math.min(
+          fs.statSync(mktPath).mtimeMs,
+          fs.statSync(bookedPath).mtimeMs,
+          fs.statSync(arrivedPath).mtimeMs
+        );
+        memoryCache = {
+          fetchedAt: mtime || Date.now() - CACHE_TTL_MS,
+          sheets: {
+            mkt: parseSheetRecords(mktCsv, 'mkt', localState.telesaleList),
+            booked: parseSheetRecords(bookedCsv, 'booked', localState.telesaleList),
+            arrived: parseSheetRecords(arrivedCsv, 'arrived', localState.telesaleList),
+          },
+        };
+        stateVersion++;
+      }
+    }
+  } catch {
+    // Ignore warm-up errors and fall back to network fetch
+  }
+}
+
+warmCacheFromDisk();
 
 async function fetchSheetCsv(sheetKey) {
   ensureDirs();
@@ -96,7 +142,8 @@ async function fetchSheetCsv(sheetKey) {
 
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12000);
+    const timer = setTimeout(() => controller.abort(), 10000);
+    timer.unref?.();
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
@@ -172,30 +219,52 @@ function applyOverrideToRecord(record, override) {
   return updated;
 }
 
+async function refreshSheetsFromRemote() {
+  if (inFlightRefreshPromise) {
+    return inFlightRefreshPromise;
+  }
+  inFlightRefreshPromise = (async () => {
+    try {
+      const [mktRes, bookedRes, arrivedRes] = await Promise.all([
+        fetchSheetCsv('mkt'),
+        fetchSheetCsv('booked'),
+        fetchSheetCsv('arrived'),
+      ]);
+
+      const now = Date.now();
+      const parsedSheets = {
+        mkt: parseSheetRecords(mktRes.csvText, 'mkt', localState.telesaleList),
+        booked: parseSheetRecords(bookedRes.csvText, 'booked', localState.telesaleList),
+        arrived: parseSheetRecords(arrivedRes.csvText, 'arrived', localState.telesaleList),
+      };
+
+      memoryCache = {
+        fetchedAt: now,
+        sheets: parsedSheets,
+      };
+      stateVersion++;
+      return memoryCache;
+    } finally {
+      inFlightRefreshPromise = null;
+    }
+  })();
+
+  return inFlightRefreshPromise;
+}
+
 export async function getAllSheetsData(forceRefresh = false) {
   const now = Date.now();
-  if (!forceRefresh && memoryCache.sheets && now - memoryCache.fetchedAt < CACHE_TTL_MS) {
+
+  if (!forceRefresh && memoryCache.sheets) {
+    const isStale = now - memoryCache.fetchedAt >= CACHE_TTL_MS;
+    if (isStale && !process.env.NODE_TEST_CONTEXT) {
+      refreshSheetsFromRemote().catch(() => {});
+    }
     return buildFullResponse(memoryCache.sheets, memoryCache.fetchedAt);
   }
 
-  const [mktRes, bookedRes, arrivedRes] = await Promise.all([
-    fetchSheetCsv('mkt'),
-    fetchSheetCsv('booked'),
-    fetchSheetCsv('arrived'),
-  ]);
-
-  const parsedSheets = {
-    mkt: parseSheetRecords(mktRes.csvText, 'mkt', localState.telesaleList),
-    booked: parseSheetRecords(bookedRes.csvText, 'booked', localState.telesaleList),
-    arrived: parseSheetRecords(arrivedRes.csvText, 'arrived', localState.telesaleList),
-  };
-
-  memoryCache = {
-    fetchedAt: now,
-    sheets: parsedSheets,
-  };
-
-  return buildFullResponse(parsedSheets, now);
+  await refreshSheetsFromRemote();
+  return buildFullResponse(memoryCache.sheets, memoryCache.fetchedAt);
 }
 
 function sanitizeDataDeep(obj, spreadsheetId) {
@@ -234,8 +303,17 @@ function sanitizeDataDeep(obj, spreadsheetId) {
 /**
  * Xây dựng dữ liệu trả về cho Frontend:
  * Tuyệt đối KHÔNG trả về spreadsheetId, spreadsheetUrl, sheetUrl, hay doanh số (revenue).
+ * Có cơ chế memoization theo stateVersion để tránh lặp lại việc duyệt/sanitize hàng nghìn dòng.
  */
 function buildFullResponse(parsedSheets, fetchedAt) {
+  const activeTelesales = getActiveTelesaleNames();
+  const telesaleList = activeTelesales.length > 0 ? activeTelesales : localState.telesaleList;
+  const cacheKey = `${stateVersion}:${fetchedAt}:${telesaleList.join(',')}`;
+
+  if (cachedResponseEntry.key === cacheKey && cachedResponseEntry.payload) {
+    return cachedResponseEntry.payload;
+  }
+
   const mergedSheets = {};
 
   for (const sheetKey of ['mkt', 'booked', 'arrived']) {
@@ -273,17 +351,21 @@ function buildFullResponse(parsedSheets, fetchedAt) {
     };
   }
 
-  const activeTelesales = getActiveTelesaleNames();
   const rawPayload = {
     ok: true,
     fetchedAt: new Date(fetchedAt).toISOString(),
-    telesaleList: activeTelesales.length > 0 ? activeTelesales : localState.telesaleList,
+    telesaleList,
     statusOptions: STATUS_OPTIONS,
     quickNoteTemplates: QUICK_NOTE_TEMPLATES,
     sheets: mergedSheets,
   };
 
-  return sanitizeDataDeep(rawPayload, SPREADSHEET_ID);
+  const sanitized = sanitizeDataDeep(rawPayload, SPREADSHEET_ID);
+  cachedResponseEntry = {
+    key: cacheKey,
+    payload: sanitized,
+  };
+  return sanitized;
 }
 
 async function postToAppsScript(payload) {
@@ -294,6 +376,7 @@ async function postToAppsScript(payload) {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 12000);
+    timer.unref?.();
     const res = await fetch(url, {
       method: 'POST',
       signal: controller.signal,
@@ -354,9 +437,10 @@ export async function updateCustomerInteraction({
     delete nextOverride.careAdditions;
   }
 
-  if (appendCareNoteText && String(appendCareNoteText).trim()) {
+  const cleanCareAppend = String(appendCareNoteText || '').trim();
+  if (cleanCareAppend) {
     const newCareEntry = {
-      text: String(appendCareNoteText).trim(),
+      text: cleanCareAppend,
       addedAt: nowIso,
     };
     if (Array.isArray(nextOverride.careHistory)) {
@@ -368,29 +452,6 @@ export async function updateCustomerInteraction({
       careList.push(newCareEntry);
       nextOverride.careAdditions = careList;
     }
-  }
-
-  await postToAppsScript({
-    action: 'updateInteraction',
-    sheetKey,
-    sheetName: SHEETS_CONFIG[sheetKey].name,
-    sheetRowIndex: rowIdx,
-    phone,
-    name,
-    updates,
-    autoSyncSheets: localState.autoSyncSheets,
-  });
-
-  if (appendCareNoteText && String(appendCareNoteText).trim()) {
-    await postToAppsScript({
-      action: 'appendCareNote',
-      sheetKey,
-      sheetName: SHEETS_CONFIG[sheetKey].name,
-      sheetRowIndex: rowIdx,
-      phone,
-      name,
-      note: String(appendCareNoteText).trim(),
-    });
   }
 
   localState.rowOverrides[overrideKey] = nextOverride;
@@ -413,6 +474,34 @@ export async function updateCustomerInteraction({
   }
 
   saveLocalState(localState);
+
+  // Đồng bộ ngầm (non-blocking) sang Google Apps Script để phản hồi UI tức thì (< 10ms)
+  if (localState.appsScriptUrl && !process.env.NODE_TEST_CONTEXT) {
+    void (async () => {
+      await postToAppsScript({
+        action: 'updateInteraction',
+        sheetKey,
+        sheetName: SHEETS_CONFIG[sheetKey].name,
+        sheetRowIndex: rowIdx,
+        phone,
+        name,
+        updates,
+        autoSyncSheets: localState.autoSyncSheets,
+      });
+
+      if (cleanCareAppend) {
+        await postToAppsScript({
+          action: 'appendCareNote',
+          sheetKey,
+          sheetName: SHEETS_CONFIG[sheetKey].name,
+          sheetRowIndex: rowIdx,
+          phone,
+          name,
+          note: cleanCareAppend,
+        });
+      }
+    })();
+  }
 
   return {
     ok: true,

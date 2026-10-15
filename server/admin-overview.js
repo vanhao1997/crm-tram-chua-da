@@ -410,6 +410,61 @@ export function parseMarketingRows(rowsOrCsv) {
   };
 }
 
+function readCachedMarketingJson(jsonCachePath) {
+  if (!fs.existsSync(jsonCachePath)) return null;
+  try {
+    const cached = JSON.parse(fs.readFileSync(jsonCachePath, 'utf8'));
+    const dailyRows = (cached.dailyRows || []).map((r, idx) => ({
+      rowIndex: idx + 5,
+      dateText: r.dateText,
+      dateIso: r.dateIso,
+      balance: null,
+      received: r.received || 0,
+      ads: r.ads || 0,
+      fee: r.fee || 0,
+      cost: r.cost || 0,
+      rawAds: r.ads ?? null,
+      rawFee: r.fee ?? null,
+      rawCost: r.cost ?? null,
+      dataByService: {
+        nangco: r.dataNangCo || 0,
+        muichi: r.dataMuiChi || 0,
+        khac: r.dataKhac || 0,
+      },
+      dataTotal: (r.dataNangCo || 0) + (r.dataMuiChi || 0) + (r.dataKhac || 0),
+      bookedByService: {
+        nangco: r.bookedNangCo || 0,
+        muichi: r.bookedMuiChi || 0,
+        khac: r.bookedKhac || 0,
+      },
+      bookedTotal: (r.bookedNangCo || 0) + (r.bookedMuiChi || 0) + (r.bookedKhac || 0),
+      arrivedByService: {
+        nangco: r.arrivedNangCo || 0,
+        muichi: r.arrivedMuiChi || 0,
+        khac: r.arrivedKhac || 0,
+      },
+      arrivedTotal: (r.arrivedNangCo || 0) + (r.arrivedMuiChi || 0) + (r.arrivedKhac || 0),
+      revenue: r.revenue || 0,
+      messages: r.messages || 0,
+    }));
+    if (dailyRows.length > 0) {
+      return {
+        parsed: {
+          dailyRows,
+          summaryBalance: cached.summary?.balance ?? null,
+          summaryReceived: cached.summary?.received ?? null,
+          summaryCost: cached.summary?.cost ?? null,
+          formulaErrors: [],
+        },
+        stale: false,
+      };
+    }
+  } catch {
+    // Ignore parse error
+  }
+  return null;
+}
+
 /**
  * Tải dữ liệu Sheet Tài chính Marketing 2026 từ API Service Account của crm-bsn.vibecodingsolution.ovh
  * kèm bộ nhớ đệm local (server/data/cache/marketing-2026.json)
@@ -421,7 +476,8 @@ async function fetchMarketingDataWithCache() {
   // 1. Ưu tiên đọc live từ API Service Account trên crm-bsn.vibecodingsolution.ovh
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timer = setTimeout(() => controller.abort(), 7000);
+    timer.unref?.();
     const res = await fetch('https://crm-bsn.vibecodingsolution.ovh/api/sheets?source=marketing', {
       signal: controller.signal,
       headers: {
@@ -470,65 +526,19 @@ async function fetchMarketingDataWithCache() {
     // Chuyển sang phương án dự phòng
   }
 
-  // 2. Thử tải qua CSV Export nếu Sheet được mở quyền xem
+  // 2. Đọc từ cache JSON đã đồng bộ sẵn (server/data/cache/marketing-2026.json)
+  const fromJsonCache = readCachedMarketingJson(jsonCachePath);
+  if (fromJsonCache) {
+    return fromJsonCache;
+  }
+
+  // 3. Thử tải qua CSV Export nếu Sheet được mở quyền xem
   const financeUrl = buildCsvExportUrl(MARKETING_SPREADSHEET_ID, MARKETING_SHEET_GID);
   const csvRes = await fetchCsvWithCache(financeUrl, 'marketing-2026.csv');
   if (csvRes.csvText) {
     const parsed = parseMarketingRows(csvRes.csvText);
     if (parsed.dailyRows.length > 0) {
       return { parsed, stale: csvRes.stale };
-    }
-  }
-
-  // 3. Đọc từ cache JSON đã đồng bộ sẵn (server/data/cache/marketing-2026.json)
-  if (fs.existsSync(jsonCachePath)) {
-    try {
-      const cached = JSON.parse(fs.readFileSync(jsonCachePath, 'utf8'));
-      const dailyRows = (cached.dailyRows || []).map((r, idx) => ({
-        rowIndex: idx + 5,
-        dateText: r.dateText,
-        dateIso: r.dateIso,
-        balance: null,
-        received: r.received || 0,
-        ads: r.ads || 0,
-        fee: r.fee || 0,
-        cost: r.cost || 0,
-        rawAds: r.ads ?? null,
-        rawFee: r.fee ?? null,
-        rawCost: r.cost ?? null,
-        dataByService: {
-          nangco: r.dataNangCo || 0,
-          muichi: r.dataMuiChi || 0,
-          khac: r.dataKhac || 0,
-        },
-        dataTotal: (r.dataNangCo || 0) + (r.dataMuiChi || 0) + (r.dataKhac || 0),
-        bookedByService: {
-          nangco: r.bookedNangCo || 0,
-          muichi: r.bookedMuiChi || 0,
-          khac: r.bookedKhac || 0,
-        },
-        bookedTotal: (r.bookedNangCo || 0) + (r.bookedMuiChi || 0) + (r.bookedKhac || 0),
-        arrivedByService: {
-          nangco: r.arrivedNangCo || 0,
-          muichi: r.arrivedMuiChi || 0,
-          khac: r.arrivedKhac || 0,
-        },
-        arrivedTotal: (r.arrivedNangCo || 0) + (r.arrivedMuiChi || 0) + (r.arrivedKhac || 0),
-        revenue: r.revenue || 0,
-        messages: r.messages || 0,
-      }));
-      return {
-        parsed: {
-          dailyRows,
-          summaryBalance: cached.summary?.balance ?? null,
-          summaryReceived: cached.summary?.received ?? null,
-          summaryCost: cached.summary?.cost ?? null,
-          formulaErrors: [],
-        },
-        stale: false,
-      };
-    } catch {
-      // Ignore parse error
     }
   }
 
@@ -542,6 +552,84 @@ async function fetchMarketingDataWithCache() {
     },
     stale: true,
   };
+}
+
+const OVERVIEW_CACHE_TTL_MS = 60 * 1000;
+let overviewSourcesCache = {
+  fetchedAt: 0,
+  mktRes: null,
+  bookedRes: null,
+  arrivedRes: null,
+  mktSheetRes: null,
+};
+let inFlightOverviewPromise = null;
+
+function warmOverviewCacheFromDisk() {
+  try {
+    ensureCacheDir();
+    const mktPath = path.join(CACHE_DIR, 'mkt.csv');
+    const bookedPath = path.join(CACHE_DIR, 'booked.csv');
+    const arrivedPath = path.join(CACHE_DIR, 'arrived.csv');
+    const jsonCachePath = path.join(CACHE_DIR, 'marketing-2026.json');
+
+    if (fs.existsSync(mktPath) && fs.existsSync(bookedPath) && fs.existsSync(arrivedPath)) {
+      const mktCsv = fs.readFileSync(mktPath, 'utf8');
+      const bookedCsv = fs.readFileSync(bookedPath, 'utf8');
+      const arrivedCsv = fs.readFileSync(arrivedPath, 'utf8');
+      const mktSheetRes = readCachedMarketingJson(jsonCachePath);
+      if (mktCsv.length > 20 && bookedCsv.length > 20 && arrivedCsv.length > 20 && mktSheetRes) {
+        const mtime = Math.min(
+          fs.statSync(mktPath).mtimeMs,
+          fs.statSync(bookedPath).mtimeMs,
+          fs.statSync(arrivedPath).mtimeMs
+        );
+        overviewSourcesCache = {
+          fetchedAt: mtime || Date.now() - OVERVIEW_CACHE_TTL_MS,
+          mktRes: { csvText: mktCsv, stale: false },
+          bookedRes: { csvText: bookedCsv, stale: false },
+          arrivedRes: { csvText: arrivedCsv, stale: false },
+          mktSheetRes,
+        };
+      }
+    }
+  } catch {
+    // Ignore disk warm-up errors
+  }
+}
+
+warmOverviewCacheFromDisk();
+
+async function refreshOverviewSourcesRemote() {
+  if (inFlightOverviewPromise) {
+    return inFlightOverviewPromise;
+  }
+  inFlightOverviewPromise = (async () => {
+    try {
+      const mktUrl = buildCsvExportUrl(SPREADSHEET_ID, SHEETS_CONFIG.mkt.gid);
+      const bookedUrl = buildCsvExportUrl(SPREADSHEET_ID, SHEETS_CONFIG.booked.gid);
+      const arrivedUrl = buildCsvExportUrl(SPREADSHEET_ID, SHEETS_CONFIG.arrived.gid);
+
+      const [mktRes, bookedRes, arrivedRes, mktSheetRes] = await Promise.all([
+        fetchCsvWithCache(mktUrl, 'mkt.csv'),
+        fetchCsvWithCache(bookedUrl, 'booked.csv'),
+        fetchCsvWithCache(arrivedUrl, 'arrived.csv'),
+        fetchMarketingDataWithCache(),
+      ]);
+
+      overviewSourcesCache = {
+        fetchedAt: Date.now(),
+        mktRes,
+        bookedRes,
+        arrivedRes,
+        mktSheetRes,
+      };
+      return overviewSourcesCache;
+    } finally {
+      inFlightOverviewPromise = null;
+    }
+  })();
+
+  return inFlightOverviewPromise;
 }
 
 function computeWindowSummary(crmData, mktDailyRows, windowPeriod) {
@@ -655,16 +743,23 @@ export async function getAdminOverviewData(query = {}) {
   const knownTelesales =
     activeTelesales.length > 0 ? activeTelesales : [...DEFAULT_TELESALE_LIST];
 
-  const mktUrl = buildCsvExportUrl(SPREADSHEET_ID, SHEETS_CONFIG.mkt.gid);
-  const bookedUrl = buildCsvExportUrl(SPREADSHEET_ID, SHEETS_CONFIG.booked.gid);
-  const arrivedUrl = buildCsvExportUrl(SPREADSHEET_ID, SHEETS_CONFIG.arrived.gid);
+  const forceRefresh = query.refresh === '1' || query.refresh === 'true';
+  const hasCachedSources =
+    overviewSourcesCache.mktRes &&
+    overviewSourcesCache.bookedRes &&
+    overviewSourcesCache.arrivedRes &&
+    overviewSourcesCache.mktSheetRes;
 
-  const [mktRes, bookedRes, arrivedRes, mktSheetRes] = await Promise.all([
-    fetchCsvWithCache(mktUrl, 'mkt.csv'),
-    fetchCsvWithCache(bookedUrl, 'booked.csv'),
-    fetchCsvWithCache(arrivedUrl, 'arrived.csv'),
-    fetchMarketingDataWithCache(),
-  ]);
+  if (!forceRefresh && hasCachedSources) {
+    const isStale = Date.now() - overviewSourcesCache.fetchedAt >= OVERVIEW_CACHE_TTL_MS;
+    if (isStale && !process.env.NODE_TEST_CONTEXT) {
+      refreshOverviewSourcesRemote().catch(() => {});
+    }
+  } else {
+    await refreshOverviewSourcesRemote();
+  }
+
+  const { mktRes, bookedRes, arrivedRes, mktSheetRes } = overviewSourcesCache;
 
   const crmData = {
     mkt: parseAdminCrmRows(mktRes.csvText, 'mkt', knownTelesales),
