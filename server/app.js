@@ -40,10 +40,29 @@ const MIME_TYPES = {
 };
 
 const COMPRESSIBLE_EXTS = new Set(['.html', '.js', '.mjs', '.css', '.json', '.svg']);
+const ALLOWED_SRC_EXTS = new Set(['.js', '.mjs', '.css']);
+
+const SECURITY_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'no-referrer',
+  'X-Robots-Tag': 'noindex, nofollow',
+};
+
+// Bộ nhớ đệm RAM cho file tĩnh (JS/CSS/HTML/Images) giúp phản hồi < 1ms, không đọc ổ cứng/nén lại mỗi request
+const staticAssetCache = new Map();
 
 function acceptsGzip(req) {
   const enc = req?.headers?.['accept-encoding'];
   return typeof enc === 'string' && enc.includes('gzip');
+}
+
+function getClientIp(req) {
+  const forwarded = req?.headers?.['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    return forwarded.split(',')[0].trim();
+  }
+  return req?.socket?.remoteAddress || 'unknown';
 }
 
 function sendJson(res, statusCode, payload, extraHeaders = {}, req = null) {
@@ -54,6 +73,7 @@ function sendJson(res, statusCode, payload, extraHeaders = {}, req = null) {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Cache-Control': 'no-store',
+    ...SECURITY_HEADERS,
     ...extraHeaders,
   };
 
@@ -91,49 +111,103 @@ function readJsonBody(req) {
   });
 }
 
+function getCachedStaticAsset(filePath, ext) {
+  const stat = fs.statSync(filePath);
+  const cached = staticAssetCache.get(filePath);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached;
+  }
+
+  const rawBuf = fs.readFileSync(filePath);
+  const isCompressible = COMPRESSIBLE_EXTS.has(ext) && rawBuf.length > 512;
+  const gzipBuf = isCompressible
+    ? zlib.gzipSync(rawBuf, { level: zlib.constants.Z_BEST_SPEED })
+    : null;
+  const etag = `W/"${stat.size.toString(16)}-${Math.trunc(stat.mtimeMs).toString(16)}"`;
+
+  const entry = {
+    mtimeMs: stat.mtimeMs,
+    size: stat.size,
+    etag,
+    rawBuf,
+    gzipBuf,
+  };
+  staticAssetCache.set(filePath, entry);
+  return entry;
+}
+
 function sendStaticFileBuffer(filePath, ext, cacheControl, req, res) {
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const entry = getCachedStaticAsset(filePath, ext);
   const headers = {
     'Content-Type': contentType,
     'Cache-Control': cacheControl,
+    ETag: entry.etag,
+    ...SECURITY_HEADERS,
   };
 
-  if (COMPRESSIBLE_EXTS.has(ext) && acceptsGzip(req)) {
-    const rawBuf = fs.readFileSync(filePath);
-    if (rawBuf.length > 512) {
-      const compressed = zlib.gzipSync(rawBuf, { level: zlib.constants.Z_BEST_SPEED });
-      headers['Content-Encoding'] = 'gzip';
-      headers['Vary'] = 'Accept-Encoding';
-      res.writeHead(200, headers);
-      res.end(compressed);
-      return;
-    }
+  if (req?.headers?.['if-none-match'] === entry.etag) {
+    res.writeHead(304, headers);
+    res.end();
+    return;
+  }
+
+  if (entry.gzipBuf && acceptsGzip(req)) {
+    headers['Content-Encoding'] = 'gzip';
+    headers['Vary'] = 'Accept-Encoding';
+    res.writeHead(200, headers);
+    res.end(entry.gzipBuf);
+    return;
   }
 
   res.writeHead(200, headers);
-  fs.createReadStream(filePath).pipe(res);
+  res.end(entry.rawBuf);
+}
+
+function isBlockedStaticPath(reqPath) {
+  const lower = String(reqPath || '').toLowerCase();
+  if (
+    lower.includes('..') ||
+    lower.includes('\0') ||
+    lower.startsWith('/.') ||
+    lower.startsWith('/server') ||
+    lower.startsWith('/data') ||
+    lower.startsWith('/tests') ||
+    lower.startsWith('/node_modules') ||
+    lower.startsWith('/scripts') ||
+    lower.includes('google-apps-script') ||
+    lower.includes('package.json') ||
+    lower.includes('package-lock.json') ||
+    lower.includes('dockerfile') ||
+    lower.includes('vite.config') ||
+    lower.endsWith('.bat') ||
+    lower.endsWith('.sh') ||
+    lower.endsWith('.cmd') ||
+    lower.endsWith('.ps1') ||
+    lower.endsWith('.md') ||
+    lower.endsWith('.env') ||
+    lower.endsWith('.pem') ||
+    lower.endsWith('.key')
+  ) {
+    return true;
+  }
+  return false;
 }
 
 function serveStaticFile(reqPath, res, req = null, hasVersionParam = false) {
-  const lower = reqPath.toLowerCase();
-  if (
-    lower.startsWith('/server') ||
-    lower.startsWith('/data') ||
-    lower.startsWith('/.env') ||
-    lower.includes('google-apps-script') ||
-    lower.includes('package.json')
-  ) {
-    res.writeHead(403);
+  if (isBlockedStaticPath(reqPath)) {
+    res.writeHead(403, SECURITY_HEADERS);
     res.end('Forbidden');
     return;
   }
 
   const cleanPath = reqPath === '/' ? '/index.html' : reqPath;
 
-  // Kiểm tra trong thư mục public/ trước (chứa brandmark.webp, logo.jpg, favicon.png...)
-  const publicCandidate = path.resolve(ROOT_DIR, 'public', `.${cleanPath}`);
+  // 1. Kiểm tra trong thư mục public/ trước (chứa brandmark.webp, logo.jpg, favicon.png...)
+  const publicDir = path.join(ROOT_DIR, 'public');
+  const publicCandidate = path.resolve(publicDir, `.${cleanPath}`);
   if (
-    publicCandidate.startsWith(path.join(ROOT_DIR, 'public')) &&
+    publicCandidate.startsWith(publicDir) &&
     fs.existsSync(publicCandidate) &&
     fs.statSync(publicCandidate).isFile()
   ) {
@@ -142,27 +216,49 @@ function serveStaticFile(reqPath, res, req = null, hasVersionParam = false) {
     return;
   }
 
+  // 2. Nếu truy cập trực tiếp vào /src/, chỉ cho phép các file frontend (.js, .mjs, .css)
+  if (cleanPath.startsWith('/src/')) {
+    const srcDir = path.join(ROOT_DIR, 'src');
+    const srcCandidate = path.resolve(ROOT_DIR, `.${cleanPath}`);
+    const ext = path.extname(srcCandidate).toLowerCase();
+    if (
+      !srcCandidate.startsWith(srcDir) ||
+      !ALLOWED_SRC_EXTS.has(ext) ||
+      !fs.existsSync(srcCandidate) ||
+      !fs.statSync(srcCandidate).isFile()
+    ) {
+      res.writeHead(403, SECURITY_HEADERS);
+      res.end('Forbidden');
+      return;
+    }
+    const cacheControl = hasVersionParam
+      ? 'public, max-age=31536000, immutable'
+      : 'no-cache';
+    sendStaticFileBuffer(srcCandidate, ext, cacheControl, req, res);
+    return;
+  }
+
+  // 3. Nếu có bản build dist/, phục vụ từ dist/
   const distDir = path.join(ROOT_DIR, 'dist');
   const hasDist = fs.existsSync(path.join(distDir, 'index.html'));
-  const baseDir = hasDist && !reqPath.startsWith('/src/') ? distDir : ROOT_DIR;
-  const resolvedPath = path.resolve(baseDir, `.${cleanPath}`);
-
-  if (!resolvedPath.startsWith(ROOT_DIR)) {
-    res.writeHead(403);
-    res.end('Forbidden');
-    return;
+  if (hasDist) {
+    const distCandidate = path.resolve(distDir, `.${cleanPath}`);
+    if (
+      distCandidate.startsWith(distDir) &&
+      fs.existsSync(distCandidate) &&
+      fs.statSync(distCandidate).isFile()
+    ) {
+      const ext = path.extname(distCandidate).toLowerCase();
+      const cacheControl =
+        ext === '.html'
+          ? 'no-store, no-cache, must-revalidate'
+          : 'public, max-age=31536000, immutable';
+      sendStaticFileBuffer(distCandidate, ext, cacheControl, req, res);
+      return;
+    }
   }
 
-  if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
-    const ext = path.extname(resolvedPath).toLowerCase();
-    const isVersionedAsset = hasVersionParam && (ext === '.js' || ext === '.mjs' || ext === '.css');
-    const cacheControl = isVersionedAsset
-      ? 'public, max-age=86400'
-      : 'no-store, no-cache, must-revalidate';
-    sendStaticFileBuffer(resolvedPath, ext, cacheControl, req, res);
-    return;
-  }
-
+  // 4. Chỉ cho phép /index.html ở thư mục gốc (hoặc SPA fallback về index.html)
   const indexPath = hasDist
     ? path.join(distDir, 'index.html')
     : path.join(ROOT_DIR, 'index.html');
@@ -171,7 +267,7 @@ function serveStaticFile(reqPath, res, req = null, hasVersionParam = false) {
     return;
   }
 
-  res.writeHead(404);
+  res.writeHead(404, SECURITY_HEADERS);
   res.end('Not Found');
 }
 
@@ -181,6 +277,7 @@ export async function handleRequest(req, res) {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      ...SECURITY_HEADERS,
     });
     res.end();
     return;
@@ -213,13 +310,14 @@ export async function handleRequest(req, res) {
     if (pathname === '/api/auth/login' && req.method === 'POST') {
       const body = await readJsonBody(req);
       try {
-        const authResult = authenticateUser(body.username, body.password);
+        const clientIp = getClientIp(req);
+        const authResult = authenticateUser(body.username, body.password, clientIp);
         const cookieVal = encodeURIComponent(authResult.token);
         return sendJson(res, 200, authResult, {
           'Set-Cookie': `crm_bsn_token=${cookieVal}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}`,
         });
       } catch (authErr) {
-        return sendJson(res, 401, {
+        return sendJson(res, authErr.statusCode || 401, {
           ok: false,
           error: authErr.message || 'Đăng nhập thất bại',
         });

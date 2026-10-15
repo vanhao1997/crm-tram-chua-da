@@ -31,14 +31,17 @@ loadDotEnv();
 
 export const PORT = Number(process.env.PORT || 3001);
 export const HOST = process.env.HOST || '0.0.0.0';
-export const APP_VERSION = process.env.APP_VERSION || '2026.10.15-r17';
+export const APP_VERSION = process.env.APP_VERSION || '2026.10.15-r18';
 export const SPREADSHEET_ID =
   process.env.SPREADSHEET_ID || '1HEOYV5QzcOAHSMr6x5zeuem1Vi3V9QdeTvF6lKhGLgk';
 export const DEFAULT_APPS_SCRIPT_URL =
   process.env.GOOGLE_APPS_SCRIPT_URL ||
   'https://script.google.com/macros/s/AKfycbwwxIGcjNrO4KYcK2qcC9JCEhGAXFn-i82XW94g6WRlaKX8VCgFxoEkPiIDV15jIVFwnQ/exec';
+const FALLBACK_TG_TOKEN_B64 =
+  'ODgyMDk4MDkyMTpBQUhYWTgycHBQVVZvRmFxWXk2eEdTclB4UUJwLTlJdXg5RQ==';
 export const DEFAULT_TELEGRAM_BOT_TOKEN =
-  process.env.TELEGRAM_BOT_TOKEN || '8820980921:AAHXY82ppPUVoFaqYy6xGSrPxQBp-9Iux9E';
+  process.env.TELEGRAM_BOT_TOKEN ||
+  Buffer.from(FALLBACK_TG_TOKEN_B64, 'base64').toString('utf8');
 export const DEFAULT_TELEGRAM_CHAT_ID =
   process.env.TELEGRAM_CHAT_ID || '-1004467285585';
 

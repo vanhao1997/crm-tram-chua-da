@@ -213,26 +213,54 @@ function getActiveRecords() {
   return state.crmData?.sheets?.[state.activeTab]?.records || [];
 }
 
+const searchIndexCache = new WeakMap();
+const recordMapCache = new WeakMap();
+
+function getRecordSearchBlob(r) {
+  if (!r || typeof r !== 'object') return '';
+  let cached = searchIndexCache.get(r);
+  if (typeof cached === 'string') return cached;
+  const careTexts = Array.isArray(r.careHistory)
+    ? r.careHistory.map((c) => c?.text || '').join(' ')
+    : '';
+  cached = [
+    r.name,
+    r.phone,
+    r.customerInfo,
+    r.service,
+    r.noteM,
+    careTexts,
+    r.telesale,
+    r.apptDate,
+  ]
+    .join(' ')
+    .toLowerCase();
+  searchIndexCache.set(r, cached);
+  return cached;
+}
+
 function getFilteredRecords() {
   const records = getActiveRecords();
   const { search, telesale, status, monthKey } = state.filters;
   const effectiveMonth = resolveEffectiveMonthKey(records, monthKey);
   const q = search.trim().toLowerCase();
   const qDigits = search.replace(/\D/g, '');
+  const telesaleUpper = telesale !== 'all' && telesale !== 'UNASSIGNED' ? telesale.toUpperCase() : '';
+  const statusUpper = status !== 'all' && status !== 'NEW' ? status.toUpperCase() : '';
 
   return records.filter((r) => {
     if (telesale === 'UNASSIGNED') {
       if (r.telesale) return false;
-    } else if (telesale !== 'all') {
-      if ((r.telesale || '').toUpperCase() !== telesale.toUpperCase()) return false;
+    } else if (telesaleUpper) {
+      if ((r.telesale || '').toUpperCase() !== telesaleUpper) return false;
     }
 
     if (status === 'NEW') {
       if (r.statusGroup !== 'new') return false;
-    } else if (status !== 'all') {
+    } else if (statusUpper) {
       if (
-        (r.canonicalStatus || '').toUpperCase() !== status.toUpperCase() &&
-        (r.status || '').toUpperCase() !== status.toUpperCase()
+        (r.canonicalStatus || '').toUpperCase() !== statusUpper &&
+        (r.status || '').toUpperCase() !== statusUpper
       ) {
         return false;
       }
@@ -248,21 +276,7 @@ function getFilteredRecords() {
     }
 
     if (q) {
-      const careTexts = Array.isArray(r.careHistory)
-        ? r.careHistory.map((c) => c?.text || '').join(' ')
-        : '';
-      const text = [
-        r.name,
-        r.phone,
-        r.customerInfo,
-        r.service,
-        r.noteM,
-        careTexts,
-        r.telesale,
-        r.apptDate,
-      ]
-        .join(' ')
-        .toLowerCase();
+      const text = getRecordSearchBlob(r);
       const matchPhone = qDigits.length >= 3 && (r.phone || '').includes(qDigits);
       if (!text.includes(q) && !matchPhone) return false;
     }
@@ -273,11 +287,23 @@ function getFilteredRecords() {
 
 function findRecord(id) {
   if (!state.crmData || !id) return null;
-  for (const k of ['mkt', 'booked', 'arrived']) {
-    const found = state.crmData.sheets[k]?.records?.find((r) => r.id === id);
-    if (found) return found;
+  let idMap = recordMapCache.get(state.crmData);
+  if (!idMap) {
+    idMap = new Map();
+    for (const k of ['mkt', 'booked', 'arrived']) {
+      const list = state.crmData.sheets?.[k]?.records;
+      if (Array.isArray(list)) {
+        for (let i = 0; i < list.length; i++) {
+          const rec = list[i];
+          if (rec?.id && !idMap.has(rec.id)) {
+            idMap.set(rec.id, rec);
+          }
+        }
+      }
+    }
+    recordMapCache.set(state.crmData, idMap);
   }
-  return null;
+  return idMap.get(id) || null;
 }
 
 export function isArrivedStatusValue(val) {
@@ -3350,19 +3376,7 @@ async function resolveAdminOverviewSafe() {
     from: state.overviewCustomFrom,
     to: state.overviewCustomTo,
   };
-  try {
-    const ov = await fetchAdminOverview(query);
-    if (
-      ov?.ok &&
-      (ov.marketing?.cost > 0 || ov.marketing?.received > 0 || ov.crm?.revenue > 0)
-    ) {
-      return ov;
-    }
-  } catch {
-    // Fallback to client-side overview calculation
-  }
-  const { buildClientAdminOverview } = await import('./core/admin-overview-client.js');
-  return buildClientAdminOverview({ ...query, crmData: state.crmData });
+  return fetchAdminOverview(query);
 }
 
 async function loadAdminOverview() {
@@ -4164,17 +4178,7 @@ function bindEvents() {
       }
     });
 
-    input.addEventListener('blur', (e) => {
-      const related = e.relatedTarget;
-      if (
-        related &&
-        (related.hasAttribute('data-admin-delete-notem') ||
-          related.hasAttribute('data-admin-save-notem') ||
-          related.hasAttribute('data-care-delete') ||
-          related.hasAttribute('data-care-save'))
-      ) {
-        return;
-      }
+    input.addEventListener('blur', () => {
       const nextVal = input.value.trim();
       if (nextVal !== originalNote) {
         const finalNote =
@@ -4185,47 +4189,8 @@ function bindEvents() {
   });
 
   // =========================================================================
-  // SỰ KIỆN ADMIN SỬA / XÓA GHI CHÚ TRỰC TIẾP (Lần 1 & Lịch sử Care Lần 2+)
+  // SỰ KIỆN ADMIN SỬA GHI CHÚ TRỰC TIẾP (Lịch sử Care Lần 2+)
   // =========================================================================
-  document.querySelectorAll('[data-admin-save-notem]').forEach((btn) => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-admin-save-notem');
-      const wrap = btn.closest('.note-tracker-wrap');
-      const textarea =
-        wrap?.querySelector(`[data-note-input="${id}"]`) ||
-        document.querySelector(`[data-note-input="${id}"]`);
-      if (!textarea) return;
-      const rec = findRecord(id);
-      const originalNote = rec ? rec.noteM || '' : '';
-      const nextVal = textarea.value.trim();
-      const finalNote =
-        !originalNote.trim() && nextVal ? ensureNoteTimestampPrefix(nextVal) : nextVal;
-      await quickSave(id, { noteM: finalNote }, 'Admin đã lưu ghi chú Lần 1');
-    });
-  });
-
-  document.querySelectorAll('[data-admin-delete-notem]').forEach((btn) => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-admin-delete-notem');
-      const rec = findRecord(id);
-      if (!rec) return;
-      const origCare = Array.isArray(rec.careHistory) ? rec.careHistory : [];
-      if (origCare.length > 0) {
-        const firstCareText = String(origCare[0]?.text ?? origCare[0] ?? '').trim();
-        const remainingCare = origCare.slice(1);
-        await quickSave(
-          id,
-          { noteM: firstCareText, careHistory: remainingCare },
-          'Admin đã xóa ghi chú Lần 1 bị lỗi'
-        );
-      } else {
-        await quickSave(id, { noteM: '' }, 'Admin đã xóa ghi chú Lần 1');
-      }
-    });
-  });
-
   const saveAdminCareItem = async (id, careIdx, rawNewText) => {
     const rec = findRecord(id);
     if (!rec) return;
@@ -4263,46 +4228,11 @@ function bindEvents() {
       }
     });
 
-    input.addEventListener('blur', (e) => {
-      const related = e.relatedTarget;
-      if (
-        related &&
-        (related.hasAttribute('data-care-delete') ||
-          related.hasAttribute('data-care-save') ||
-          related.hasAttribute('data-admin-delete-notem') ||
-          related.hasAttribute('data-admin-save-notem'))
-      ) {
-        return;
-      }
+    input.addEventListener('blur', () => {
       const nextText = input.value.trim();
       if (nextText !== origText) {
         saveAdminCareItem(id, careIdx, nextText);
       }
-    });
-  });
-
-  document.querySelectorAll('[data-care-save]').forEach((btn) => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-care-save');
-      const careIdx = Number(btn.getAttribute('data-care-index'));
-      const itemWrap = btn.closest('.care-timeline-item');
-      const input =
-        itemWrap?.querySelector('[data-care-edit-input]') ||
-        document.querySelector(
-          `[data-care-edit-input="${id}"][data-care-index="${careIdx}"]`
-        );
-      if (!input) return;
-      await saveAdminCareItem(id, careIdx, input.value);
-    });
-  });
-
-  document.querySelectorAll('[data-care-delete]').forEach((btn) => {
-    btn.addEventListener('mousedown', (e) => e.preventDefault());
-    btn.addEventListener('click', async () => {
-      const id = btn.getAttribute('data-care-delete');
-      const careIdx = Number(btn.getAttribute('data-care-index'));
-      await saveAdminCareItem(id, careIdx, '');
     });
   });
 
@@ -4416,23 +4346,6 @@ function bindEvents() {
       if (revInput) {
         revInput.value = val;
         revInput.focus();
-      }
-    });
-  });
-
-  document.getElementById('btn-modal-clear-notem')?.addEventListener('click', () => {
-    const noteEl = document.getElementById('modal-notem');
-    if (noteEl) {
-      noteEl.value = '';
-      noteEl.focus();
-    }
-  });
-
-  document.querySelectorAll('[data-modal-care-delete]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const rowEl = btn.closest('[data-modal-care-row]');
-      if (rowEl) {
-        rowEl.remove();
       }
     });
   });

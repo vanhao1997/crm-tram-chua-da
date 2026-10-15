@@ -9,6 +9,80 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const AUTH_SECRET =
   process.env.CRM_AUTH_SECRET || 'crm-bsn-secret-key-2026-tram-chua-da';
 const TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngày
+const DISK_ENC_KEY = crypto.createHash('sha256').update(`disk:${AUTH_SECRET}`).digest();
+
+// Chống Brute-Force dò mật khẩu: tối đa 8 lần sai / 5 phút trên mỗi IP
+const LOGIN_RATE_WINDOW_MS = 5 * 60 * 1000;
+const LOGIN_MAX_ATTEMPTS = 8;
+const loginAttemptsByIp = new Map();
+
+function encryptForDisk(plainText) {
+  const str = String(plainText ?? '');
+  if (!str || str.startsWith('enc:v1:')) return str;
+  try {
+    const iv = crypto.randomBytes(12);
+    const cipher = crypto.createCipheriv('aes-256-gcm', DISK_ENC_KEY, iv);
+    const encrypted = Buffer.concat([cipher.update(str, 'utf8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return `enc:v1:${iv.toString('hex')}:${tag.toString('hex')}:${encrypted.toString('hex')}`;
+  } catch {
+    return str;
+  }
+}
+
+function decryptFromDisk(storedVal) {
+  const str = String(storedVal ?? '');
+  if (!str.startsWith('enc:v1:')) return str;
+  try {
+    const parts = str.split(':');
+    if (parts.length !== 5) return '••••••';
+    const iv = Buffer.from(parts[2], 'hex');
+    const tag = Buffer.from(parts[3], 'hex');
+    const encrypted = Buffer.from(parts[4], 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', DISK_ENC_KEY, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+  } catch {
+    return '••••••';
+  }
+}
+
+export function checkLoginRateLimit(clientIp = 'unknown') {
+  if (process.env.NODE_TEST_CONTEXT) return;
+  const now = Date.now();
+  const entry = loginAttemptsByIp.get(clientIp);
+  if (!entry) return;
+  if (now - entry.firstAttemptAt > LOGIN_RATE_WINDOW_MS) {
+    loginAttemptsByIp.delete(clientIp);
+    return;
+  }
+  if (entry.count >= LOGIN_MAX_ATTEMPTS) {
+    const waitSec = Math.max(
+      1,
+      Math.ceil((LOGIN_RATE_WINDOW_MS - (now - entry.firstAttemptAt)) / 1000)
+    );
+    const err = new Error(
+      `Tạm khóa đăng nhập do nhập sai quá nhiều lần. Vui lòng thử lại sau ${waitSec} giây.`
+    );
+    err.statusCode = 429;
+    throw err;
+  }
+}
+
+function recordLoginFailure(clientIp = 'unknown') {
+  if (process.env.NODE_TEST_CONTEXT) return;
+  const now = Date.now();
+  const entry = loginAttemptsByIp.get(clientIp);
+  if (!entry || now - entry.firstAttemptAt > LOGIN_RATE_WINDOW_MS) {
+    loginAttemptsByIp.set(clientIp, { count: 1, firstAttemptAt: now });
+  } else {
+    entry.count++;
+  }
+}
+
+function clearLoginFailures(clientIp = 'unknown') {
+  if (clientIp) loginAttemptsByIp.delete(clientIp);
+}
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -118,7 +192,21 @@ function loadUsers() {
   try {
     const parsed = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed;
+      let needsResave = false;
+      const hydrated = parsed.map((u) => {
+        const rawDisp = String(u.passwordDisplay || '');
+        if (rawDisp && !rawDisp.startsWith('enc:v1:')) {
+          needsResave = true;
+        }
+        return {
+          ...u,
+          passwordDisplay: decryptFromDisk(rawDisp),
+        };
+      });
+      if (needsResave) {
+        saveUsers(hydrated);
+      }
+      return hydrated;
     }
   } catch {
     // Fallback to defaults if corrupted
@@ -130,7 +218,11 @@ function loadUsers() {
 
 function saveUsers(users) {
   ensureDataDir();
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2), 'utf8');
+  const diskRecords = users.map((u) => ({
+    ...u,
+    passwordDisplay: encryptForDisk(u.passwordDisplay || ''),
+  }));
+  fs.writeFileSync(USERS_FILE, JSON.stringify(diskRecords, null, 2), 'utf8');
 }
 
 let usersStore = loadUsers();
@@ -161,7 +253,7 @@ export function sanitizeUserForClient(user, includePasswordForAdmin = false) {
   };
 
   if (includePasswordForAdmin) {
-    safe.passwordDisplay = user.passwordDisplay || '••••••';
+    safe.passwordDisplay = decryptFromDisk(user.passwordDisplay || '') || '••••••';
   }
   return safe;
 }
@@ -234,7 +326,10 @@ export function extractRequestUser(req) {
   return null;
 }
 
-export function authenticateUser(username, password) {
+export function authenticateUser(username, password, clientIp = '') {
+  if (clientIp) {
+    checkLoginRateLimit(clientIp);
+  }
   const cleanUsername = nfc(username).toLowerCase();
   const rawPassword = String(password ?? '');
 
@@ -244,11 +339,16 @@ export function authenticateUser(username, password) {
 
   const user = usersStore.find((u) => nfc(u.username).toLowerCase() === cleanUsername);
   if (!user || !verifyPassword(rawPassword, user.passwordHash)) {
+    if (clientIp) recordLoginFailure(clientIp);
     throw new Error('Tên đăng nhập hoặc mật khẩu không chính xác');
   }
 
   if (!user.active || user.permissions?.accessCrm === false) {
     throw new Error('Tài khoản của bạn đã bị khóa hoặc chưa được cấp quyền vào CRM');
+  }
+
+  if (clientIp) {
+    clearLoginFailures(clientIp);
   }
 
   user.lastLoginAt = new Date().toISOString();

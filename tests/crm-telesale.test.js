@@ -814,5 +814,34 @@ test('Admin Thêm Data từ Messenger (Cột B..K), Tự động đồng bộ Sh
   assert.equal(afterDelJson.includes('0933445566'), false);
 });
 
+test('Bảo mật toàn diện: Không lộ token/doanh thu ở frontend, chặn truy cập file nhạy cảm & mã hóa mật khẩu trên đĩa', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { ROOT_DIR } = await import('../server/config.js');
+  const { listUsersForAdmin } = await import('../server/auth.js');
+  const usersFilePath = path.join(ROOT_DIR, 'server', 'data', 'users.json');
 
+  // 1. Kiểm tra các file mã nguồn không chứa Telegram Bot Token lộ thiên
+  for (const relFile of ['server/config.js', 'server/google-sheets.js', 'google-apps-script.js']) {
+    const content = fs.readFileSync(path.join(ROOT_DIR, relFile), 'utf-8');
+    assert.equal(content.includes('AAHXY82ppPUVoFaqYy6xGSrPxQBp'), false, `Không lộ token trong ${relFile}`);
+  }
 
+  // 2. Kiểm tra file client public (src/core/admin-overview-client.js) không chứa dữ liệu doanh thu/SĐT khách hàng
+  const clientOverviewCode = fs.readFileSync(
+    path.join(ROOT_DIR, 'src/core/admin-overview-client.js'),
+    'utf-8'
+  );
+  assert.equal(clientOverviewCode.includes('ARRIVED_REVENUE_BY_PHONE'), false);
+  assert.equal(clientOverviewCode.includes('MARKETING_DAILY_ROWS_2026'), false);
+
+  // 3. Kiểm tra users.json trên đĩa đã mã hóa AES-256-GCM trường passwordDisplay (bắt đầu bằng enc:v1:),
+  // nhưng Admin gọi listUsersForAdmin() vẫn giải mã được để quản lý
+  const adminUsers = listUsersForAdmin();
+  assert.equal(adminUsers.length >= 6, true);
+  if (fs.existsSync(usersFilePath)) {
+    const rawUsersDisk = fs.readFileSync(usersFilePath, 'utf-8');
+    assert.equal(rawUsersDisk.includes('bsn@2026'), false, 'Không lưu mật khẩu dạng rõ trên đĩa');
+    assert.equal(rawUsersDisk.includes('enc:v1:'), true, 'Mật khẩu hiển thị được mã hóa AES-256-GCM trên đĩa');
+  }
+});

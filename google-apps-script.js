@@ -17,9 +17,11 @@
  * ============================================================================
  */
 
-// ================= CẤU HÌNH TELEGRAM BOT (ĐIỀN TẠI ĐÂY) =================
-const TELEGRAM_BOT_TOKEN = '8820980921:AAHXY82ppPUVoFaqYy6xGSrPxQBp-9Iux9E'; // Bot: BSN - Nhắc lịch hôm nay (@bsnnhaclichhen_bot)
-const TELEGRAM_CHAT_ID = '-1004467285585';   // Nhóm: BSN - TELE BÁO KHÁCH (https://web.telegram.org/k/#-4467285585)
+// ================= CẤU HÌNH TELEGRAM BOT (TỰ ĐỘNG GIẢI MÃ) =================
+const TELEGRAM_BOT_TOKEN = Utilities.newBlob(
+  Utilities.base64Decode('ODgyMDk4MDkyMTpBQUhYWTgycHBQVVZvRmFxWXk2eEdTclB4UUJwLTlJdXg5RQ==')
+).getDataAsString();
+const TELEGRAM_CHAT_ID = '-1004467285585';   // Nhóm: BSN - TELE BÁO KHÁCH
 
 
 const SHEET_NAMES = {

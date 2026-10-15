@@ -5,6 +5,8 @@ import {
   ROOT_DIR,
   SPREADSHEET_ID,
   DEFAULT_APPS_SCRIPT_URL,
+  DEFAULT_TELEGRAM_BOT_TOKEN,
+  DEFAULT_TELEGRAM_CHAT_ID,
   SHEETS_CONFIG,
   DEFAULT_TELESALE_LIST,
   STATUS_OPTIONS,
@@ -1257,9 +1259,11 @@ function normalizeTelegramChatId(rawChatId) {
 
 async function dispatchTelegramHtmlText(htmlText, fallbackAppsScriptPayload = null) {
   const botToken = String(
-    process.env.TELEGRAM_BOT_TOKEN || '8820980921:AAHXY82ppPUVoFaqYy6xGSrPxQBp-9Iux9E'
+    process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TELEGRAM_BOT_TOKEN || ''
   ).trim();
-  const chatId = normalizeTelegramChatId(process.env.TELEGRAM_CHAT_ID || '-1004467285585');
+  const chatId = normalizeTelegramChatId(
+    process.env.TELEGRAM_CHAT_ID || DEFAULT_TELEGRAM_CHAT_ID || '-1004467285585'
+  );
 
   if (botToken && chatId) {
     const sendWithChatId = async (targetChatId) => {

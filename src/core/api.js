@@ -226,22 +226,14 @@ export async function fetchAdminOverview({ period = 'month', from = '', to = '' 
     if (from) params.set('from', from);
     if (to) params.set('to', to);
   }
-  try {
-    const res = await fetch(`/api/admin/overview?${params.toString()}`, {
-      headers: buildHeaders(false),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      if (data?.ok && (data.marketing?.cost > 0 || data.marketing?.received > 0 || data.crm?.revenue > 0)) {
-        return data;
-      }
-    }
-  } catch {
-    // Chuyển sang bộ tổng hợp trực tiếp phía Client nếu server local chưa restart
+  const res = await fetch(`/api/admin/overview?${params.toString()}`, {
+    headers: buildHeaders(false),
+  });
+  const data = await res.json();
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.error || 'Không thể tải dữ liệu Tổng quan CEO');
   }
-
-  const { buildClientAdminOverview } = await import('./admin-overview-client.js');
-  return buildClientAdminOverview({ period, from, to }, buildHeaders);
+  return data;
 }
 
 export async function fetchTelegramSchedule() {

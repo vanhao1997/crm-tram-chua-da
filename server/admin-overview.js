@@ -16,10 +16,11 @@ import {
 } from './sheets-parser.js';
 import { getActiveTelesaleNames } from './auth.js';
 import { getLocalStateSnapshot, isRecordDeletedInLocalState } from './google-sheets.js';
+import {
+  SERVER_ARRIVED_REVENUE_BY_PHONE,
+  SERVER_MARKETING_DAILY_ROWS_2026,
+} from './marketing-fallback.js';
 
-/**
- * ID Google Sheet Tài chính & Marketing từ repo https://github.com/vanhao1997/crm-tram-chua-da
- */
 export const MARKETING_SPREADSHEET_ID =
   process.env.MARKETING_SHEET_ID || '124VcfNpFqJKv400Jj156h2aYg4eurDzfJaEvs_wbNQ4';
 export const MARKETING_SHEET_GID = process.env.MARKETING_SHEET_GID || '1227076939';
@@ -282,6 +283,9 @@ function parseAdminCrmRows(csvText, sheetKey, knownTelesales = []) {
           }
         }
       }
+      if (revenue === null && phone && SERVER_ARRIVED_REVENUE_BY_PHONE[phone] !== undefined) {
+        revenue = SERVER_ARRIVED_REVENUE_BY_PHONE[phone];
+      }
     }
 
     const dataDateIso = parseVnDateToIso(colB);
@@ -543,9 +547,32 @@ async function fetchMarketingDataWithCache() {
     }
   }
 
+  // 4. Dự phòng nội bộ phía Server (Backend-only) khi chưa có mạng hoặc cache đĩa mới
+  const fallbackDailyRows = SERVER_MARKETING_DAILY_ROWS_2026.map((r, idx) => ({
+    rowIndex: idx + 5,
+    dateText: r.dateIso,
+    dateIso: r.dateIso,
+    balance: null,
+    received: r.received || 0,
+    ads: r.ads || 0,
+    fee: r.fee || 0,
+    cost: r.cost || 0,
+    rawAds: r.ads ?? null,
+    rawFee: r.fee ?? null,
+    rawCost: r.cost ?? null,
+    dataByService: { nangco: 0, muichi: 0, khac: 0 },
+    dataTotal: 0,
+    bookedByService: { nangco: 0, muichi: 0, khac: 0 },
+    bookedTotal: 0,
+    arrivedByService: { nangco: 0, muichi: 0, khac: 0 },
+    arrivedTotal: 0,
+    revenue: 0,
+    messages: r.messages || 0,
+  }));
+
   return {
     parsed: {
-      dailyRows: [],
+      dailyRows: fallbackDailyRows,
       summaryBalance: null,
       summaryReceived: null,
       summaryCost: null,
