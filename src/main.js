@@ -846,119 +846,7 @@ export function renderAdminView(
         </div>
       </div>
 
-      <!-- PHẦN 1: NHẬT KÝ THAO TÁC CỦA TẤT CẢ USER & ADMIN (KIỂM TRA LỊCH SỬ) -->
-      ${renderAdminActivityLogSection(users, activityLogData)}
-
-      <!-- PHẦN 2: QUẢN TRỊ TỰ ĐỘNG BÁO LỊCH QUA TELEGRAM (CHỈ ADMIN) -->
-      <div class="sheet-card admin-tele-schedule-card" id="admin-tele-schedule-card">
-        <div class="admin-section-header">
-          <div>
-            <h2 class="admin-section-title">🤖 Quản Trị Tự Động Báo Lịch Hẹn Qua Telegram</h2>
-            <p class="admin-section-desc">
-              Bật / Tắt chế độ tự động báo lịch và cài đặt giờ gửi hàng ngày cho Bot Telegram (Nhóm: <strong>BSN - TELE BÁO KHÁCH</strong>).
-            </p>
-          </div>
-          <div class="tele-schedule-status-badge ${teleEnabled ? 'is-enabled' : 'is-disabled'}">
-            <span class="tele-status-dot"></span>
-            <span>${
-              teleEnabled
-                ? `Đang BẬT · Tự động gửi lúc ${escapeHtml(teleSendTime)} mỗi ngày`
-                : 'Đang TẮT tự động gửi lịch hẹn'
-            }</span>
-          </div>
-        </div>
-
-        <div class="tele-schedule-controls-grid">
-          <div class="tele-control-box">
-            <label class="tele-control-label">1. Trạng thái Tự động báo lịch (Bật / Tắt)</label>
-            <div class="tele-toggle-row">
-              <button
-                type="button"
-                class="tele-switch-btn ${teleEnabled ? 'is-on' : 'is-off'}"
-                id="btn-toggle-tele-auto"
-                data-tele-enabled="${teleEnabled ? 'true' : 'false'}"
-              >
-                <span class="tele-switch-track">
-                  <span class="tele-switch-knob"></span>
-                </span>
-                <span class="tele-switch-text">
-                  ${teleEnabled ? '🟢 Đang BẬT tự động báo lịch' : '⚪ Đang TẮT tự động báo lịch'}
-                </span>
-              </button>
-            </div>
-            <span class="tele-control-hint">
-              Bấm nút gạt để Bật hoặc Tắt chế độ Bot tự động gửi danh sách lịch hẹn mỗi ngày.
-            </span>
-          </div>
-
-          <div class="tele-control-box">
-            <label class="tele-control-label" for="admin-tele-send-time">
-              2. Cài đặt giờ gửi tự động cho Bot (Giờ Việt Nam GMT+7)
-            </label>
-            <div class="tele-time-input-row">
-              <input
-                type="time"
-                id="admin-tele-send-time"
-                class="modal-input tele-time-input"
-                value="${escapeHtml(teleSendTime)}"
-              />
-              <button
-                type="button"
-                class="btn-clean btn-primary-clean"
-                id="btn-save-tele-schedule"
-              >
-                💾 Lưu cài đặt giờ
-              </button>
-            </div>
-            <div class="tele-time-presets">
-              <span class="preset-label">Chọn nhanh:</span>
-              ${['07:00', '07:30', '08:00', '08:30', '09:00', '12:00', '20:00']
-                .map(
-                  (t) => `
-                  <button
-                    type="button"
-                    class="tele-preset-chip ${teleSendTime === t ? 'active' : ''}"
-                    data-tele-preset="${t}"
-                  >${t}</button>
-                `
-                )
-                .join('')}
-            </div>
-          </div>
-
-          <div class="tele-control-box">
-            <label class="tele-control-label">3. Bắn báo cáo thủ công ngay lập tức</label>
-            <div class="tele-manual-btns">
-              <button
-                type="button"
-                class="btn-reminder-action is-telegram-btn"
-                data-send-telegram="today"
-              >
-                📨 Gửi lịch Hôm nay ngay
-              </button>
-              <button
-                type="button"
-                class="btn-reminder-action"
-                data-send-telegram="tomorrow"
-              >
-                📅 Gửi lịch Ngày mai
-              </button>
-            </div>
-            <span class="tele-control-hint">
-              ${
-                teleLastSentDate
-                  ? `✅ Tự động gửi gần nhất: <strong>${escapeHtml(
-                      teleLastSentTime || teleSendTime
-                    )} ngày ${escapeHtml(teleLastSentDate)}</strong>`
-                  : `ℹ️ Hôm nay chưa tới giờ tự động gửi (Hẹn lúc <strong>${escapeHtml(
-                      teleSendTime
-                    )}</strong>).`
-              }
-            </span>
-          </div>
-        </div>
-      </div>
-
+      <!-- PHẦN 1: CẤP TÀI KHOẢN MỚI & PHÂN QUYỀN VÀO CRM -->
       <div class="sheet-card admin-form-card">
         <div class="admin-section-header">
           <div>
@@ -1091,6 +979,7 @@ export function renderAdminView(
         </form>
       </div>
 
+      <!-- PHẦN 2: DANH SÁCH TÀI KHOẢN & PHÂN QUYỀN NHÂN SỰ -->
       <div class="sheet-card admin-list-card">
         <div class="admin-section-header">
           <div>
@@ -1239,6 +1128,119 @@ export function renderAdminView(
           </table>
         </div>
       </div>
+
+      <!-- PHẦN 3: QUẢN TRỊ TỰ ĐỘNG BÁO LỊCH QUA TELEGRAM (CHỈ ADMIN) -->
+      <div class="sheet-card admin-tele-schedule-card" id="admin-tele-schedule-card">
+        <div class="admin-section-header">
+          <div>
+            <h2 class="admin-section-title">🤖 Quản Trị Tự Động Báo Lịch Hẹn Qua Telegram</h2>
+            <p class="admin-section-desc">
+              Bật / Tắt chế độ tự động báo lịch và cài đặt giờ gửi hàng ngày cho Bot Telegram (Nhóm: <strong>BSN - TELE BÁO KHÁCH</strong>).
+            </p>
+          </div>
+          <div class="tele-schedule-status-badge ${teleEnabled ? 'is-enabled' : 'is-disabled'}">
+            <span class="tele-status-dot"></span>
+            <span>${
+              teleEnabled
+                ? `Đang BẬT · Tự động gửi lúc ${escapeHtml(teleSendTime)} mỗi ngày`
+                : 'Đang TẮT tự động gửi lịch hẹn'
+            }</span>
+          </div>
+        </div>
+
+        <div class="tele-schedule-controls-grid">
+          <div class="tele-control-box">
+            <label class="tele-control-label">1. Trạng thái Tự động báo lịch (Bật / Tắt)</label>
+            <div class="tele-toggle-row">
+              <button
+                type="button"
+                class="tele-switch-btn ${teleEnabled ? 'is-on' : 'is-off'}"
+                id="btn-toggle-tele-auto"
+                data-tele-enabled="${teleEnabled ? 'true' : 'false'}"
+              >
+                <span class="tele-switch-track">
+                  <span class="tele-switch-knob"></span>
+                </span>
+                <span class="tele-switch-text">
+                  ${teleEnabled ? '🟢 Đang BẬT tự động báo lịch' : '⚪ Đang TẮT tự động báo lịch'}
+                </span>
+              </button>
+            </div>
+            <span class="tele-control-hint">
+              Bấm nút gạt để Bật hoặc Tắt chế độ Bot tự động gửi danh sách lịch hẹn mỗi ngày.
+            </span>
+          </div>
+
+          <div class="tele-control-box">
+            <label class="tele-control-label" for="admin-tele-send-time">
+              2. Cài đặt giờ gửi tự động cho Bot (Giờ Việt Nam GMT+7)
+            </label>
+            <div class="tele-time-input-row">
+              <input
+                type="time"
+                id="admin-tele-send-time"
+                class="modal-input tele-time-input"
+                value="${escapeHtml(teleSendTime)}"
+              />
+              <button
+                type="button"
+                class="btn-clean btn-primary-clean"
+                id="btn-save-tele-schedule"
+              >
+                💾 Lưu cài đặt giờ
+              </button>
+            </div>
+            <div class="tele-time-presets">
+              <span class="preset-label">Chọn nhanh:</span>
+              ${['07:00', '07:30', '08:00', '08:30', '09:00', '12:00', '20:00']
+                .map(
+                  (t) => `
+                  <button
+                    type="button"
+                    class="tele-preset-chip ${teleSendTime === t ? 'active' : ''}"
+                    data-tele-preset="${t}"
+                  >${t}</button>
+                `
+                )
+                .join('')}
+            </div>
+          </div>
+
+          <div class="tele-control-box">
+            <label class="tele-control-label">3. Bắn báo cáo thủ công ngay lập tức</label>
+            <div class="tele-manual-btns">
+              <button
+                type="button"
+                class="btn-reminder-action is-telegram-btn"
+                data-send-telegram="today"
+              >
+                📨 Gửi lịch Hôm nay ngay
+              </button>
+              <button
+                type="button"
+                class="btn-reminder-action"
+                data-send-telegram="tomorrow"
+              >
+                📅 Gửi lịch Ngày mai
+              </button>
+            </div>
+            <span class="tele-control-hint">
+              ${
+                teleLastSentDate
+                  ? `✅ Tự động gửi gần nhất: <strong>${escapeHtml(
+                      teleLastSentTime || teleSendTime
+                    )} ngày ${escapeHtml(teleLastSentDate)}</strong>`
+                  : `ℹ️ Hôm nay chưa tới giờ tự động gửi (Hẹn lúc <strong>${escapeHtml(
+                      teleSendTime
+                    )}</strong>).`
+              }
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PHẦN 4: NHẬT KÝ THAO TÁC CỦA TẤT CẢ USER & ADMIN (KIỂM TRA LỊCH SỬ) -->
+      ${renderAdminActivityLogSection(users, activityLogData)}
     </div>
   `;
 }

@@ -991,6 +991,19 @@ test('Nhật ký thao tác hệ thống (Admin Audit Log): Ghi nhận đầy đ�
   });
   assert.equal(fullAdminHtml.includes('id="admin-activity-log-card"'), true);
   assert.equal(fullAdminHtml.includes('id="btn-jump-audit-log"'), true);
+
+  // 5. Kiểm tra thứ tự sắp xếp 4 phần trong trang Quản Trị User:
+  // 1) Cấp Tài Khoản Mới & Phân Quyền Vào CRM
+  // 2) Danh Sách Tài Khoản & Phân Quyền Nhân Sự
+  // 3) 🤖 Quản Trị Tự Động Báo Lịch Hẹn Qua Telegram
+  // 4) 📜 Nhật Ký Thao Tác & Kiểm Tra Lịch Sử Hệ Thống
+  const idxCreateUser = fullAdminHtml.indexOf('Cấp Tài Khoản Mới & Phân Quyền Vào CRM');
+  const idxUserList = fullAdminHtml.indexOf('Danh Sách Tài Khoản & Phân Quyền Nhân Sự');
+  const idxTeleSchedule = fullAdminHtml.indexOf('🤖 Quản Trị Tự Động Báo Lịch Hẹn Qua Telegram');
+  const idxAuditLog = fullAdminHtml.indexOf('📜 Nhật Ký Thao Tác & Kiểm Tra Lịch Sử Hệ Thống');
+  assert.equal(idxCreateUser > 0 && idxCreateUser < idxUserList, true);
+  assert.equal(idxUserList < idxTeleSchedule, true);
+  assert.equal(idxTeleSchedule < idxAuditLog, true);
 });
 
 
