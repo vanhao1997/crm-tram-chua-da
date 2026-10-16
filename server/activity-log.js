@@ -33,6 +33,42 @@ function formatVnDateTime(dateInput = new Date()) {
   }:${map.second || '00'}`;
 }
 
+function sanitizeLogText(text = '') {
+  return String(text || '')
+    .replace(/\s*\(Cột\s+[A-Z0-9,\s+]+\)/gi, '')
+    .replace(/\bCột\s+[A-Z0-9]+\b/gi, '')
+    .replace(/\bGhi chú M\b/g, 'Ghi chú Lần 1')
+    .replace(/\s*\(Dòng\s*#\d+\)/gi, '')
+    .replace(/\bKhách(?:\s+hàng)?\s+dòng\s*#\d+/gi, 'Khách hàng')
+    .replace(/CRM\s*&\s*Google Sheet/gi, 'hệ thống CRM')
+    .replace(/\bGoogle Sheet\b/gi, 'hệ thống')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function sanitizeLogEntry(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  return {
+    ...entry,
+    actionLabel: sanitizeLogText(entry.actionLabel),
+    summary: sanitizeLogText(entry.summary),
+    target: entry.target
+      ? {
+          ...entry.target,
+          customerName: sanitizeLogText(entry.target.customerName),
+        }
+      : entry.target,
+    changes: Array.isArray(entry.changes)
+      ? entry.changes.map((c) => ({
+          ...c,
+          label: sanitizeLogText(c.label),
+          before: sanitizeLogText(c.before),
+          after: sanitizeLogText(c.after),
+        }))
+      : [],
+  };
+}
+
 function ensureLogsLoaded() {
   if (Array.isArray(memoryLogs)) {
     return memoryLogs;
@@ -42,7 +78,7 @@ function ensureLogsLoaded() {
       const raw = fs.readFileSync(LOGS_FILE, 'utf-8');
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        memoryLogs = parsed.slice(0, MAX_LOG_ENTRIES);
+        memoryLogs = parsed.slice(0, MAX_LOG_ENTRIES).map(sanitizeLogEntry);
         return memoryLogs;
       }
     }
@@ -128,7 +164,7 @@ export function recordActivityLog({
   const normalizedActor = normalizeActor(actor);
   const sheetKey = String(target.sheetKey || '').trim();
 
-  const entry = {
+  const entry = sanitizeLogEntry({
     id: `log-${Date.now()}-${logSeq++}`,
     createdAt: nowIso,
     timeVn: formatVnDateTime(nowIso),
@@ -152,7 +188,7 @@ export function recordActivityLog({
           after: String(c.after ?? '—'),
         }))
       : [],
-  };
+  });
 
   logs.unshift(entry);
   if (logs.length > MAX_LOG_ENTRIES) {
@@ -231,7 +267,7 @@ export function seedInitialLogsFromLocalState(localState) {
       });
     }
     if (ov.noteM) {
-      changes.push({ field: 'noteM', label: 'Ghi chú M', before: '—', after: ov.noteM });
+      changes.push({ field: 'noteM', label: 'Ghi chú Lần 1', before: '—', after: ov.noteM });
     }
 
     if (changes.length === 0) continue;
@@ -253,7 +289,7 @@ export function seedInitialLogsFromLocalState(localState) {
         sheetKey,
         sheetName: getSheetShortLabel(sheetKey),
         sheetRowIndex: rowIdx,
-        customerName: `Khách hàng dòng #${rowIdx}`,
+        customerName: 'Khách hàng',
         customerPhone: '',
       },
       summary: changes.map((c) => `${c.label}: ${c.after}`).join(' · '),

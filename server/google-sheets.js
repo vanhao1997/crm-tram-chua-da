@@ -1123,7 +1123,7 @@ export async function updateCustomerInteraction({
     if (newStatus !== prevStatus) {
       logChanges.push({
         field: 'status',
-        label: 'Tình trạng (Cột I)',
+        label: 'Tình trạng',
         before: prevStatus,
         after: newStatus,
       });
@@ -1142,7 +1142,7 @@ export async function updateCustomerInteraction({
       const afterAppt = `${newApptDate}${newApptTime !== '—' ? ` (${newApptTime})` : ''}`;
       logChanges.push({
         field: 'appointment',
-        label: 'Lịch hẹn (Cột K, J)',
+        label: 'Lịch hẹn',
         before: beforeAppt,
         after: afterAppt,
       });
@@ -1158,7 +1158,7 @@ export async function updateCustomerInteraction({
     if (newTelesale !== prevTelesale) {
       logChanges.push({
         field: 'telesale',
-        label: 'Telesale (Cột L)',
+        label: 'Telesale',
         before: prevTelesale,
         after: newTelesale,
       });
@@ -1174,7 +1174,7 @@ export async function updateCustomerInteraction({
     if (newNoteM !== prevNoteM) {
       logChanges.push({
         field: 'noteM',
-        label: 'Ghi chú Lần 1 (Cột M)',
+        label: 'Ghi chú Lần 1',
         before: prevNoteM,
         after: newNoteM,
       });
@@ -1201,7 +1201,7 @@ export async function updateCustomerInteraction({
       nextOverride.careHistory.map((c, idx) => `Lần ${idx + 2}: ${c.text}`).join(' | ') || 'Đã xóa';
     logChanges.push({
       field: 'careHistory',
-      label: 'Sửa lịch sử Care (Cột N+)',
+      label: 'Sửa lịch sử Care',
       before: `${prevCareLen} ghi chú`,
       after: newCareText,
     });
@@ -1216,7 +1216,7 @@ export async function updateCustomerInteraction({
     if (newCustInfo !== prevCustomerInfo) {
       logChanges.push({
         field: 'customerInfo',
-        label: 'TT Khách (Cột H)',
+        label: 'Thông tin khách',
         before: prevCustomerInfo,
         after: newCustInfo,
       });
@@ -1234,17 +1234,17 @@ export async function updateCustomerInteraction({
       parsedRevAmount !== null ? `${Number(parsedRevAmount).toLocaleString('vi-VN')} VNĐ` : '—';
     logChanges.push({
       field: 'revenue',
-      label: 'Doanh số (Cột W)',
+      label: 'Doanh số',
       before: prevRevStr,
       after: newRevStr,
     });
     primaryActionType = 'update_revenue';
-    primaryActionLabel = 'Nhập doanh số Cột W';
+    primaryActionLabel = 'Nhập doanh số';
   }
 
   if (logChanges.length > 0) {
     const customerName = String(
-      name || currentRec?.name || currentRecBefore?.name || `Khách dòng #${rowIdx}`
+      name || currentRec?.name || currentRecBefore?.name || 'Khách hàng'
     ).trim();
     const customerPhone = String(
       phone || currentRec?.phone || currentRecBefore?.phone || ''
@@ -1970,23 +1970,23 @@ export async function addAdminLead(payload = {}) {
       statusInfo.status ? ` · Tình trạng: ${statusInfo.status}` : ''
     }${apptDate ? ` · Lịch hẹn: ${apptDate}${apptTime ? ` (${apptTime})` : ''}` : ''}`,
     changes: [
-      { field: 'service', label: 'Dịch vụ (Cột E)', before: '—', after: service || '—' },
-      { field: 'source', label: 'Nguồn (Cột F)', before: '—', after: source || '—' },
+      { field: 'service', label: 'Dịch vụ', before: '—', after: service || '—' },
+      { field: 'source', label: 'Nguồn', before: '—', after: source || '—' },
       ...(statusInfo.status
-        ? [{ field: 'status', label: 'Tình trạng (Cột I)', before: '—', after: statusInfo.status }]
+        ? [{ field: 'status', label: 'Tình trạng', before: '—', after: statusInfo.status }]
         : []),
       ...(apptDate || apptTime
         ? [
             {
               field: 'appointment',
-              label: 'Lịch hẹn (Cột K, J)',
+              label: 'Lịch hẹn',
               before: '—',
               after: `${apptDate || '—'}${apptTime ? ` (${apptTime})` : ''}`,
             },
           ]
         : []),
       ...(telesale
-        ? [{ field: 'telesale', label: 'Telesale (Cột L)', before: '—', after: telesale }]
+        ? [{ field: 'telesale', label: 'Telesale', before: '—', after: telesale }]
         : []),
     ],
   });
@@ -2177,18 +2177,18 @@ export async function deleteAdminLead(payload = {}) {
       sheetKey,
       sheetName: getSheetShortLabel(sheetKey),
       sheetRowIndex: rowIdx,
-      customerName: effectiveName || `Khách dòng #${rowIdx}`,
+      customerName: effectiveName || 'Khách hàng',
       customerPhone: effectivePhone,
     },
     summary: `Xóa Data khách hàng: ${effectiveName || 'Khách hàng'} (${
       effectivePhone || '—'
-    }) khỏi ${getSheetShortLabel(sheetKey)}${rowIdx ? ` (Dòng #${rowIdx})` : ''}`,
+    }) khỏi ${getSheetShortLabel(sheetKey)}`,
     changes: [
       {
         field: 'delete',
         label: 'Xóa bản ghi',
         before: `${effectiveName || 'Khách'} · ${effectivePhone || '—'}`,
-        after: 'Đã xóa khỏi CRM & Google Sheet',
+        after: 'Đã xóa khỏi hệ thống CRM',
       },
     ],
   });

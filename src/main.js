@@ -616,20 +616,20 @@ export function renderAdminActivityLogSection(users = [], activityLogData = null
           <option value="update_status" ${
             filters.actionType === 'update_status' ? 'selected' : ''
           }>
-            📌 Đổi tình trạng khách (Cột I)
+            📌 Đổi tình trạng khách hàng
           </option>
           <option value="update_appointment" ${
             filters.actionType === 'update_appointment' ? 'selected' : ''
           }>
-            📅 Đặt / Đổi lịch hẹn (Cột K, J)
+            📅 Đặt / Đổi lịch hẹn
           </option>
           <option value="note" ${filters.actionType === 'note' ? 'selected' : ''}>
-            📝 Thêm / Sửa ghi chú Care (Cột M, N+)
+            📝 Thêm / Sửa ghi chú tư vấn
           </option>
           <option value="update_telesale" ${
             filters.actionType === 'update_telesale' ? 'selected' : ''
           }>
-            👩‍💼 Phân bổ Telesale (Cột L)
+            👩‍💼 Phân bổ Telesale
           </option>
           <option value="lead" ${filters.actionType === 'lead' ? 'selected' : ''}>
             ➕ Thêm / 🗑️ Xóa Data khách hàng
@@ -637,7 +637,7 @@ export function renderAdminActivityLogSection(users = [], activityLogData = null
           <option value="update_revenue" ${
             filters.actionType === 'update_revenue' ? 'selected' : ''
           }>
-            💰 Nhập doanh số thực thu (Cột W)
+            💰 Nhập doanh số thực thu
           </option>
           <option value="system" ${filters.actionType === 'system' ? 'selected' : ''}>
             🔐 Đăng nhập & Quản trị hệ thống
@@ -667,7 +667,7 @@ export function renderAdminActivityLogSection(users = [], activityLogData = null
               <th style="width: 138px">Thời Gian (GMT+7)</th>
               <th style="width: 175px">Người Thao Tác</th>
               <th style="width: 155px">Hành Động</th>
-              <th style="width: 225px">Khách Hàng / Bảng</th>
+              <th style="width: 225px">Khách Hàng / Danh Mục</th>
               <th>Chi Tiết Thao Tác (Trước → Sau)</th>
             </tr>
           </thead>
@@ -693,7 +693,6 @@ export function renderAdminActivityLogSection(users = [], activityLogData = null
                       const targetName = item.target?.customerName || 'Hệ thống CRM';
                       const targetPhone = item.target?.customerPhone || '';
                       const targetSheet = item.target?.sheetName || '';
-                      const targetRow = item.target?.sheetRowIndex || 0;
                       const changes = Array.isArray(item.changes) ? item.changes : [];
 
                       return `
@@ -739,9 +738,7 @@ export function renderAdminActivityLogSection(users = [], activityLogData = null
                               }
                               ${
                                 targetSheet
-                                  ? `<span class="audit-target-sheet">${escapeHtml(targetSheet)}${
-                                      targetRow ? ` · Dòng #${targetRow}` : ''
-                                    }</span>`
+                                  ? `<span class="audit-target-sheet">${escapeHtml(targetSheet)}</span>`
                                   : ''
                               }
                             </div>
@@ -827,7 +824,7 @@ export function renderAdminView(
           <strong class="admin-stat-value">${users.length}</strong>
         </div>
         <div class="admin-stat-card">
-          <span class="admin-stat-label">Telesale đang cấp quyền (Cột L)</span>
+          <span class="admin-stat-label">Telesale đang cấp quyền</span>
           <strong class="admin-stat-value is-emerald">${activeTelesalesCount}</strong>
         </div>
         <div class="admin-stat-card">
@@ -858,7 +855,7 @@ export function renderAdminView(
               }
             </h2>
             <p class="admin-section-desc">
-              Đặt User, Pass, Tên Telesale (tự động đồng bộ vào Cột L trên bảng CRM & Google Sheet) và cấp quyền truy cập.
+              Đặt User, Pass, Tên Telesale phụ trách trên CRM và phân quyền truy cập hệ thống.
             </p>
           </div>
           ${
@@ -907,7 +904,7 @@ export function renderAdminView(
             </div>
 
             <div class="form-group">
-              <label for="admin-input-telesale">Tên Telesale (Hiển thị ở Cột L) *</label>
+              <label for="admin-input-telesale">Tên Telesale phụ trách *</label>
               <input
                 type="text"
                 id="admin-input-telesale"
@@ -922,7 +919,7 @@ export function renderAdminView(
               <label for="admin-input-role">Vai trò tài khoản</label>
               <select id="admin-input-role" class="modal-input">
                 <option value="telesale" ${formRole === 'telesale' ? 'selected' : ''}>
-                  Telesale (Chỉ xem dữ liệu CRM — ẩn trang Quản lý)
+                  Telesale (Chỉ xem dữ liệu CRM — ẩn trang Cài đặt)
                 </option>
                 <option value="admin" ${formRole === 'admin' ? 'selected' : ''}>
                   Admin (Quản trị viên — toàn quyền)
@@ -995,7 +992,7 @@ export function renderAdminView(
             <thead>
               <tr>
                 <th>Tài khoản (User / Pass)</th>
-                <th>Tên Telesale (Cột L)</th>
+                <th>Tên Telesale</th>
                 <th>Vai trò</th>
                 <th>Phạm vi dữ liệu</th>
                 <th>Quyền thao tác</th>
@@ -1464,24 +1461,24 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
             type="button"
             class="btn-clean"
             id="btn-sync-overview-now"
-            title="Tải mới trực tiếp từ Google Sheet Marketing 2026 & CRM"
+            title="Cập nhật dữ liệu Marketing & CRM mới nhất"
             ${overviewLoading ? 'disabled' : ''}
           >
-            ${overviewLoading ? '⏳ Đang đồng bộ...' : '↻ Đồng bộ Sheet 2026'}
+            ${overviewLoading ? '⏳ Đang đồng bộ...' : '↻ Đồng bộ dữ liệu'}
           </button>
         </div>
       </div>
 
-      <!-- PHÂN HỆ 1: PHỄU CRM & DOANH SỐ THỰC THU (CỘT W) -->
+      <!-- PHÂN HỆ 1: PHỄU CRM & DOANH SỐ THỰC THU -->
       <div class="ov-section-block">
         <div class="ov-section-heading">
           <h3>1. Chỉ Số Phễu CRM & Doanh Số Thực Thu (Chỉ Admin)</h3>
-          <span>Tổng hợp trực tiếp từ 3 Sheet CRM (Data Nguồn MKT · Khách Đặt Hẹn · Khách Đã Đến)</span>
+          <span>Tổng hợp từ dữ liệu khách hàng CRM (Data Nguồn MKT · Khách Đặt Hẹn · Khách Đã Đến)</span>
         </div>
 
         <div class="ov-kpi-grid-4">
           <div class="ov-kpi-card is-Revenue-highlight">
-            <span class="ov-kpi-label">DOANH SỐ THỰC THU (CỘT W)</span>
+            <span class="ov-kpi-label">DOANH SỐ THỰC THU</span>
             <strong class="ov-kpi-value is-emerald">${escapeHtml(
               formatOverviewMoney(crm.revenue)
             )}</strong>
@@ -1493,7 +1490,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
           <div class="ov-kpi-card">
             <span class="ov-kpi-label">TỔNG LEAD MKT TRONG KỲ</span>
             <strong class="ov-kpi-value">${escapeHtml(formatOverviewNumber(crm.leads))}</strong>
-            <span class="ov-kpi-sub">Khách phát sinh theo ngày Data (Cột B)</span>
+            <span class="ov-kpi-sub">Khách phát sinh theo ngày tiếp nhận</span>
           </div>
 
           <div class="ov-kpi-card">
@@ -1523,22 +1520,22 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
         </div>
       </div>
 
-      <!-- PHÂN HỆ 2: TÀI CHÍNH & NGÂN SÁCH MARKETING (TỪ SHEET 2026) -->
+      <!-- PHÂN HỆ 2: TÀI CHÍNH & NGÂN SÁCH MARKETING -->
       <div class="ov-section-block">
         <div class="ov-section-heading">
-          <h3>2. Tài Chính & Chi Phí Marketing (Đồng bộ Sheet Marketing 2026)</h3>
+          <h3>2. Tài Chính & Chi Phí Marketing</h3>
           <span>Đo lường Ngân sách, Chi phí chạy Ads, Phí quản lý 5%, Số tiền còn lại & Cost per Result</span>
         </div>
 
         <div class="ov-kpi-grid-4">
           <div class="ov-kpi-card">
-            <span class="ov-kpi-label">TỔNG NHẬN NGÂN SÁCH (CỘT C)</span>
+            <span class="ov-kpi-label">TỔNG NHẬN NGÂN SÁCH</span>
             <strong class="ov-kpi-value">${escapeHtml(formatOverviewMoney(mkt.received))}</strong>
             <span class="ov-kpi-sub">Tổng ngân sách đã nạp vào quỹ Marketing trong kỳ</span>
           </div>
 
           <div class="ov-kpi-card">
-            <span class="ov-kpi-label">TỔNG CHI PHÍ MARKETING (SHEET 2026)</span>
+            <span class="ov-kpi-label">TỔNG CHI PHÍ MARKETING</span>
             <strong class="ov-kpi-value is-rose">${escapeHtml(
               formatOverviewMoney(mkt.adsCost)
             )}</strong>
@@ -1550,7 +1547,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
           </div>
 
           <div class="ov-kpi-card ${balanceCardTone}" id="ov-marketing-balance-card">
-            <span class="ov-kpi-label">SỐ TIỀN CÒN LẠI (SỐ DƯ CỘT B)</span>
+            <span class="ov-kpi-label">SỐ TIỀN CÒN LẠI</span>
             <strong class="ov-kpi-value ${balanceValueTone}">${escapeHtml(
               formatOverviewMoney(rawBalance)
             )}</strong>
@@ -1703,13 +1700,13 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
         <div class="sheet-card ov-table-card">
           <div class="ov-card-header">
             <h3>Hiệu Suất & Doanh Số Theo Nhân Sự Telesale</h3>
-            <span>Đánh giá tỷ lệ chốt hẹn & doanh số mang về theo Cột L</span>
+            <span>Đánh giá tỷ lệ chốt hẹn & doanh số mang về theo từng nhân sự</span>
           </div>
           <div class="table-wrap">
             <table class="lead-table ov-compact-table">
               <thead>
                 <tr>
-                  <th>Telesale (Cột L)</th>
+                  <th>Telesale</th>
                   <th>Data Nhận</th>
                   <th>Chốt Hẹn</th>
                   <th>Khách Đến</th>
@@ -1743,10 +1740,10 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
         </div>
       </div>
 
-      <!-- PHÂN HỆ 4: BẢNG ĐỐI SOÁT KHÁCH ĐÃ ĐẾN & DOANH SỐ CỘT W -->
+      <!-- PHÂN HỆ 4: BẢNG ĐỐI SOÁT KHÁCH ĐÃ ĐẾN & DOANH SỐ THỰC THU -->
       <div class="sheet-card ov-table-card">
         <div class="ov-card-header">
-          <h3>Chi Tiết Khách Đã Đến & Doanh Số Cột W (${arrivedCustomers.length} khách)</h3>
+          <h3>Chi Tiết Khách Đã Đến & Doanh Số Thực Thu (${arrivedCustomers.length} khách)</h3>
           <span>Chỉ hiển thị cho tài khoản Admin — Tự động ẩn hoàn toàn đối với Telesale</span>
         </div>
         <div class="table-wrap">
@@ -1758,7 +1755,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
                 <th>Điện Thoại</th>
                 <th>Dịch Vụ</th>
                 <th>Telesale</th>
-                <th>Doanh Số (Cột W)</th>
+                <th>Doanh Số</th>
                 <th>Ghi Chú</th>
               </tr>
             </thead>
@@ -1782,7 +1779,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
                             ? `<strong class="is-emerald-text">${escapeHtml(
                                 formatOverviewMoney(c.revenue)
                               )}</strong>`
-                            : `<span class="ov-missing-rev-badge">Chưa nhập doanh số Cột W</span>`
+                            : `<span class="ov-missing-rev-badge">Chưa nhập doanh số</span>`
                         }
                       </td>
                       <td>${escapeHtml(c.noteM || '—')}</td>
@@ -1864,7 +1861,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
         <div class="sheet-card ov-table-card">
           <div class="ov-card-header">
             <h3>Kiểm Tra Toàn Vẹn & Đối Soát Dữ Liệu (${integrity.issues?.length || 0})</h3>
-            <span>Tự động phát hiện khách đến thiếu doanh số hoặc lệch bảng Marketing</span>
+            <span>Tự động phát hiện khách đến thiếu doanh số hoặc lệch dữ liệu Marketing</span>
           </div>
           <div class="ov-integrity-list">
             ${
@@ -2027,7 +2024,7 @@ export function renderMobileBottomNav(activeTab = 'mkt', counts = {}, isAdmin = 
           <span class="mobile-nav-icon-wrap">
             <span class="mobile-nav-icon">⚙️</span>
           </span>
-          <span class="mobile-nav-label">Quản Lý</span>
+          <span class="mobile-nav-label">Cài Đặt</span>
         </button>
       `
           : ''
@@ -2197,7 +2194,7 @@ function render() {
               state.activeTab === 'admin' ? 'active' : ''
             }" data-tab="admin">
               <span class="nav-tab-icon">⚙️</span>
-              <span>Quản Lý Nhân Sự</span>
+              <span>Cài Đặt</span>
             </button>
           `
               : ''
@@ -3040,7 +3037,7 @@ export function renderRow(rec, statusOptions, telesaleList, options = {}) {
               type="button"
               class="btn-delete-lead-single"
               data-delete-customer="${escapeHtml(rec.id)}"
-              title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+              title="Xóa khách hàng này khỏi hệ thống (Chỉ Admin)"
             >
               🗑️ Xóa
             </button>
@@ -3196,7 +3193,7 @@ export function renderCard(rec, statusOptions, telesaleList, options = {}) {
             type="button"
             class="btn-delete-lead-single is-card-btn"
             data-delete-customer="${escapeHtml(rec.id)}"
-            title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+            title="Xóa khách hàng này khỏi hệ thống (Chỉ Admin)"
           >
             🗑️ Xóa
           </button>
@@ -3864,7 +3861,7 @@ function renderEditModal(data) {
                 type="button"
                 class="btn-delete-lead-single is-modal-btn"
                 data-delete-customer="${escapeHtml(rec.id)}"
-                title="Xóa khách hàng này khỏi CRM & Google Sheet (Chỉ Admin)"
+                title="Xóa khách hàng này khỏi hệ thống (Chỉ Admin)"
               >
                 🗑️ Xóa Data
               </button>
@@ -3924,7 +3921,7 @@ async function loadAdminOverview(forceRefresh = false) {
   try {
     state.adminOverview = await resolveAdminOverviewSafe(forceRefresh);
     if (forceRefresh) {
-      notify('Đã đồng bộ dữ liệu mới nhất từ Sheet Marketing 2026 & CRM');
+      notify('Đã đồng bộ dữ liệu Marketing & CRM mới nhất');
     }
   } catch (err) {
     notify(`Lỗi tải Tổng quan CEO: ${err.message}`);
@@ -4521,7 +4518,7 @@ function bindEvents() {
       const displayPhone = rec.phoneDisplay || rec.phone || rec.rawPhone || 'Chưa có SĐT';
       if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
         const confirmed = window.confirm(
-          `Bạn có chắc chắn muốn XÓA khách hàng "${rec.name || 'Khách hàng'}" (${displayPhone})?\n\nDòng dữ liệu này sẽ bị xóa khỏi CRM và xóa trực tiếp trên Google Sheet.`
+          `Bạn có chắc chắn muốn XÓA khách hàng "${rec.name || 'Khách hàng'}" (${displayPhone})?\n\nDữ liệu khách hàng này sẽ bị xóa vĩnh viễn khỏi hệ thống CRM.`
         );
         if (!confirmed) return;
       }
@@ -4544,7 +4541,7 @@ function bindEvents() {
         if (state.activeCareInputId === rec.id) {
           state.activeCareInputId = null;
         }
-        notify(`🗑️ Đã xóa khách "${rec.name}" khỏi CRM & Google Sheet!`);
+        notify(`🗑️ Đã xóa khách "${rec.name}" khỏi hệ thống!`);
         render();
         resolveAdminOverviewSafe()
           .then((ov) => {
@@ -4737,7 +4734,7 @@ function bindEvents() {
       const upperNext = String(nextStatus || '').trim().toUpperCase();
       const saveMsg =
         upperNext === 'ĐẶT HẸN' || upperNext === 'DỜI LỊCH'
-          ? 'Đã chuyển Đặt hẹn & đồng bộ sang Sheet 2) KHÁCH ĐẶT HẸN'
+          ? 'Đã chuyển sang danh sách Khách Đặt Hẹn'
           : 'Đã lưu tình trạng';
       quickSave(id, { status: nextStatus }, saveMsg);
     });
@@ -4758,7 +4755,7 @@ function bindEvents() {
       const id = picker.getAttribute('data-date-picker');
       const vnDate = isoToVnDate(e.target.value);
       const saveMsg = vnDate
-        ? 'Đã lưu ngày hẹn & đồng bộ sang Sheet 2) KHÁCH ĐẶT HẸN'
+        ? 'Đã lưu ngày hẹn & chuyển sang Khách Đặt Hẹn'
         : 'Đã cập nhật ngày hẹn';
       quickSave(id, { apptDate: vnDate }, saveMsg);
     });
@@ -5068,7 +5065,7 @@ function bindEvents() {
       id,
       updatesPayload,
       isArrivedStatusValue(status)
-        ? 'Đã chuyển sang Sheet 3) KHÁCH ĐÃ ĐẾN & lưu doanh số Cột W'
+        ? 'Đã xác nhận Khách Đã Đến & lưu doanh số'
         : appendCare
         ? 'Đã lưu thông tin & thêm lần liên hệ mới'
         : 'Đã lưu thông tin khách hàng',
@@ -5084,7 +5081,7 @@ function bindEvents() {
   });
 
   // =========================================================================
-  // SỰ KIỆN MODAL XÁC NHẬN ĐÃ ĐẾN & NHẬP DOANH SỐ CỘT W (CHỈ ADMIN)
+  // SỰ KIỆN MODAL XÁC NHẬN ĐÃ ĐẾN & NHẬP DOANH SỐ (CHỈ ADMIN)
   // =========================================================================
   const closeArrivedModal = () => {
     state.arrivedModal = null;
@@ -5124,7 +5121,7 @@ function bindEvents() {
     await quickSave(
       recordId,
       { status: status || 'ĐÃ ĐẾN', revenue: revenueVal },
-      'Đã chuyển sang Sheet 3) KHÁCH ĐÃ ĐẾN & ghi doanh số vào Cột W!'
+      'Đã xác nhận Khách Đã Đến & lưu doanh số!'
     );
     resolveAdminOverviewSafe()
       .then((ov) => {

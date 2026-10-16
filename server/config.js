@@ -31,7 +31,7 @@ loadDotEnv();
 
 export const PORT = Number(process.env.PORT || 3001);
 export const HOST = process.env.HOST || '0.0.0.0';
-export const APP_VERSION = process.env.APP_VERSION || '2026.10.16-r24';
+export const APP_VERSION = process.env.APP_VERSION || '2026.10.16-r25';
 export const SPREADSHEET_ID =
   process.env.SPREADSHEET_ID || '1HEOYV5QzcOAHSMr6x5zeuem1Vi3V9QdeTvF6lKhGLgk';
 export const DEFAULT_APPS_SCRIPT_URL =
@@ -50,23 +50,23 @@ export const SHEETS_CONFIG = {
   mkt: {
     key: 'mkt',
     name: '1) DATA NGUỒN MKT',
-    shortName: '1) Data Nguồn MKT',
+    shortName: 'Data Nguồn MKT',
     gid: process.env.SHEET_GID_MKT || '915093349',
-    description: 'Danh sách data MKT tự động đổ về — Telesale gọi, chuyển tình trạng (Cột I), gán tên (Cột L) & ghi Note (Cột M)',
+    description: 'Danh sách data MKT tự động đổ về — Telesale gọi, chuyển tình trạng, phân bổ nhân sự & ghi chú',
   },
   booked: {
     key: 'booked',
     name: '2) KHÁCH ĐẶT HẸN',
-    shortName: '2) Khách Đặt Hẹn',
+    shortName: 'Khách Đặt Hẹn',
     gid: process.env.SHEET_GID_BOOKED || '2007161241',
     description: 'Danh sách khách đang có lịch hẹn — Theo dõi nhắc lịch, dời lịch, hủy lịch & xác nhận khách đến',
   },
   arrived: {
     key: 'arrived',
     name: '3) KHÁCH ĐÃ ĐẾN',
-    shortName: '3) Khách Đã Đến',
+    shortName: 'Khách Đã Đến',
     gid: process.env.SHEET_GID_ARRIVED || '1566321838',
-    description: 'Danh sách khách thực tế đã đến cơ sở & doanh số phát sinh (Cột V, W)',
+    description: 'Danh sách khách thực tế đã đến cơ sở & doanh số phát sinh',
   },
 };
 

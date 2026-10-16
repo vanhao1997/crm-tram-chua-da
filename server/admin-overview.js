@@ -1094,7 +1094,7 @@ export async function getAdminOverviewData(query = {}) {
         dateKey: r.apptDateIso || r.dataDateIso || '',
         row: r.sheetRowIndex,
         customerName: r.name,
-        message: `Khách đến "${r.name}" (${r.apptDate || r.dataDate}) chưa có doanh số được ghi nhận ở Cột W.`,
+        message: `Khách đến "${r.name}" (${r.apptDate || r.dataDate}) chưa có doanh số được ghi nhận.`,
       });
     }
   }
@@ -1108,7 +1108,7 @@ export async function getAdminOverviewData(query = {}) {
         dateKey: r.dataDateIso || '',
         row: r.sheetRowIndex,
         customerName: r.name,
-        message: `Khách "${r.name}" đã chốt Đặt Hẹn ở Tab 1 nhưng chưa sang Tab 2 (Khách Đặt Hẹn).`,
+        message: `Khách "${r.name}" đã chốt Đặt Hẹn nhưng chưa đồng bộ sang danh sách Khách Đặt Hẹn.`,
       });
     }
   }
@@ -1126,7 +1126,7 @@ export async function getAdminOverviewData(query = {}) {
         severity: 'critical',
         dateKey: mRow.dateIso,
         row: mRow.rowIndex,
-        message: `Ngày ${mRow.dateText}: Chi phí Ads + Phí quản lý không khớp Tổng chi phí trên Sheet Marketing.`,
+        message: `Ngày ${mRow.dateText}: Chi phí Ads + Phí quản lý không khớp Tổng chi phí Marketing.`,
       });
     }
   }
@@ -1137,7 +1137,7 @@ export async function getAdminOverviewData(query = {}) {
       severity: 'critical',
       dateKey: fErr.dateKey,
       row: fErr.row,
-      message: `Sheet Marketing dòng ${fErr.row} (${fErr.dateKey}) có lỗi công thức (#REF!, #VALUE!...).`,
+      message: `Dữ liệu Marketing ngày ${fErr.dateKey} có lỗi công thức (#REF!, #VALUE!...).`,
     });
   }
 

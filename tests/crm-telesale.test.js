@@ -450,11 +450,14 @@ test('Tích hợp Không gian điều hành CEO (crm-tram-chua-da) dành riêng 
 
   const html = renderAdminOverview(ovData, { overviewPeriod: 'all' });
   assert.equal(html.includes('Tổng Quan Vận Hành, Doanh Số & Tài Chính Marketing'), true);
-  assert.equal(html.includes('DOANH SỐ THỰC THU (CỘT W)'), true);
+  assert.equal(html.includes('DOANH SỐ THỰC THU'), true);
   assert.equal(html.includes('TỔNG CHI PHÍ MARKETING'), true);
-  assert.equal(html.includes('SỐ TIỀN CÒN LẠI (SỐ DƯ CỘT B)'), true);
+  assert.equal(html.includes('SỐ TIỀN CÒN LẠI'), true);
   assert.equal(html.includes('Phễu Chuyển Đổi Theo Hạng Mục Dịch Vụ'), true);
   assert.equal(html.includes('Hiệu Suất & Doanh Số Theo Nhân Sự Telesale'), true);
+  assert.equal(/Cột\s+[A-Z]/i.test(html), false);
+  assert.equal(/Sheet\s+2026/i.test(html), false);
+  assert.equal(/Google\s+Sheet/i.test(html), false);
 
   // Kiểm tra trường hợp Số tiền còn lại bị ÂM (balance < 0) -> hiển thị cảnh báo đỏ & số tiền cần nạp bù ngay
   const negHtml = renderAdminOverview(
@@ -909,6 +912,8 @@ test('Bảo mật toàn diện: Không lộ token/doanh thu ở frontend, chặn
   assert.equal(adminBottomNav.includes('mobile-bottom-nav has-6-tabs'), true);
   assert.equal(adminBottomNav.includes('data-tab="overview"'), true);
   assert.equal(adminBottomNav.includes('data-tab="admin"'), true);
+  assert.equal(adminBottomNav.includes('Cài Đặt'), true);
+  assert.equal(adminBottomNav.includes('Quản Lý'), false);
 
   // 5. Kiểm tra Kanban Pipeline (renderKanbanBoard) gắn class is-kanban-card và tách riêng .card-admin-actions
   const { renderKanbanBoard } = await import('../src/main.js');
@@ -942,6 +947,7 @@ test('Bảo mật toàn diện: Không lộ token/doanh thu ở frontend, chặn
   );
   assert.equal(kanbanHtml.includes('is-kanban-card'), true);
   assert.equal(kanbanHtml.includes('card-admin-actions'), true);
+  assert.equal(/Google\s+Sheet/i.test(kanbanHtml), false);
 });
 
 test('Nhật ký thao tác hệ thống (Admin Audit Log): Ghi nhận đầy đủ thao tác của Telesale & Admin kèm đối chiếu Trước → Sau và bộ lọc lịch sử', async () => {
@@ -1035,6 +1041,8 @@ test('Nhật ký thao tác hệ thống (Admin Audit Log): Ghi nhận đầy đ�
   });
   assert.equal(fullAdminHtml.includes('id="admin-activity-log-card"'), true);
   assert.equal(fullAdminHtml.includes('id="btn-jump-audit-log"'), true);
+  assert.equal(/Cột\s+[A-Z]/i.test(fullAdminHtml), false);
+  assert.equal(/Google\s+Sheet/i.test(fullAdminHtml), false);
 
   // 5. Kiểm tra thứ tự sắp xếp 4 phần trong trang Quản Trị User:
   // 1) Cấp Tài Khoản Mới & Phân Quyền Vào CRM
