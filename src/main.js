@@ -1247,7 +1247,11 @@ export function renderAdminView(
 
 function formatOverviewMoney(val) {
   if (val === null || val === undefined || !Number.isFinite(Number(val))) return '—';
-  return `${Math.round(Number(val)).toLocaleString('vi-VN')} VNĐ`;
+  const rounded = Math.round(Number(val));
+  if (rounded < 0) {
+    return `-${Math.abs(rounded).toLocaleString('vi-VN')} VNĐ`;
+  }
+  return `${rounded.toLocaleString('vi-VN')} VNĐ`;
 }
 
 function formatOverviewNumber(val) {
@@ -1315,6 +1319,11 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
       managementFee: 0,
       cost: 0,
       balance: 0,
+      topUpNeeded: 0,
+      estimatedDaysLeft: null,
+      recommendedTopUp7Days: 0,
+      currentMonthBalance: null,
+      currentMonthLabel: 'Tháng này',
       messages: 0,
       costRevenueRatio: null,
       costPerData: null,
@@ -1352,6 +1361,36 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
     ratioVal !== null && ratioVal !== undefined && Number.isFinite(Number(ratioVal))
       ? `${Number(ratioVal).toFixed(1)}%`
       : '—';
+
+  const rawBalance =
+    mkt.balance !== undefined && mkt.balance !== null && Number.isFinite(Number(mkt.balance))
+      ? Number(mkt.balance)
+      : Number(mkt.received || 0) - Number(mkt.cost || 0);
+  const isNegativeBalance = rawBalance < 0;
+  const isLowBalance =
+    !isNegativeBalance &&
+    Number(mkt.cost || 0) > 0 &&
+    (rawBalance <= 2000000 ||
+      (mkt.estimatedDaysLeft !== null &&
+        mkt.estimatedDaysLeft !== undefined &&
+        Number(mkt.estimatedDaysLeft) < 3));
+  const balanceCardTone = isNegativeBalance
+    ? 'is-balance-negative'
+    : isLowBalance
+    ? 'is-balance-low'
+    : 'is-balance-positive';
+  const balanceValueTone = isNegativeBalance
+    ? 'is-rose'
+    : isLowBalance
+    ? 'is-amber'
+    : 'is-emerald';
+  const topUpDeficit =
+    mkt.topUpNeeded !== undefined && mkt.topUpNeeded !== null && Number(mkt.topUpNeeded) > 0
+      ? Number(mkt.topUpNeeded)
+      : isNegativeBalance
+      ? Math.abs(Math.round(rawBalance))
+      : 0;
+  const recTopUp7d = Number(mkt.recommendedTopUp7Days || 0);
 
   return `
     <div class="admin-overview-panel">
@@ -1488,16 +1527,14 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
       <div class="ov-section-block">
         <div class="ov-section-heading">
           <h3>2. Tài Chính & Chi Phí Marketing (Đồng bộ Sheet Marketing 2026)</h3>
-          <span>Đo lường Ngân sách, Chi phí chạy Ads, Phí quản lý 5% & Cost per Result</span>
+          <span>Đo lường Ngân sách, Chi phí chạy Ads, Phí quản lý 5%, Số tiền còn lại & Cost per Result</span>
         </div>
 
         <div class="ov-kpi-grid-4">
           <div class="ov-kpi-card">
-            <span class="ov-kpi-label">TỔNG NHẬN NGÂN SÁCH</span>
+            <span class="ov-kpi-label">TỔNG NHẬN NGÂN SÁCH (CỘT C)</span>
             <strong class="ov-kpi-value">${escapeHtml(formatOverviewMoney(mkt.received))}</strong>
-            <span class="ov-kpi-sub">Số dư còn: <strong>${escapeHtml(
-              formatOverviewMoney(mkt.balance)
-            )}</strong></span>
+            <span class="ov-kpi-sub">Tổng ngân sách đã nạp vào quỹ Marketing trong kỳ</span>
           </div>
 
           <div class="ov-kpi-card">
@@ -1512,6 +1549,68 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
             </span>
           </div>
 
+          <div class="ov-kpi-card ${balanceCardTone}" id="ov-marketing-balance-card">
+            <span class="ov-kpi-label">SỐ TIỀN CÒN LẠI (SỐ DƯ CỘT B)</span>
+            <strong class="ov-kpi-value ${balanceValueTone}">${escapeHtml(
+              formatOverviewMoney(rawBalance)
+            )}</strong>
+            ${
+              isNegativeBalance
+                ? `
+              <div class="ov-topup-badge is-negative">
+                <span class="ov-topup-main">🚨 Đang âm quỹ! Cần nạp bù ngay: <strong>${escapeHtml(
+                  formatOverviewMoney(topUpDeficit)
+                )}</strong></span>
+                ${
+                  recTopUp7d > topUpDeficit
+                    ? `<span class="ov-topup-hint">Gợi ý nạp thêm (bù âm + 7 ngày chạy): <strong>${escapeHtml(
+                        formatOverviewMoney(recTopUp7d)
+                      )}</strong></span>`
+                    : ''
+                }
+              </div>
+            `
+                : isLowBalance
+                ? `
+              <div class="ov-topup-badge is-low">
+                <span class="ov-topup-main">⚠️ Sắp cạn quỹ${
+                  mkt.estimatedDaysLeft !== null && mkt.estimatedDaysLeft !== undefined
+                    ? ` (~${mkt.estimatedDaysLeft} ngày)`
+                    : ''
+                } — Nên nạp thêm sớm</span>
+                <span class="ov-topup-hint">Gợi ý nạp thêm (đủ ~7 ngày chạy): <strong>${escapeHtml(
+                  formatOverviewMoney(recTopUp7d > 0 ? recTopUp7d : 10000000)
+                )}</strong></span>
+              </div>
+            `
+                : `
+              <div class="ov-topup-badge is-positive">
+                <span class="ov-topup-main">✅ Quỹ còn dương${
+                  mkt.estimatedDaysLeft !== null && mkt.estimatedDaysLeft !== undefined
+                    ? ` (đủ ~${mkt.estimatedDaysLeft} ngày chạy)`
+                    : ''
+                }</span>
+                <span class="ov-topup-hint">Chưa cần nạp gấp${
+                  mkt.avgDailyCost > 0
+                    ? ` · TB chi: ${escapeHtml(formatOverviewMoney(mkt.avgDailyCost))}/ngày`
+                    : ''
+                }</span>
+              </div>
+            `
+            }
+            ${
+              overviewPeriod !== 'month' &&
+              mkt.currentMonthBalance !== undefined &&
+              mkt.currentMonthBalance !== null
+                ? `<span class="ov-kpi-sub ov-month-balance-ref">Số dư lũy kế ${escapeHtml(
+                    mkt.currentMonthLabel || 'Tháng này'
+                  )}: <strong class="${
+                    Number(mkt.currentMonthBalance) < 0 ? 'ov-text-rose' : ''
+                  }">${escapeHtml(formatOverviewMoney(mkt.currentMonthBalance))}</strong></span>`
+                : ''
+            }
+          </div>
+
           <div class="ov-kpi-card">
             <span class="ov-kpi-label">TỶ LỆ CHI PHÍ / DOANH THU</span>
             <strong class="ov-kpi-value ${
@@ -1519,17 +1618,17 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
             }">${escapeHtml(ratioText)}</strong>
             <span class="ov-kpi-sub">${escapeHtml(rec.label || 'Đang theo dõi')}</span>
           </div>
+        </div>
 
+        <div class="ov-kpi-grid-4" style="margin-top: 12px;">
           <div class="ov-kpi-card">
             <span class="ov-kpi-label">TỔNG TIN NHẮN MKT</span>
             <strong class="ov-kpi-value">${escapeHtml(
               formatOverviewNumber(mkt.messages)
             )}</strong>
-            <span class="ov-kpi-sub">${escapeHtml(rec.reason || '')}</span>
+            <span class="ov-kpi-sub">${escapeHtml(rec.reason || 'Tổng tin nhắn phát sinh trong kỳ')}</span>
           </div>
-        </div>
 
-        <div class="ov-kpi-grid-3" style="margin-top: 12px;">
           <div class="ov-kpi-card">
             <span class="ov-kpi-label">GIÁ 1 DATA (COST / LEAD)</span>
             <strong class="ov-kpi-value">${escapeHtml(

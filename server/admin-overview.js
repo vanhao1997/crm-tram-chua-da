@@ -763,6 +763,7 @@ function computeWindowSummary(crmData, mktDailyRows, windowPeriod) {
   let mktFee = 0;
   let mktCost = 0;
   let mktMessages = 0;
+  let activeCostDays = 0;
 
   for (const r of mktInPeriod) {
     mktReceived += r.received || 0;
@@ -770,7 +771,12 @@ function computeWindowSummary(crmData, mktDailyRows, windowPeriod) {
     mktFee += r.fee || 0;
     mktCost += r.cost || 0;
     mktMessages += r.messages || 0;
+    if ((r.cost || 0) > 0 || (r.ads || 0) > 0) {
+      activeCostDays++;
+    }
   }
+
+  const avgDailyCost = activeCostDays > 0 ? mktCost / activeCostDays : 0;
 
   const leadsCount = leadsInPeriod.length;
   const arrivedCount = arrivedInPeriod.length;
@@ -799,6 +805,8 @@ function computeWindowSummary(crmData, mktDailyRows, windowPeriod) {
       managementFee: mktFee,
       cost: mktCost,
       messages: mktMessages,
+      activeCostDays,
+      avgDailyCost,
       costRevenueRatio,
       costPerData,
       costPerAppointment,
@@ -921,8 +929,36 @@ export async function getAdminOverviewData(query = {}) {
     ? computeWindowSummary(crmData, parsedMkt.dailyRows, prevPeriod)
     : null;
 
-  // Tính Số dư còn lại (Balance) theo kỳ đang chọn (khớp 100% crm-tram-chua-da)
+  // Tính Số dư còn lại (Balance = Tổng nhận - Tổng chi phí, có thể âm) theo kỳ đang chọn
   const balance = current.marketing.received - current.marketing.cost;
+  const topUpNeeded = balance < 0 ? Math.abs(Math.round(balance)) : 0;
+  const avgDailyCost = current.marketing.avgDailyCost || 0;
+  const estimatedDaysLeft =
+    balance > 0 && avgDailyCost > 0
+      ? Number((balance / avgDailyCost).toFixed(1))
+      : balance <= 0
+      ? 0
+      : null;
+  const recommendedTopUp7Days =
+    balance < 0
+      ? Math.abs(Math.round(balance)) + (avgDailyCost > 0 ? Math.round(avgDailyCost * 7) : 0)
+      : avgDailyCost > 0 && balance < avgDailyCost * 7
+      ? Math.round(avgDailyCost * 7 - balance)
+      : 0;
+
+  // Tính Số dư lũy kế của Tháng hiện tại trên Sheet 2026 (để khi lọc Hôm nay / Tuần này vẫn thấy rõ quỹ tháng)
+  const todayMonthKey = (period.today || '').slice(0, 7);
+  const monthRows = parsedMkt.dailyRows.filter((r) => r.dateIso.startsWith(todayMonthKey));
+  const currentMonthReceived = monthRows.reduce((acc, r) => acc + (r.received || 0), 0);
+  const currentMonthCost = monthRows.reduce((acc, r) => acc + (r.cost || 0), 0);
+  const monthSummaryObj = parsedMkt.monthlySummaries?.[todayMonthKey] || null;
+  const currentMonthBalance =
+    monthSummaryObj?.balance !== undefined && monthSummaryObj?.balance !== null
+      ? monthSummaryObj.balance
+      : currentMonthReceived - currentMonthCost;
+  const currentMonthLabel =
+    monthSummaryObj?.label ||
+    (todayMonthKey ? `Tháng ${Number(todayMonthKey.slice(5, 7))}` : 'Tháng này');
 
   // So sánh kỳ trước cho Giá 1 Data & Giá 1 Khách đến
   function buildComparison(currentVal, baselineVal) {
@@ -1142,6 +1178,13 @@ export async function getAdminOverviewData(query = {}) {
     marketing: {
       ...current.marketing,
       balance,
+      topUpNeeded,
+      estimatedDaysLeft,
+      recommendedTopUp7Days,
+      currentMonthBalance,
+      currentMonthReceived,
+      currentMonthCost,
+      currentMonthLabel,
       costPerDataComparison: buildComparison(
         current.marketing.costPerData,
         baseline?.marketing?.costPerData ?? null
