@@ -454,6 +454,18 @@ test('Tích hợp Không gian điều hành CEO (crm-tram-chua-da) dành riêng 
   assert.equal(html.includes('TỔNG CHI PHÍ MARKETING'), true);
   assert.equal(html.includes('Phễu Chuyển Đổi Theo Hạng Mục Dịch Vụ'), true);
   assert.equal(html.includes('Hiệu Suất & Doanh Số Theo Nhân Sự Telesale'), true);
+
+  // Kiểm tra số liệu Tháng 10/2026 đồng bộ từ Sheet 2026 (gid=1227076939): Chi phí chạy ADS = 22.100.286 đ
+  const octData = await getAdminOverviewData({
+    period: 'custom',
+    from: '2026-10-01',
+    to: '2026-10-31',
+  });
+  assert.equal(Math.round(octData.marketing.adsCost), 22100286);
+  assert.equal(Math.round(octData.marketing.managementFee), 1105014);
+  assert.equal(Math.round(octData.marketing.cost), 23205300);
+  assert.equal(Math.round(octData.marketing.received), 23784591);
+  assert.equal(Math.round(octData.marketing.balance), 579291);
 });
 
 test('analyzeContactLogs & Timeline Ghi chú bóc tách chính xác số lần liên hệ, số cuộc gọi và ngày giờ từng lần', async () => {

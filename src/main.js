@@ -1420,6 +1420,16 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
           `
               : ''
           }
+
+          <button
+            type="button"
+            class="btn-clean"
+            id="btn-sync-overview-now"
+            title="Tải mới trực tiếp từ Google Sheet Marketing 2026 & CRM"
+            ${overviewLoading ? 'disabled' : ''}
+          >
+            ${overviewLoading ? '⏳ Đang đồng bộ...' : '↻ Đồng bộ Sheet 2026'}
+          </button>
         </div>
       </div>
 
@@ -1478,7 +1488,7 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
       <div class="ov-section-block">
         <div class="ov-section-heading">
           <h3>2. Tài Chính & Chi Phí Marketing (Đồng bộ Sheet Marketing 2026)</h3>
-          <span>Đo lường Ngân sách, Chi phí Ads, Phí quản lý & Cost per Result</span>
+          <span>Đo lường Ngân sách, Chi phí chạy Ads, Phí quản lý 5% & Cost per Result</span>
         </div>
 
         <div class="ov-kpi-grid-4">
@@ -1491,14 +1501,14 @@ export function renderAdminOverview(overviewData = null, overviewState = {}) {
           </div>
 
           <div class="ov-kpi-card">
-            <span class="ov-kpi-label">TỔNG CHI PHÍ MARKETING</span>
+            <span class="ov-kpi-label">TỔNG CHI PHÍ MARKETING (SHEET 2026)</span>
             <strong class="ov-kpi-value is-rose">${escapeHtml(
-              formatOverviewMoney(mkt.cost)
+              formatOverviewMoney(mkt.adsCost)
             )}</strong>
             <span class="ov-kpi-sub">
-              Ads: ${escapeHtml(formatOverviewMoney(mkt.adsCost))} · Phí QL: ${escapeHtml(
-    formatOverviewMoney(mkt.managementFee)
-  )}
+              Chi phí chạy Ads · Tổng CP (+Phí QL ${escapeHtml(
+                formatOverviewMoney(mkt.managementFee)
+              )}): <strong>${escapeHtml(formatOverviewMoney(mkt.cost))}</strong>
             </span>
           </div>
 
@@ -3798,21 +3808,25 @@ async function quickSave(recordId, updates, msg, appendCareNoteText = '') {
   }
 }
 
-async function resolveAdminOverviewSafe() {
+async function resolveAdminOverviewSafe(forceRefresh = false) {
   const query = {
     period: state.overviewPeriod,
     from: state.overviewCustomFrom,
     to: state.overviewCustomTo,
+    refresh: forceRefresh ? '1' : '',
   };
   return fetchAdminOverview(query);
 }
 
-async function loadAdminOverview() {
+async function loadAdminOverview(forceRefresh = false) {
   if (state.currentUser?.role !== 'admin') return;
   state.overviewLoading = true;
   render();
   try {
-    state.adminOverview = await resolveAdminOverviewSafe();
+    state.adminOverview = await resolveAdminOverviewSafe(forceRefresh);
+    if (forceRefresh) {
+      notify('Đã đồng bộ dữ liệu mới nhất từ Sheet Marketing 2026 & CRM');
+    }
   } catch (err) {
     notify(`Lỗi tải Tổng quan CEO: ${err.message}`);
   } finally {
@@ -4029,6 +4043,10 @@ function bindEvents() {
       state.overviewCustomTo = toVal;
       state.overviewPeriod = 'custom';
       await loadAdminOverview();
+    });
+
+    document.getElementById('btn-sync-overview-now')?.addEventListener('click', async () => {
+      await loadAdminOverview(true);
     });
   }
 
@@ -4467,7 +4485,7 @@ function bindEvents() {
       if (state.currentUser?.role === 'admin') {
         const [users, ov, logRes] = await Promise.all([
           fetchAdminUsers().catch(() => state.adminUsers),
-          resolveAdminOverviewSafe().catch(() => state.adminOverview),
+          resolveAdminOverviewSafe(true).catch(() => state.adminOverview),
           fetchAdminActivityLogs(state.activityLogFilters).catch(() => null),
         ]);
         state.adminUsers = users;

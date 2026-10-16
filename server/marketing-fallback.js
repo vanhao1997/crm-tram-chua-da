@@ -326,6 +326,7 @@ export const SERVER_MARKETING_DAILY_ROWS_2026 = [
   { dateIso: '2026-10-11', received: 0, ads: 1952678.2, fee: 97633.91, cost: 2050312.11, messages: 13 },
   { dateIso: '2026-10-12', received: 0, ads: 1447363.5, fee: 72368.175, cost: 1519731.675, messages: 9 },
   { dateIso: '2026-10-13', received: 0, ads: 1739579.6, fee: 86978.98, cost: 1826558.58, messages: 15 },
-  { dateIso: '2026-10-14', received: 10000000, ads: 1522262.5, fee: 76113.125, cost: 1598375.625, messages: 8 },
-  { dateIso: '2026-10-15', received: 0, ads: 476022.8, fee: 23801.14, cost: 499823.94, messages: 2 },
+  { dateIso: '2026-10-14', received: 10000000, ads: 1524776, fee: 76238.8, cost: 1601014.8, messages: 8 },
+  { dateIso: '2026-10-15', received: 0, ads: 1916734, fee: 95836.7, cost: 2012570.7, messages: 9 },
+  { dateIso: '2026-10-16', received: 0, ads: 413407.1, fee: 20670.355, cost: 434077.455, messages: 3 },
 ];

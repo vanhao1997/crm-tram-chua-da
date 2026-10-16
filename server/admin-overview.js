@@ -329,6 +329,7 @@ function parseAdminCrmRows(csvText, sheetKey, knownTelesales = []) {
 export function parseMarketingRows(rowsOrCsv) {
   const rows = Array.isArray(rowsOrCsv) ? rowsOrCsv : parseCsvToRows(rowsOrCsv);
   const dailyRows = [];
+  const monthlySummaries = {};
   let summaryBalance = null;
   let summaryReceived = null;
   let summaryCost = null;
@@ -349,6 +350,26 @@ export function parseMarketingRows(rowsOrCsv) {
       summaryBalance = colB;
       summaryReceived = colC;
       summaryCost = colF;
+    }
+
+    // Dòng tổng kết từng tháng (VD: "THÁNG 10") trên Sheet 2026
+    const monthMatch = colA.match(/^tháng\s*(\d{1,2})$/i);
+    if (monthMatch) {
+      const monthNum = Number(monthMatch[1]);
+      if (monthNum >= 1 && monthNum <= 12) {
+        const monthKey = `2026-${String(monthNum).padStart(2, '0')}`;
+        monthlySummaries[monthKey] = {
+          monthKey,
+          label: colA,
+          balance: colB,
+          received: colC,
+          ads: colD,
+          fee: colE,
+          cost: colF,
+          messages: parseVnNumber(row[17]),
+        };
+      }
+      continue;
     }
 
     const dateIso = parseVnDateToIso(colA);
@@ -406,8 +427,50 @@ export function parseMarketingRows(rowsOrCsv) {
     });
   }
 
+  // Đồng bộ sai số làm tròn thập phân (1-15 đồng khi xuất CSV từ Google Sheet) theo dòng tổng THÁNG X
+  for (const [monthKey, mSum] of Object.entries(monthlySummaries)) {
+    const activeRowsInMonth = dailyRows.filter(
+      (r) => r.dateIso.startsWith(monthKey) && (r.ads > 0 || r.cost > 0 || r.received > 0)
+    );
+    if (activeRowsInMonth.length === 0) continue;
+    const lastActive = activeRowsInMonth[activeRowsInMonth.length - 1];
+
+    if (mSum.ads !== null && mSum.ads > 0) {
+      const sumAds = activeRowsInMonth.reduce((acc, r) => acc + (r.ads || 0), 0);
+      const diffAds = mSum.ads - sumAds;
+      if (diffAds !== 0 && Math.abs(diffAds) <= 50) {
+        lastActive.ads += diffAds;
+        if (lastActive.rawAds !== null) lastActive.rawAds += diffAds;
+      }
+    }
+    if (mSum.fee !== null && mSum.fee > 0) {
+      const sumFee = activeRowsInMonth.reduce((acc, r) => acc + (r.fee || 0), 0);
+      const diffFee = mSum.fee - sumFee;
+      if (diffFee !== 0 && Math.abs(diffFee) <= 50) {
+        lastActive.fee += diffFee;
+        if (lastActive.rawFee !== null) lastActive.rawFee += diffFee;
+      }
+    }
+    if (mSum.cost !== null && mSum.cost > 0) {
+      const sumCost = activeRowsInMonth.reduce((acc, r) => acc + (r.cost || 0), 0);
+      const diffCost = mSum.cost - sumCost;
+      if (diffCost !== 0 && Math.abs(diffCost) <= 50) {
+        lastActive.cost += diffCost;
+        if (lastActive.rawCost !== null) lastActive.rawCost += diffCost;
+      }
+    }
+    if (mSum.received !== null && mSum.received > 0) {
+      const sumRec = activeRowsInMonth.reduce((acc, r) => acc + (r.received || 0), 0);
+      const diffRec = mSum.received - sumRec;
+      if (diffRec !== 0 && Math.abs(diffRec) <= 50) {
+        lastActive.received += diffRec;
+      }
+    }
+  }
+
   return {
     dailyRows,
+    monthlySummaries,
     summaryBalance,
     summaryReceived,
     summaryCost,
@@ -456,12 +519,13 @@ function readCachedMarketingJson(jsonCachePath) {
       return {
         parsed: {
           dailyRows,
+          monthlySummaries: cached.monthlySummaries || {},
           summaryBalance: cached.summary?.balance ?? null,
           summaryReceived: cached.summary?.received ?? null,
           summaryCost: cached.summary?.cost ?? null,
           formulaErrors: [],
         },
-        stale: false,
+        stale: true,
       };
     }
   } catch {
@@ -471,37 +535,28 @@ function readCachedMarketingJson(jsonCachePath) {
 }
 
 /**
- * Tải dữ liệu Sheet Tài chính Marketing 2026 từ API Service Account của crm-bsn.vibecodingsolution.ovh
- * kèm bộ nhớ đệm local (server/data/cache/marketing-2026.json)
+ * Tải dữ liệu Sheet Tài chính Marketing 2026 trực tiếp từ Google Sheet (GID 1227076939)
+ * kèm bộ nhớ đệm local (server/data/cache/marketing-2026.csv & marketing-2026.json)
  */
 async function fetchMarketingDataWithCache() {
   ensureCacheDir();
   const jsonCachePath = path.join(CACHE_DIR, 'marketing-2026.json');
 
-  // 1. Ưu tiên đọc live từ API Service Account trên crm-bsn.vibecodingsolution.ovh
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 7000);
-    timer.unref?.();
-    const res = await fetch('https://crm-bsn.vibecodingsolution.ovh/api/sheets?source=marketing', {
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'CRM-BSN-AdminOverview/1.0',
-        Accept: 'application/json',
-      },
-    });
-    clearTimeout(timer);
-    if (res.ok) {
-      const payload = await res.json();
-      if (Array.isArray(payload?.values) && payload.values.length > 5) {
-        const parsed = parseMarketingRows(payload.values);
-        if (parsed.dailyRows.length > 0) {
+  // 1. Ưu tiên số 1: Tải trực tiếp CSV mới nhất từ Google Sheet Marketing 2026 (124VcfNpFqJKv400Jj156h2aYg4eurDzfJaEvs_wbNQ4, gid=1227076939)
+  const financeUrl = buildCsvExportUrl(MARKETING_SPREADSHEET_ID, MARKETING_SHEET_GID);
+  const csvRes = await fetchCsvWithCache(financeUrl, 'marketing-2026.csv');
+  if (csvRes.csvText) {
+    const parsed = parseMarketingRows(csvRes.csvText);
+    if (parsed.dailyRows.length > 0) {
+      if (!csvRes.stale) {
+        try {
           const cacheObj = {
             summary: {
               balance: parsed.summaryBalance,
               received: parsed.summaryReceived,
               cost: parsed.summaryCost,
             },
+            monthlySummaries: parsed.monthlySummaries || {},
             dailyRows: parsed.dailyRows.map((r) => ({
               dateText: r.dateText,
               dateIso: r.dateIso,
@@ -523,31 +578,21 @@ async function fetchMarketingDataWithCache() {
             })),
           };
           fs.writeFileSync(jsonCachePath, JSON.stringify(cacheObj, null, 2), 'utf8');
-          return { parsed, stale: false };
+        } catch {
+          // Ignore cache write error
         }
       }
+      return { parsed, stale: csvRes.stale };
     }
-  } catch {
-    // Chuyển sang phương án dự phòng
   }
 
-  // 2. Đọc từ cache JSON đã đồng bộ sẵn (server/data/cache/marketing-2026.json)
+  // 2. Dự phòng từ cache JSON đã lưu trên đĩa (server/data/cache/marketing-2026.json)
   const fromJsonCache = readCachedMarketingJson(jsonCachePath);
   if (fromJsonCache) {
     return fromJsonCache;
   }
 
-  // 3. Thử tải qua CSV Export nếu Sheet được mở quyền xem
-  const financeUrl = buildCsvExportUrl(MARKETING_SPREADSHEET_ID, MARKETING_SHEET_GID);
-  const csvRes = await fetchCsvWithCache(financeUrl, 'marketing-2026.csv');
-  if (csvRes.csvText) {
-    const parsed = parseMarketingRows(csvRes.csvText);
-    if (parsed.dailyRows.length > 0) {
-      return { parsed, stale: csvRes.stale };
-    }
-  }
-
-  // 4. Dự phòng nội bộ phía Server (Backend-only) khi chưa có mạng hoặc cache đĩa mới
+  // 3. Dự phòng nội bộ phía Server (Backend-only) khi chưa có mạng hoặc cache đĩa
   const fallbackDailyRows = SERVER_MARKETING_DAILY_ROWS_2026.map((r, idx) => ({
     rowIndex: idx + 5,
     dateText: r.dateIso,
@@ -573,6 +618,7 @@ async function fetchMarketingDataWithCache() {
   return {
     parsed: {
       dailyRows: fallbackDailyRows,
+      monthlySummaries: {},
       summaryBalance: null,
       summaryReceived: null,
       summaryCost: null,
@@ -598,21 +644,28 @@ function warmOverviewCacheFromDisk() {
     const mktPath = path.join(CACHE_DIR, 'mkt.csv');
     const bookedPath = path.join(CACHE_DIR, 'booked.csv');
     const arrivedPath = path.join(CACHE_DIR, 'arrived.csv');
+    const mktSheetCsvPath = path.join(CACHE_DIR, 'marketing-2026.csv');
     const jsonCachePath = path.join(CACHE_DIR, 'marketing-2026.json');
 
     if (fs.existsSync(mktPath) && fs.existsSync(bookedPath) && fs.existsSync(arrivedPath)) {
       const mktCsv = fs.readFileSync(mktPath, 'utf8');
       const bookedCsv = fs.readFileSync(bookedPath, 'utf8');
       const arrivedCsv = fs.readFileSync(arrivedPath, 'utf8');
-      const mktSheetRes = readCachedMarketingJson(jsonCachePath);
+      let mktSheetRes = null;
+      if (fs.existsSync(mktSheetCsvPath)) {
+        const rawMktCsv = fs.readFileSync(mktSheetCsvPath, 'utf8');
+        const parsed = parseMarketingRows(rawMktCsv);
+        if (parsed.dailyRows.length > 0) {
+          mktSheetRes = { parsed, stale: false };
+        }
+      }
+      if (!mktSheetRes) {
+        mktSheetRes = readCachedMarketingJson(jsonCachePath);
+      }
       if (mktCsv.length > 20 && bookedCsv.length > 20 && arrivedCsv.length > 20 && mktSheetRes) {
-        const mtime = Math.min(
-          fs.statSync(mktPath).mtimeMs,
-          fs.statSync(bookedPath).mtimeMs,
-          fs.statSync(arrivedPath).mtimeMs
-        );
         overviewSourcesCache = {
-          fetchedAt: mtime || Date.now() - OVERVIEW_CACHE_TTL_MS,
+          // Đặt fetchedAt = 0 để lần gọi getAdminOverviewData đầu tiên luôn chủ động đồng bộ dữ liệu mới nhất từ Google Sheet
+          fetchedAt: 0,
           mktRes: { csvText: mktCsv, stale: false },
           bookedRes: { csvText: bookedCsv, stale: false },
           arrivedRes: { csvText: arrivedCsv, stale: false },
@@ -778,12 +831,8 @@ export async function getAdminOverviewData(query = {}) {
     overviewSourcesCache.arrivedRes &&
     overviewSourcesCache.mktSheetRes;
 
-  if (!forceRefresh && hasCachedSources) {
-    const isStale = Date.now() - overviewSourcesCache.fetchedAt >= OVERVIEW_CACHE_TTL_MS;
-    if (isStale && !process.env.NODE_TEST_CONTEXT) {
-      refreshOverviewSourcesRemote().catch(() => {});
-    }
-  } else {
+  const isStale = Date.now() - overviewSourcesCache.fetchedAt >= OVERVIEW_CACHE_TTL_MS;
+  if (forceRefresh || !hasCachedSources || (isStale && !process.env.NODE_TEST_CONTEXT)) {
     await refreshOverviewSourcesRemote();
   }
 
