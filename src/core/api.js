@@ -259,3 +259,26 @@ export async function updateTelegramSchedule(payload = {}) {
   }
   return data.schedule;
 }
+
+export async function fetchAdminActivityLogs({
+  actor = 'all',
+  actionType = 'all',
+  search = '',
+  limit = 300,
+} = {}) {
+  const params = new URLSearchParams();
+  if (actor && actor !== 'all') params.set('actor', actor);
+  if (actionType && actionType !== 'all') params.set('actionType', actionType);
+  if (search) params.set('search', search);
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  const res = await fetch(`/api/admin/activity-logs${qs ? `?${qs}` : ''}`, {
+    headers: buildHeaders(false),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.ok) {
+    throw new Error(data.error || 'Không thể tải nhật ký thao tác hệ thống');
+  }
+  return data;
+}
+

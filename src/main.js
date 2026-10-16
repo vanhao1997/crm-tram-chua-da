@@ -14,6 +14,7 @@ import {
   fetchAdminOverview,
   fetchTelegramSchedule,
   updateTelegramSchedule,
+  fetchAdminActivityLogs,
 } from './core/api.js';
 import { escapeHtml, vnDateToIso, isoToVnDate, getLocalIsoDate } from './core/utils.js';
 
@@ -40,6 +41,20 @@ const state = {
     lastSentDate: '',
     lastSentTime: '',
   },
+  activityLogs: [],
+  activityLogStats: {
+    total: 0,
+    filteredCount: 0,
+    todayCount: 0,
+    adminCount: 0,
+    telesaleCount: 0,
+  },
+  activityLogFilters: {
+    actor: 'all',
+    actionType: 'all',
+    search: '',
+  },
+  activityLogsLoading: false,
   adminOverview: null,
   overviewLoading: false,
   overviewPeriod: 'month', // 'today' | 'week' | 'month' | 'lastmonth' | 'all' | 'custom'
@@ -63,6 +78,7 @@ const state = {
 };
 
 let searchDebounceTimer = null;
+let auditSearchDebounceTimer = null;
 const apptSummaryCache = new WeakMap();
 const contactLogsCache = new WeakMap();
 
@@ -487,11 +503,297 @@ export function renderLoginScreen(loginState = {}) {
   `;
 }
 
+export function getAuditActionBadgeTone(actionType = '') {
+  switch (actionType) {
+    case 'add_lead':
+    case 'update_revenue':
+      return 'emerald';
+    case 'update_appointment':
+      return 'blue';
+    case 'update_status':
+      return 'amber';
+    case 'add_note':
+    case 'update_note':
+      return 'teal';
+    case 'delete_lead':
+      return 'rose';
+    case 'update_telesale':
+      return 'indigo';
+    default:
+      return 'slate';
+  }
+}
+
+export function renderAdminActivityLogSection(users = [], activityLogData = null) {
+  const logs = Array.isArray(activityLogData?.logs)
+    ? activityLogData.logs
+    : Array.isArray(state.activityLogs)
+    ? state.activityLogs
+    : [];
+  const stats = activityLogData?.stats ||
+    state.activityLogStats || {
+      total: logs.length,
+      filteredCount: logs.length,
+      todayCount: 0,
+      adminCount: 0,
+      telesaleCount: 0,
+    };
+  const filters = activityLogData?.filters ||
+    state.activityLogFilters || {
+      actor: 'all',
+      actionType: 'all',
+      search: '',
+    };
+  const isLoading = Boolean(activityLogData?.loading ?? state.activityLogsLoading);
+  const hasFilter =
+    (filters.actor && filters.actor !== 'all') ||
+    (filters.actionType && filters.actionType !== 'all') ||
+    Boolean(filters.search);
+
+  return `
+    <div class="sheet-card admin-audit-log-card" id="admin-activity-log-card">
+      <div class="admin-section-header">
+        <div>
+          <h2 class="admin-section-title">📜 Nhật Ký Thao Tác & Kiểm Tra Lịch Sử Hệ Thống</h2>
+          <p class="admin-section-desc">
+            Ghi nhận chi tiết mọi thao tác của tất cả tài khoản <strong>Telesale & Admin</strong> theo thời gian thực (kèm đối chiếu giá trị <strong>Trước → Sau</strong>).
+          </p>
+        </div>
+        <div class="audit-header-actions">
+          <div class="audit-summary-pills">
+            <span class="audit-stat-pill">Tổng: <strong>${stats.total || logs.length}</strong></span>
+            <span class="audit-stat-pill is-emerald">Hôm nay: <strong>${stats.todayCount || 0}</strong></span>
+            <span class="audit-stat-pill is-blue">Telesale: <strong>${stats.telesaleCount || 0}</strong></span>
+            <span class="audit-stat-pill is-purple">Admin: <strong>${stats.adminCount || 0}</strong></span>
+          </div>
+          <button
+            type="button"
+            class="btn-clean"
+            id="btn-refresh-activity-logs"
+            ${isLoading ? 'disabled' : ''}
+          >
+            ${isLoading ? '⏳ Đang tải...' : '↻ Làm mới nhật ký'}
+          </button>
+        </div>
+      </div>
+
+      <div class="audit-filter-toolbar">
+        <select id="audit-filter-actor" class="clean-select">
+          <option value="all" ${filters.actor === 'all' ? 'selected' : ''}>
+            👤 Tất cả tài khoản (Admin & Telesale)
+          </option>
+          <option value="role:admin" ${filters.actor === 'role:admin' ? 'selected' : ''}>
+            🛡️ Chỉ tài khoản Admin
+          </option>
+          <option value="role:telesale" ${filters.actor === 'role:telesale' ? 'selected' : ''}>
+            🎧 Chỉ tài khoản Telesale
+          </option>
+          ${users
+            .map(
+              (u) => `
+              <option
+                value="${escapeHtml(u.username)}"
+                ${
+                  String(filters.actor || '').toLowerCase() ===
+                  String(u.username || '').toLowerCase()
+                    ? 'selected'
+                    : ''
+                }
+              >
+                ${escapeHtml(u.telesaleName || u.username)} (${escapeHtml(u.username)} · ${
+                u.role === 'admin' ? 'Admin' : 'Telesale'
+              })
+              </option>
+            `
+            )
+            .join('')}
+        </select>
+
+        <select id="audit-filter-type" class="clean-select">
+          <option value="all" ${filters.actionType === 'all' ? 'selected' : ''}>
+            ⚡ Tất cả loại thao tác
+          </option>
+          <option value="update_status" ${
+            filters.actionType === 'update_status' ? 'selected' : ''
+          }>
+            📌 Đổi tình trạng khách (Cột I)
+          </option>
+          <option value="update_appointment" ${
+            filters.actionType === 'update_appointment' ? 'selected' : ''
+          }>
+            📅 Đặt / Đổi lịch hẹn (Cột K, J)
+          </option>
+          <option value="note" ${filters.actionType === 'note' ? 'selected' : ''}>
+            📝 Thêm / Sửa ghi chú Care (Cột M, N+)
+          </option>
+          <option value="update_telesale" ${
+            filters.actionType === 'update_telesale' ? 'selected' : ''
+          }>
+            👩‍💼 Phân bổ Telesale (Cột L)
+          </option>
+          <option value="lead" ${filters.actionType === 'lead' ? 'selected' : ''}>
+            ➕ Thêm / 🗑️ Xóa Data khách hàng
+          </option>
+          <option value="update_revenue" ${
+            filters.actionType === 'update_revenue' ? 'selected' : ''
+          }>
+            💰 Nhập doanh số thực thu (Cột W)
+          </option>
+          <option value="system" ${filters.actionType === 'system' ? 'selected' : ''}>
+            🔐 Đăng nhập & Quản trị hệ thống
+          </option>
+        </select>
+
+        <div class="search-box audit-search-box">
+          <input
+            type="search"
+            id="audit-filter-search"
+            placeholder="Tìm theo tên khách, SĐT, nội dung ghi chú, tên nhân sự..."
+            value="${escapeHtml(filters.search || '')}"
+          />
+        </div>
+
+        ${
+          hasFilter
+            ? `<button type="button" class="btn-clean" id="btn-clear-audit-filter">Xóa lọc</button>`
+            : ''
+        }
+      </div>
+
+      <div class="table-wrap audit-table-wrap">
+        <table class="lead-table audit-log-table">
+          <thead>
+            <tr>
+              <th style="width: 138px">Thời Gian (GMT+7)</th>
+              <th style="width: 175px">Người Thao Tác</th>
+              <th style="width: 155px">Hành Động</th>
+              <th style="width: 225px">Khách Hàng / Bảng</th>
+              <th>Chi Tiết Thao Tác (Trước → Sau)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              logs.length === 0
+                ? `
+              <tr>
+                <td colspan="5" class="empty-state">
+                  Chưa có nhật ký thao tác nào khớp với bộ lọc hiện tại.
+                </td>
+              </tr>
+            `
+                : logs
+                    .map((item) => {
+                      const rawTime = String(item.timeVn || '').trim();
+                      const [datePart = '—', timePart = ''] = rawTime.split(' ');
+                      const actorRole = item.actor?.role === 'admin' ? 'admin' : 'telesale';
+                      const actorDisplay =
+                        item.actor?.telesaleName || item.actor?.username || 'ADMIN';
+                      const actorUser = item.actor?.username || 'admin';
+                      const badgeTone = getAuditActionBadgeTone(item.actionType);
+                      const targetName = item.target?.customerName || 'Hệ thống CRM';
+                      const targetPhone = item.target?.customerPhone || '';
+                      const targetSheet = item.target?.sheetName || '';
+                      const targetRow = item.target?.sheetRowIndex || 0;
+                      const changes = Array.isArray(item.changes) ? item.changes : [];
+
+                      return `
+                        <tr class="audit-log-row">
+                          <td class="audit-time-cell">
+                            <strong class="audit-time-hms">${escapeHtml(timePart || rawTime)}</strong>
+                            ${
+                              timePart
+                                ? `<span class="audit-time-date">${escapeHtml(datePart)}</span>`
+                                : ''
+                            }
+                          </td>
+
+                          <td>
+                            <div class="audit-actor-cell">
+                              <div class="audit-actor-top">
+                                <strong class="audit-actor-name">${escapeHtml(actorDisplay)}</strong>
+                                <span class="role-badge ${
+                                  actorRole === 'admin' ? 'is-admin' : 'is-telesale'
+                                }">
+                                  ${actorRole === 'admin' ? 'Admin' : 'Telesale'}
+                                </span>
+                              </div>
+                              <span class="audit-actor-username">@${escapeHtml(actorUser)}</span>
+                            </div>
+                          </td>
+
+                          <td>
+                            <span class="audit-action-badge tone-${escapeHtml(badgeTone)}">
+                              ${escapeHtml(item.actionLabel || 'Cập nhật')}
+                            </span>
+                          </td>
+
+                          <td>
+                            <div class="audit-target-cell">
+                              <strong class="audit-target-name">${escapeHtml(targetName)}</strong>
+                              ${
+                                targetPhone
+                                  ? `<span class="audit-target-phone">📞 ${escapeHtml(
+                                      targetPhone
+                                    )}</span>`
+                                  : ''
+                              }
+                              ${
+                                targetSheet
+                                  ? `<span class="audit-target-sheet">${escapeHtml(targetSheet)}${
+                                      targetRow ? ` · Dòng #${targetRow}` : ''
+                                    }</span>`
+                                  : ''
+                              }
+                            </div>
+                          </td>
+
+                          <td class="audit-detail-cell">
+                            ${
+                              changes.length > 0
+                                ? `
+                              <div class="audit-changes-list">
+                                ${changes
+                                  .map(
+                                    (c) => `
+                                  <div class="audit-change-item">
+                                    <span class="audit-change-field">${escapeHtml(c.label)}:</span>
+                                    ${
+                                      c.before && c.before !== '—'
+                                        ? `<span class="audit-val-before">${escapeHtml(
+                                            c.before
+                                          )}</span><span class="audit-change-arrow">→</span>`
+                                        : ''
+                                    }
+                                    <strong class="audit-val-after">${escapeHtml(c.after)}</strong>
+                                  </div>
+                                `
+                                  )
+                                  .join('')}
+                              </div>
+                            `
+                                : `<div class="audit-summary-text">${escapeHtml(
+                                    item.summary || '—'
+                                  )}</div>`
+                            }
+                          </td>
+                        </tr>
+                      `;
+                    })
+                    .join('')
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
 export function renderAdminView(
   adminUsers = [],
   editingUserId = null,
   currentAdminId = '',
-  telegramSchedule = null
+  telegramSchedule = null,
+  activityLogData = null
 ) {
   const users = Array.isArray(adminUsers) ? adminUsers : [];
   const editingUser = editingUserId ? users.find((u) => u.id === editingUserId) : null;
@@ -511,6 +813,11 @@ export function renderAdminView(
   const teleSendTime = String(sched.sendTime || '08:00').trim() || '08:00';
   const teleLastSentDate = String(sched.lastSentDate || '').trim();
   const teleLastSentTime = String(sched.lastSentTime || '').trim();
+
+  const totalLogsCount =
+    activityLogData?.stats?.total ??
+    state.activityLogStats?.total ??
+    (Array.isArray(state.activityLogs) ? state.activityLogs.length : 0);
 
   return `
     <div class="admin-panel">
@@ -533,9 +840,16 @@ export function renderAdminView(
             ${teleEnabled ? `BẬT (${escapeHtml(teleSendTime)})` : 'ĐANG TẮT'}
           </strong>
         </div>
+        <div class="admin-stat-card is-clickable-stat" id="btn-jump-audit-log" title="Bấm để cuộn xuống bảng Nhật ký thao tác hệ thống">
+          <span class="admin-stat-label">📜 Nhật ký thao tác (Audit Log)</span>
+          <strong class="admin-stat-value is-blue">${totalLogsCount} thao tác ▾</strong>
+        </div>
       </div>
 
-      <!-- PHẦN QUẢN TRỊ TỰ ĐỘNG BÁO LỊCH QUA TELEGRAM (CHỈ ADMIN) -->
+      <!-- PHẦN 1: NHẬT KÝ THAO TÁC CỦA TẤT CẢ USER & ADMIN (KIỂM TRA LỊCH SỬ) -->
+      ${renderAdminActivityLogSection(users, activityLogData)}
+
+      <!-- PHẦN 2: QUẢN TRỊ TỰ ĐỘNG BÁO LỊCH QUA TELEGRAM (CHỈ ADMIN) -->
       <div class="sheet-card admin-tele-schedule-card" id="admin-tele-schedule-card">
         <div class="admin-section-header">
           <div>
@@ -3505,6 +3819,32 @@ async function loadAdminOverview() {
   }
 }
 
+async function loadAdminActivityLogs(preserveFocusId = '') {
+  if (state.currentUser?.role !== 'admin') return;
+  state.activityLogsLoading = true;
+  try {
+    const res = await fetchAdminActivityLogs(state.activityLogFilters);
+    state.activityLogs = Array.isArray(res.logs) ? res.logs : [];
+    if (res.stats) {
+      state.activityLogStats = res.stats;
+    }
+  } catch (err) {
+    notify(`Lỗi tải nhật ký thao tác: ${err.message}`);
+  } finally {
+    state.activityLogsLoading = false;
+    render();
+    if (preserveFocusId) {
+      const el = document.getElementById(preserveFocusId);
+      if (el) {
+        el.focus();
+        if (typeof el.setSelectionRange === 'function') {
+          el.setSelectionRange(el.value.length, el.value.length);
+        }
+      }
+    }
+  }
+}
+
 async function loadAuthenticatedWorkspace() {
   state.loading = true;
   render();
@@ -3517,10 +3857,15 @@ async function loadAuthenticatedWorkspace() {
         fetchAdminUsers().catch(() => []),
         resolveAdminOverviewSafe().catch(() => null),
         fetchTelegramSchedule().catch(() => null),
-      ]).then(([users, overview, teleSched]) => {
+        fetchAdminActivityLogs(state.activityLogFilters).catch(() => null),
+      ]).then(([users, overview, teleSched, logRes]) => {
         state.adminUsers = users;
         if (overview) state.adminOverview = overview;
         if (teleSched) state.telegramSchedule = teleSched;
+        if (logRes?.logs) {
+          state.activityLogs = logRes.logs;
+          if (logRes.stats) state.activityLogStats = logRes.stats;
+        }
         render();
       });
     }
@@ -3602,12 +3947,17 @@ function bindEvents() {
       }
       if (nextTab === 'admin' && state.currentUser?.role === 'admin') {
         try {
-          const [users, teleSched] = await Promise.all([
+          const [users, teleSched, logRes] = await Promise.all([
             fetchAdminUsers(),
             fetchTelegramSchedule().catch(() => state.telegramSchedule),
+            fetchAdminActivityLogs(state.activityLogFilters).catch(() => null),
           ]);
           state.adminUsers = users;
           if (teleSched) state.telegramSchedule = teleSched;
+          if (logRes?.logs) {
+            state.activityLogs = logRes.logs;
+            if (logRes.stats) state.activityLogStats = logRes.stats;
+          }
         } catch (err) {
           notify(`Lỗi tải danh sách tài khoản: ${err.message}`);
         }
@@ -3639,6 +3989,7 @@ function bindEvents() {
     state.currentUser = null;
     state.crmData = null;
     state.adminUsers = [];
+    state.activityLogs = [];
     state.adminOverview = null;
     state.editingUserId = null;
     state.activeTab = 'mkt';
@@ -3688,12 +4039,17 @@ function bindEvents() {
       state.activeTab = 'admin';
       render();
       try {
-        const [users, teleSched] = await Promise.all([
+        const [users, teleSched, logRes] = await Promise.all([
           fetchAdminUsers().catch(() => state.adminUsers),
           fetchTelegramSchedule().catch(() => state.telegramSchedule),
+          fetchAdminActivityLogs(state.activityLogFilters).catch(() => null),
         ]);
         state.adminUsers = users;
         if (teleSched) state.telegramSchedule = teleSched;
+        if (logRes?.logs) {
+          state.activityLogs = logRes.logs;
+          if (logRes.stats) state.activityLogStats = logRes.stats;
+        }
         render();
       } catch {
         // ignore
@@ -3702,6 +4058,42 @@ function bindEvents() {
   });
 
   if (state.currentUser?.role === 'admin' && state.activeTab === 'admin') {
+    document.getElementById('btn-jump-audit-log')?.addEventListener('click', () => {
+      document.getElementById('admin-activity-log-card')?.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    document.getElementById('btn-refresh-activity-logs')?.addEventListener('click', async () => {
+      await loadAdminActivityLogs();
+      notify('Đã làm mới nhật ký thao tác');
+    });
+
+    document.getElementById('audit-filter-actor')?.addEventListener('change', async (e) => {
+      state.activityLogFilters.actor = e.target.value || 'all';
+      await loadAdminActivityLogs();
+    });
+
+    document.getElementById('audit-filter-type')?.addEventListener('change', async (e) => {
+      state.activityLogFilters.actionType = e.target.value || 'all';
+      await loadAdminActivityLogs();
+    });
+
+    const auditSearchEl = document.getElementById('audit-filter-search');
+    if (auditSearchEl) {
+      auditSearchEl.addEventListener('input', (e) => {
+        if (e.isComposing) return;
+        if (auditSearchDebounceTimer) clearTimeout(auditSearchDebounceTimer);
+        const val = e.target.value;
+        auditSearchDebounceTimer = setTimeout(() => {
+          state.activityLogFilters.search = val;
+          loadAdminActivityLogs('audit-filter-search');
+        }, 180);
+      });
+    }
+
+    document.getElementById('btn-clear-audit-filter')?.addEventListener('click', async () => {
+      state.activityLogFilters = { actor: 'all', actionType: 'all', search: '' };
+      await loadAdminActivityLogs();
+    });
     document.getElementById('btn-toggle-tele-auto')?.addEventListener('click', async (e) => {
       const btn = e.currentTarget;
       const curEnabled = btn.getAttribute('data-tele-enabled') !== 'false';
@@ -4071,8 +4463,17 @@ function bindEvents() {
     try {
       state.crmData = await fetchCrmData(true);
       if (state.currentUser?.role === 'admin') {
-        state.adminUsers = await fetchAdminUsers().catch(() => state.adminUsers);
-        state.adminOverview = await resolveAdminOverviewSafe();
+        const [users, ov, logRes] = await Promise.all([
+          fetchAdminUsers().catch(() => state.adminUsers),
+          resolveAdminOverviewSafe().catch(() => state.adminOverview),
+          fetchAdminActivityLogs(state.activityLogFilters).catch(() => null),
+        ]);
+        state.adminUsers = users;
+        if (ov) state.adminOverview = ov;
+        if (logRes?.logs) {
+          state.activityLogs = logRes.logs;
+          if (logRes.stats) state.activityLogStats = logRes.stats;
+        }
       }
       notify('Đã cập nhật dữ liệu');
     } catch (err) {

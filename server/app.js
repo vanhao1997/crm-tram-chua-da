@@ -24,6 +24,7 @@ import {
   filterCrmDataForUser,
 } from './auth.js';
 import { getAdminOverviewData } from './admin-overview.js';
+import { recordActivityLog, listActivityLogs } from './activity-log.js';
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -312,6 +313,18 @@ export async function handleRequest(req, res) {
       try {
         const clientIp = getClientIp(req);
         const authResult = authenticateUser(body.username, body.password, clientIp);
+        recordActivityLog({
+          actor: authResult.user,
+          actionType: 'auth_login',
+          actionLabel: 'Đăng nhập hệ thống',
+          target: {
+            customerName: `Tài khoản: ${authResult.user.username}`,
+            sheetName: authResult.user.role === 'admin' ? 'Quản trị Admin' : 'Telesale CRM',
+          },
+          summary: `Đăng nhập thành công vào hệ thống CRM (${
+            authResult.user.telesaleName || authResult.user.username
+          } · ${authResult.user.role === 'admin' ? 'Admin' : 'Telesale'})`,
+        });
         const cookieVal = encodeURIComponent(authResult.token);
         return sendJson(res, 200, authResult, {
           'Set-Cookie': `crm_bsn_token=${cookieVal}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}`,
@@ -370,6 +383,25 @@ export async function handleRequest(req, res) {
         });
       }
 
+      if (pathname === '/api/admin/activity-logs' && req.method === 'GET') {
+        const logResult = listActivityLogs({
+          actor: parsedUrl.searchParams.get('actor') || 'all',
+          actionType: parsedUrl.searchParams.get('actionType') || 'all',
+          search: parsedUrl.searchParams.get('search') || '',
+          limit: Number(parsedUrl.searchParams.get('limit') || 300),
+        });
+        return sendJson(
+          res,
+          200,
+          {
+            ok: true,
+            ...logResult,
+          },
+          {},
+          req
+        );
+      }
+
       if (pathname === '/api/admin/overview' && req.method === 'GET') {
         const query = {
           period: parsedUrl.searchParams.get('period') || 'month',
@@ -397,6 +429,18 @@ export async function handleRequest(req, res) {
       if (pathname === '/api/admin/users' && req.method === 'POST') {
         const body = await readJsonBody(req);
         const created = createUser(body);
+        recordActivityLog({
+          actor: currentUser,
+          actionType: 'user_management',
+          actionLabel: 'Cấp tài khoản mới',
+          target: {
+            customerName: `${created.telesaleName || created.username} (${created.username})`,
+            sheetName: 'Quản lý Nhân sự',
+          },
+          summary: `Cấp tài khoản mới: User "${created.username}" · Tên Telesale: ${
+            created.telesaleName || '—'
+          } · Vai trò: ${created.role === 'admin' ? 'Admin' : 'Telesale'}`,
+        });
         return sendJson(
           res,
           201,
@@ -414,6 +458,18 @@ export async function handleRequest(req, res) {
         const body = await readJsonBody(req);
         const userId = body.id || parsedUrl.searchParams.get('id');
         const updated = updateUser(userId, body);
+        recordActivityLog({
+          actor: currentUser,
+          actionType: 'user_management',
+          actionLabel: 'Cập nhật tài khoản',
+          target: {
+            customerName: `${updated.telesaleName || updated.username} (${updated.username})`,
+            sheetName: 'Quản lý Nhân sự',
+          },
+          summary: `Cập nhật tài khoản "${updated.username}" (${
+            updated.telesaleName || '—'
+          }) · Trạng thái: ${updated.active ? 'Đang cấp quyền' : 'Đã khóa'}`,
+        });
         return sendJson(
           res,
           200,
@@ -430,7 +486,22 @@ export async function handleRequest(req, res) {
       if (pathname === '/api/admin/users' && req.method === 'DELETE') {
         const body = await readJsonBody(req).catch(() => ({}));
         const userId = body.id || parsedUrl.searchParams.get('id');
+        const existingTarget = listUsersForAdmin().find((u) => u.id === userId);
         deleteUser(userId, currentUser.id);
+        recordActivityLog({
+          actor: currentUser,
+          actionType: 'user_management',
+          actionLabel: 'Xóa tài khoản',
+          target: {
+            customerName: existingTarget
+              ? `${existingTarget.telesaleName || existingTarget.username} (${existingTarget.username})`
+              : `ID: ${userId}`,
+            sheetName: 'Quản lý Nhân sự',
+          },
+          summary: `Đã xóa tài khoản nhân sự: ${
+            existingTarget ? `${existingTarget.username} (${existingTarget.telesaleName})` : userId
+          }`,
+        });
         return sendJson(
           res,
           200,
@@ -462,6 +533,18 @@ export async function handleRequest(req, res) {
       ) {
         const body = await readJsonBody(req);
         const schedule = await updateTelegramScheduleConfig(body);
+        recordActivityLog({
+          actor: currentUser,
+          actionType: 'update_telegram_schedule',
+          actionLabel: 'Cài đặt Bot Telegram',
+          target: {
+            customerName: 'Bot Telegram Tự Động',
+            sheetName: 'Cấu hình Hệ thống',
+          },
+          summary: `Cập nhật lịch tự động báo Telegram: ${
+            schedule.enabled ? 'ĐANG BẬT' : 'ĐANG TẮT'
+          } · Giờ gửi: ${schedule.sendTime}`,
+        });
         return sendJson(
           res,
           200,
@@ -476,7 +559,7 @@ export async function handleRequest(req, res) {
 
       if (pathname === '/api/admin/leads' && req.method === 'POST') {
         const body = await readJsonBody(req);
-        const created = await addAdminLead(body);
+        const created = await addAdminLead({ ...body, actor: currentUser });
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
         return sendJson(
@@ -493,7 +576,7 @@ export async function handleRequest(req, res) {
 
       if (pathname === '/api/admin/leads' && req.method === 'DELETE') {
         const body = await readJsonBody(req).catch(() => ({}));
-        const deleted = await deleteAdminLead(body);
+        const deleted = await deleteAdminLead({ ...body, actor: currentUser });
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
         return sendJson(
@@ -542,7 +625,7 @@ export async function handleRequest(req, res) {
           });
         }
         const body = await readJsonBody(req);
-        const created = await addAdminLead(body);
+        const created = await addAdminLead({ ...body, actor: currentUser });
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
         return sendJson(
@@ -575,6 +658,7 @@ export async function handleRequest(req, res) {
             body.sheetRowIndex || parsedUrl.searchParams.get('sheetRowIndex') || 0,
           phone: body.phone || parsedUrl.searchParams.get('phone') || '',
           name: body.name || parsedUrl.searchParams.get('name') || '',
+          actor: currentUser,
         });
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
@@ -627,7 +711,10 @@ export async function handleRequest(req, res) {
             });
           }
         }
-        const updateResult = await updateCustomerInteraction(body);
+        const updateResult = await updateCustomerInteraction({
+          ...body,
+          actor: currentUser,
+        });
         const data = await getAllSheetsData(false);
         const scopedData = filterCrmDataForUser(data, currentUser);
         return sendJson(
@@ -651,6 +738,21 @@ export async function handleRequest(req, res) {
         }
         const body = await readJsonBody(req);
         const result = await sendTelegramReminder(body);
+        recordActivityLog({
+          actor: currentUser,
+          actionType: 'send_telegram',
+          actionLabel: 'Gửi báo lịch Telegram',
+          target: {
+            customerName: result.customerName || `Danh sách lịch hẹn (${result.dateVn || 'Hôm nay'})`,
+            sheetName: 'Nhóm Telegram BSN',
+          },
+          summary:
+            result.mode === 'single'
+              ? `Gửi thông tin khách lẻ "${result.customerName}" vào nhóm Telegram`
+              : `Gửi danh sách ${result.count ?? 0} khách hẹn ngày ${
+                  result.dateVn || ''
+                } vào nhóm Telegram`,
+        });
         return sendJson(res, 200, result, {}, req);
       }
     }

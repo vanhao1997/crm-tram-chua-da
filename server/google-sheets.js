@@ -23,6 +23,11 @@ import {
   parseVnDateToIso,
 } from './sheets-parser.js';
 import { getActiveTelesaleNames } from './auth.js';
+import {
+  recordActivityLog,
+  seedInitialLogsFromLocalState,
+  getSheetShortLabel,
+} from './activity-log.js';
 
 const DATA_DIR = path.join(ROOT_DIR, 'server', 'data');
 const CACHE_DIR = path.join(DATA_DIR, 'cache');
@@ -125,6 +130,7 @@ function saveLocalState(state) {
 }
 
 let localState = loadLocalState();
+seedInitialLogsFromLocalState(localState);
 let memoryCache = {
   fetchedAt: 0,
   sheets: null,
@@ -966,6 +972,7 @@ export async function updateCustomerInteraction({
   name,
   updates = {},
   appendCareNoteText = '',
+  actor = null,
 }) {
   if (!SHEETS_CONFIG[sheetKey]) {
     throw new Error(`Sheet không hợp lệ: ${sheetKey}`);
@@ -979,6 +986,23 @@ export async function updateCustomerInteraction({
   const existingOverride = localState.rowOverrides[overrideKey] || {};
   const nowIso = new Date().toISOString();
   const currentRecBefore = findRecordInSheet(sheetKey, rowIdx);
+
+  const prevStatus = String(currentRecBefore?.status || existingOverride.status || '').trim() || 'Chưa gọi';
+  const prevTelesale =
+    String(currentRecBefore?.telesale || existingOverride.telesale || '').trim() || 'Chưa phân bổ';
+  const prevApptDate = String(currentRecBefore?.apptDate || existingOverride.apptDate || '').trim() || '—';
+  const prevApptTime = String(currentRecBefore?.apptTime || existingOverride.apptTime || '').trim() || '—';
+  const prevNoteM = String(currentRecBefore?.noteM ?? existingOverride.noteM ?? '').trim() || '—';
+  const prevCustomerInfo =
+    String(currentRecBefore?.customerInfo ?? existingOverride.customerInfo ?? '').trim() || '—';
+  const prevCareLen = Array.isArray(currentRecBefore?.careHistory)
+    ? currentRecBefore.careHistory.length
+    : 0;
+  const normPhoneBefore = normalizePhone(phone || currentRecBefore?.phone || '');
+  const prevRevAmount =
+    (normPhoneBefore && localState.revenueByPhone?.[normPhoneBefore] !== undefined
+      ? localState.revenueByPhone[normPhoneBefore]
+      : existingOverride.revenueAmount) ?? null;
 
   const nextOverride = {
     ...existingOverride,
@@ -1088,6 +1112,168 @@ export async function updateCustomerInteraction({
   }
 
   saveLocalState(localState);
+
+  // Ghi nhận vào Nhật ký thao tác hệ thống (Activity Log) cho Admin kiểm tra lịch sử
+  const logChanges = [];
+  let primaryActionType = 'update_status';
+  let primaryActionLabel = 'Cập nhật dữ liệu';
+
+  if (updates.status !== undefined) {
+    const newStatus = String(updates.status).trim() || 'Chưa gọi';
+    if (newStatus !== prevStatus) {
+      logChanges.push({
+        field: 'status',
+        label: 'Tình trạng (Cột I)',
+        before: prevStatus,
+        after: newStatus,
+      });
+      primaryActionType = 'update_status';
+      primaryActionLabel = 'Đổi tình trạng';
+    }
+  }
+
+  if (updates.apptDate !== undefined || updates.apptTime !== undefined) {
+    const newApptDate =
+      updates.apptDate !== undefined ? String(updates.apptDate).trim() || '—' : prevApptDate;
+    const newApptTime =
+      updates.apptTime !== undefined ? String(updates.apptTime).trim() || '—' : prevApptTime;
+    if (newApptDate !== prevApptDate || newApptTime !== prevApptTime) {
+      const beforeAppt = `${prevApptDate}${prevApptTime !== '—' ? ` (${prevApptTime})` : ''}`;
+      const afterAppt = `${newApptDate}${newApptTime !== '—' ? ` (${newApptTime})` : ''}`;
+      logChanges.push({
+        field: 'appointment',
+        label: 'Lịch hẹn (Cột K, J)',
+        before: beforeAppt,
+        after: afterAppt,
+      });
+      if (logChanges.length === 1) {
+        primaryActionType = 'update_appointment';
+        primaryActionLabel = 'Cập nhật lịch hẹn';
+      }
+    }
+  }
+
+  if (updates.telesale !== undefined) {
+    const newTelesale = String(updates.telesale).trim().toUpperCase() || 'Chưa phân bổ';
+    if (newTelesale !== prevTelesale) {
+      logChanges.push({
+        field: 'telesale',
+        label: 'Telesale (Cột L)',
+        before: prevTelesale,
+        after: newTelesale,
+      });
+      if (logChanges.length === 1) {
+        primaryActionType = 'update_telesale';
+        primaryActionLabel = 'Phân bổ Telesale';
+      }
+    }
+  }
+
+  if (updates.noteM !== undefined) {
+    const newNoteM = String(updates.noteM).trim() || '—';
+    if (newNoteM !== prevNoteM) {
+      logChanges.push({
+        field: 'noteM',
+        label: 'Ghi chú Lần 1 (Cột M)',
+        before: prevNoteM,
+        after: newNoteM,
+      });
+      if (logChanges.length === 1) {
+        primaryActionType = 'update_note';
+        primaryActionLabel = 'Ghi chú Lần 1';
+      }
+    }
+  }
+
+  if (cleanCareAppend) {
+    logChanges.push({
+      field: 'careAppend',
+      label: `Thêm ghi chú (Lần ${prevCareLen + 2})`,
+      before: '—',
+      after: cleanCareAppend,
+    });
+    primaryActionType = 'add_note';
+    primaryActionLabel = 'Thêm ghi chú Care';
+  }
+
+  if (Array.isArray(updates.careHistory)) {
+    const newCareText =
+      nextOverride.careHistory.map((c, idx) => `Lần ${idx + 2}: ${c.text}`).join(' | ') || 'Đã xóa';
+    logChanges.push({
+      field: 'careHistory',
+      label: 'Sửa lịch sử Care (Cột N+)',
+      before: `${prevCareLen} ghi chú`,
+      after: newCareText,
+    });
+    if (logChanges.length === 1) {
+      primaryActionType = 'update_note';
+      primaryActionLabel = 'Sửa lịch sử Care';
+    }
+  }
+
+  if (updates.customerInfo !== undefined) {
+    const newCustInfo = String(updates.customerInfo).trim() || '—';
+    if (newCustInfo !== prevCustomerInfo) {
+      logChanges.push({
+        field: 'customerInfo',
+        label: 'TT Khách (Cột H)',
+        before: prevCustomerInfo,
+        after: newCustInfo,
+      });
+      if (logChanges.length === 1) {
+        primaryActionType = 'update_customer_info';
+        primaryActionLabel = 'Cập nhật TT khách';
+      }
+    }
+  }
+
+  if (updates.revenue !== undefined) {
+    const prevRevStr =
+      prevRevAmount !== null ? `${Number(prevRevAmount).toLocaleString('vi-VN')} VNĐ` : '—';
+    const newRevStr =
+      parsedRevAmount !== null ? `${Number(parsedRevAmount).toLocaleString('vi-VN')} VNĐ` : '—';
+    logChanges.push({
+      field: 'revenue',
+      label: 'Doanh số (Cột W)',
+      before: prevRevStr,
+      after: newRevStr,
+    });
+    primaryActionType = 'update_revenue';
+    primaryActionLabel = 'Nhập doanh số Cột W';
+  }
+
+  if (logChanges.length > 0) {
+    const customerName = String(
+      name || currentRec?.name || currentRecBefore?.name || `Khách dòng #${rowIdx}`
+    ).trim();
+    const customerPhone = String(
+      phone || currentRec?.phone || currentRecBefore?.phone || ''
+    ).trim();
+    const summaryText = logChanges
+      .map((c) =>
+        c.before && c.before !== '—'
+          ? `${c.label}: "${c.before}" → "${c.after}"`
+          : `${c.label}: "${c.after}"`
+      )
+      .join(' · ');
+
+    recordActivityLog({
+      actor,
+      actionType: primaryActionType,
+      actionLabel: primaryActionLabel,
+      target: {
+        recordId: `${sheetKey}-row-${rowIdx}`,
+        sheetKey,
+        sheetName: getSheetShortLabel(sheetKey),
+        sheetRowIndex: rowIdx,
+        customerName,
+        customerPhone,
+      },
+      summary: summaryText,
+      changes: logChanges,
+      createdAt: nowIso,
+    });
+  }
 
   // Đồng bộ ngầm (non-blocking) lên Google Sheet qua cả Service Account API v4 lẫn Google Apps Script
   if (!process.env.NODE_TEST_CONTEXT) {
@@ -1766,6 +1952,45 @@ export async function addAdminLead(payload = {}) {
 
   saveLocalState(localState);
 
+  recordActivityLog({
+    actor: payload.actor,
+    actionType: 'add_lead',
+    actionLabel: 'Thêm Data khách mới',
+    target: {
+      recordId: newRecord.id,
+      sheetKey: 'mkt',
+      sheetName: getSheetShortLabel('mkt'),
+      sheetRowIndex: newRowIndex,
+      customerName: name,
+      customerPhone: normalizedPhone || rawPhone,
+    },
+    summary: `Thêm Data khách mới: ${name} (${normalizedPhone || rawPhone || '—'})${
+      service ? ` · Dịch vụ: ${service}` : ''
+    }${source ? ` · Nguồn: ${source}` : ''}${
+      statusInfo.status ? ` · Tình trạng: ${statusInfo.status}` : ''
+    }${apptDate ? ` · Lịch hẹn: ${apptDate}${apptTime ? ` (${apptTime})` : ''}` : ''}`,
+    changes: [
+      { field: 'service', label: 'Dịch vụ (Cột E)', before: '—', after: service || '—' },
+      { field: 'source', label: 'Nguồn (Cột F)', before: '—', after: source || '—' },
+      ...(statusInfo.status
+        ? [{ field: 'status', label: 'Tình trạng (Cột I)', before: '—', after: statusInfo.status }]
+        : []),
+      ...(apptDate || apptTime
+        ? [
+            {
+              field: 'appointment',
+              label: 'Lịch hẹn (Cột K, J)',
+              before: '—',
+              after: `${apptDate || '—'}${apptTime ? ` (${apptTime})` : ''}`,
+            },
+          ]
+        : []),
+      ...(telesale
+        ? [{ field: 'telesale', label: 'Telesale (Cột L)', before: '—', after: telesale }]
+        : []),
+    ],
+  });
+
   const leadSyncPayload = {
     stt: newRecord.stt,
     dataDate,
@@ -1942,6 +2167,31 @@ export async function deleteAdminLead(payload = {}) {
   }
 
   saveLocalState(localState);
+
+  recordActivityLog({
+    actor: payload.actor,
+    actionType: 'delete_lead',
+    actionLabel: 'Xóa Data khách hàng',
+    target: {
+      recordId: recordId || `${sheetKey}-row-${rowIdx}`,
+      sheetKey,
+      sheetName: getSheetShortLabel(sheetKey),
+      sheetRowIndex: rowIdx,
+      customerName: effectiveName || `Khách dòng #${rowIdx}`,
+      customerPhone: effectivePhone,
+    },
+    summary: `Xóa Data khách hàng: ${effectiveName || 'Khách hàng'} (${
+      effectivePhone || '—'
+    }) khỏi ${getSheetShortLabel(sheetKey)}${rowIdx ? ` (Dòng #${rowIdx})` : ''}`,
+    changes: [
+      {
+        field: 'delete',
+        label: 'Xóa bản ghi',
+        before: `${effectiveName || 'Khách'} · ${effectivePhone || '—'}`,
+        after: 'Đã xóa khỏi CRM & Google Sheet',
+      },
+    ],
+  });
 
   let syncedSheet = false;
   if (!process.env.NODE_TEST_CONTEXT) {

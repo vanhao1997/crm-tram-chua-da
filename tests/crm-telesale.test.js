@@ -900,4 +900,98 @@ test('Bảo mật toàn diện: Không lộ token/doanh thu ở frontend, chặn
   assert.equal(kanbanHtml.includes('card-admin-actions'), true);
 });
 
+test('Nhật ký thao tác hệ thống (Admin Audit Log): Ghi nhận đầy đủ thao tác của Telesale & Admin kèm đối chiếu Trước → Sau và bộ lọc lịch sử', async () => {
+  const { recordActivityLog, listActivityLogs } = await import('../server/activity-log.js');
+  const { updateCustomerInteraction } = await import('../server/google-sheets.js');
+  const { renderAdminView, renderAdminActivityLogSection } = await import('../src/main.js');
+  const { listUsersForAdmin } = await import('../server/auth.js');
+
+  // 1. Giả lập Telesale (sale1 - THỊNH) cập nhật tình trạng & thêm ghi chú Care trên dòng khách hàng
+  await updateCustomerInteraction({
+    sheetKey: 'mkt',
+    sheetRowIndex: 12,
+    updates: {
+      status: 'GỌI LẠI',
+      careAppend: 'Khách đang họp, hẹn chiều 15h gọi lại tư vấn',
+    },
+    actor: {
+      id: 'user-sale-1',
+      username: 'sale1',
+      role: 'telesale',
+      telesaleName: 'THỊNH',
+    },
+  });
+
+  // 2. Giả lập Admin đăng nhập & thao tác quản trị hệ thống
+  recordActivityLog({
+    actor: {
+      id: 'user-admin',
+      username: 'admin',
+      role: 'admin',
+      telesaleName: 'ADMIN',
+    },
+    actionType: 'auth_login',
+    actionLabel: 'Đăng nhập hệ thống',
+    target: {
+      sheetName: 'Hệ thống CRM',
+      customerName: 'ADMIN (@admin)',
+    },
+    summary: 'Đăng nhập thành công vào CRM với quyền Quản trị viên (Admin)',
+    changes: [{ field: 'login', label: 'Phiên đăng nhập', before: '—', after: 'Thành công' }],
+  });
+
+  // 3. Kiểm tra listActivityLogs lọc theo tài khoản Telesale, Admin, loại hành động và từ khóa
+  const allResult = listActivityLogs({ actor: 'all', actionType: 'all', limit: 100 });
+  assert.equal(allResult.logs.length >= 2, true);
+  assert.equal(allResult.stats.total >= 2, true);
+
+  const sale1Only = listActivityLogs({ actor: 'sale1', actionType: 'all', limit: 50 });
+  assert.equal(sale1Only.logs.length >= 1, true);
+  assert.equal(
+    sale1Only.logs.some(
+      (item) =>
+        item.actor.username === 'sale1' &&
+        item.actor.role === 'telesale' &&
+        item.changes.some((c) => String(c.after).includes('15h gọi lại'))
+    ),
+    true
+  );
+
+  const adminRoleOnly = listActivityLogs({ actor: 'role:admin', actionType: 'system', limit: 50 });
+  assert.equal(adminRoleOnly.logs.length >= 1, true);
+  assert.equal(
+    adminRoleOnly.logs.every((item) => item.actor.role === 'admin'),
+    true
+  );
+
+  const searchResult = listActivityLogs({ search: '15h gọi lại', limit: 20 });
+  assert.equal(searchResult.logs.length >= 1, true);
+
+  // 4. Kiểm tra giao diện Admin render bảng Nhật ký thao tác kèm bộ lọc và chi tiết Trước → Sau
+  const users = listUsersForAdmin();
+  const auditSectionHtml = renderAdminActivityLogSection(users, {
+    logs: allResult.logs.slice(0, 10),
+    stats: allResult.stats,
+    filters: { actor: 'all', actionType: 'all', search: '' },
+    loading: false,
+  });
+
+  assert.equal(auditSectionHtml.includes('Nhật Ký Thao Tác & Kiểm Tra Lịch Sử Hệ Thống'), true);
+  assert.equal(auditSectionHtml.includes('id="audit-filter-actor"'), true);
+  assert.equal(auditSectionHtml.includes('id="audit-filter-type"'), true);
+  assert.equal(auditSectionHtml.includes('id="audit-filter-search"'), true);
+  assert.equal(auditSectionHtml.includes('15h gọi lại'), true);
+  assert.equal(auditSectionHtml.includes('audit-change-item'), true);
+
+  const fullAdminHtml = renderAdminView(users, null, 'user-admin', null, {
+    logs: allResult.logs.slice(0, 5),
+    stats: allResult.stats,
+    filters: { actor: 'all', actionType: 'all', search: '' },
+    loading: false,
+  });
+  assert.equal(fullAdminHtml.includes('id="admin-activity-log-card"'), true);
+  assert.equal(fullAdminHtml.includes('id="btn-jump-audit-log"'), true);
+});
+
+
 
